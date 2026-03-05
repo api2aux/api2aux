@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import { parseUrlParameters } from '../services/urlParser/parser'
 import { deployAsMcpServer, type DeployResult } from '../services/mcp/deploy'
 import type { Credential } from '../types/auth'
+import type { ParsedOperation } from '@api2aux/semantic-analysis'
 
 type ExportFormat = 'claude-desktop' | 'claude-code' | 'cli'
 
@@ -37,6 +38,27 @@ function deriveToolName(url: string, serverName?: string): string {
 
 function deriveServerName(url: string): string {
   return deriveToolName(url).replace('fetch_', '')
+}
+
+function operationToolName(op: ParsedOperation): string {
+  if (op.operationId) {
+    return op.operationId
+      .replace(/[^a-zA-Z0-9_]/g, '_')
+      .replace(/([a-z])([A-Z])/g, '$1_$2')
+      .toLowerCase()
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '')
+  }
+  const pathSegments = op.path
+    .replace(/\{[^}]+\}/g, 'by_id')
+    .split('/')
+    .filter(Boolean)
+    .join('_')
+  return `${op.method.toLowerCase()}_${pathSegments}`
+}
+
+function operationDescription(op: ParsedOperation): string {
+  return op.summary || op.description?.split(/\.\s/)[0]?.concat('.') || `${op.method} ${op.path}`
 }
 
 function getMcpCommand(): { command: string; pkg: string } {
@@ -364,85 +386,196 @@ export function MCPExportDialog({ open, onClose }: MCPExportDialogProps) {
             <TabPanels className="flex-1 overflow-y-auto min-h-0">
               {/* Preview Tab */}
               <TabPanel className="px-6 py-4 space-y-5">
-                {/* Tool name + description */}
-                <section>
-                  <div className="flex items-center gap-2 mb-2">
-                    <code className="text-sm font-mono font-semibold text-foreground bg-muted px-2 py-0.5 rounded">
-                      {toolInfo.toolName}
-                    </code>
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {toolInfo.description}
-                  </p>
-                </section>
+                {parsedSpec && parsedSpec.operations.length > 0 ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      {parsedSpec.operations.length} tools generated from {parsedSpec.title}
+                    </p>
+                    {/* Group by tag */}
+                    {(() => {
+                      const grouped = new Map<string, ParsedOperation[]>()
+                      for (const op of parsedSpec.operations) {
+                        const tag = op.tags[0] || 'other'
+                        if (!grouped.has(tag)) grouped.set(tag, [])
+                        grouped.get(tag)!.push(op)
+                      }
+                      return [...grouped.entries()].map(([tag, ops]) => (
+                        <Disclosure key={tag} defaultOpen={grouped.size <= 3}>
+                          <DisclosureButton className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                            {({ open: isOpen }) => (
+                              <>
+                                {tag} ({ops.length})
+                                <ChevronIcon open={isOpen} />
+                              </>
+                            )}
+                          </DisclosureButton>
+                          <DisclosurePanel className="mt-2 space-y-0.5">
+                            {ops.map((op) => (
+                              <Disclosure key={`${op.method}-${op.path}`}>
+                                {({ open: opOpen }) => (
+                                  <>
+                                    <DisclosureButton className="flex items-start gap-2 px-3 py-2 rounded-lg hover:bg-muted/30 text-xs w-full text-left">
+                                      <span className={`shrink-0 font-mono font-bold w-10 ${
+                                        op.method === 'GET' ? 'text-green-500'
+                                          : op.method === 'POST' ? 'text-blue-500'
+                                          : op.method === 'PUT' ? 'text-amber-500'
+                                          : 'text-purple-500'
+                                      }`}>
+                                        {op.method}
+                                      </span>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <code className="font-mono text-foreground">{operationToolName(op)}</code>
+                                          {(op.parameters.length > 0 || op.requestBody) && (
+                                            <ChevronIcon open={opOpen} />
+                                          )}
+                                        </div>
+                                        <p className="text-muted-foreground mt-0.5">{operationDescription(op)}</p>
+                                      </div>
+                                    </DisclosureButton>
+                                    {(op.parameters.length > 0 || op.requestBody) && (
+                                      <DisclosurePanel className="ml-12 mr-3 mb-2">
+                                        <div className="border border-border rounded-lg overflow-hidden">
+                                          <table className="w-full text-xs">
+                                            <thead>
+                                              <tr className="bg-muted/50 text-muted-foreground">
+                                                <th className="text-left px-2 py-1.5 font-medium">Name</th>
+                                                <th className="text-left px-2 py-1.5 font-medium w-14">Type</th>
+                                                <th className="text-left px-2 py-1.5 font-medium w-10">In</th>
+                                                <th className="text-left px-2 py-1.5 font-medium">Description</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {op.parameters.map((p) => (
+                                                <tr key={p.name} className="border-t border-border">
+                                                  <td className="px-2 py-1.5">
+                                                    <code className="font-mono text-foreground">{p.name}</code>
+                                                    {p.required && <span className="text-red-400 ml-0.5">*</span>}
+                                                  </td>
+                                                  <td className="px-2 py-1.5 text-muted-foreground/70">{p.schema.type}</td>
+                                                  <td className="px-2 py-1.5 text-muted-foreground/50">{p.in}</td>
+                                                  <td className="px-2 py-1.5 text-muted-foreground">
+                                                    {p.description}
+                                                    {p.schema.enum && (
+                                                      <span className="ml-1 text-muted-foreground/50">
+                                                        [{p.schema.enum.map(String).join(', ')}]
+                                                      </span>
+                                                    )}
+                                                    {p.schema.default !== undefined && (
+                                                      <span className="ml-1 text-muted-foreground/50">
+                                                        default: {String(p.schema.default)}
+                                                      </span>
+                                                    )}
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                              {op.requestBody && (
+                                                <tr className="border-t border-border">
+                                                  <td className="px-2 py-1.5">
+                                                    <code className="font-mono text-foreground">body</code>
+                                                    {op.requestBody.required && <span className="text-red-400 ml-0.5">*</span>}
+                                                  </td>
+                                                  <td className="px-2 py-1.5 text-muted-foreground/70">JSON</td>
+                                                  <td className="px-2 py-1.5 text-muted-foreground/50">body</td>
+                                                  <td className="px-2 py-1.5 text-muted-foreground">
+                                                    {op.requestBody.description || 'Request body'}
+                                                  </td>
+                                                </tr>
+                                              )}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </DisclosurePanel>
+                                    )}
+                                  </>
+                                )}
+                              </Disclosure>
+                            ))}
+                          </DisclosurePanel>
+                        </Disclosure>
+                      ))
+                    })()}
+                  </>
+                ) : (
+                  <>
+                    {/* Fallback: single fetch tool for raw URLs */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-2">
+                        <code className="text-sm font-mono font-semibold text-foreground bg-muted px-2 py-0.5 rounded">
+                          {toolInfo.toolName}
+                        </code>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {toolInfo.description}
+                      </p>
+                    </section>
 
-                {/* Parameters */}
-                <Disclosure defaultOpen>
-                  <DisclosureButton className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                    {({ open: isOpen }) => (
-                      <>
-                        Parameters ({toolInfo.params.length})
-                        <ChevronIcon open={isOpen} />
-                      </>
-                    )}
-                  </DisclosureButton>
-                  <DisclosurePanel className="mt-2">
-                    <div className="border border-border rounded-lg overflow-hidden">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-muted/50 text-muted-foreground">
-                            <th className="text-left px-3 py-2 font-medium">Name</th>
-                            <th className="text-left px-3 py-2 font-medium w-16">Type</th>
-                            <th className="text-left px-3 py-2 font-medium">Description</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {toolInfo.params.map((param) => (
-                            <tr key={param.name} className="border-t border-border hover:bg-muted/30">
-                              <td className="px-3 py-2">
-                                <code className="font-mono text-foreground">{param.name}</code>
-                              </td>
-                              <td className="px-3 py-2 text-muted-foreground/70">{param.type}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{param.description}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </DisclosurePanel>
-                </Disclosure>
-
-                {/* Response Fields */}
-                {toolInfo.responseFields.length > 0 && (
-                  <Disclosure defaultOpen>
-                    <DisclosureButton className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                      {({ open: isOpen }) => (
-                        <>
-                          Response Fields ({toolInfo.responseFields.length})
-                          <ChevronIcon open={isOpen} />
-                        </>
-                      )}
-                    </DisclosureButton>
-                    <DisclosurePanel className="mt-2 flex flex-wrap gap-2">
-                      {toolInfo.responseFields.map((field) => (
-                        <div
-                          key={field.name}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-xs"
-                        >
-                          <code className="font-mono text-foreground">{field.name}</code>
-                          <span className="text-muted-foreground/70">{field.category}</span>
+                    <Disclosure defaultOpen>
+                      <DisclosureButton className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                        {({ open: isOpen }) => (
+                          <>
+                            Parameters ({toolInfo.params.length})
+                            <ChevronIcon open={isOpen} />
+                          </>
+                        )}
+                      </DisclosureButton>
+                      <DisclosurePanel className="mt-2">
+                        <div className="border border-border rounded-lg overflow-hidden">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-muted/50 text-muted-foreground">
+                                <th className="text-left px-3 py-2 font-medium">Name</th>
+                                <th className="text-left px-3 py-2 font-medium w-16">Type</th>
+                                <th className="text-left px-3 py-2 font-medium">Description</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {toolInfo.params.map((param) => (
+                                <tr key={param.name} className="border-t border-border hover:bg-muted/30">
+                                  <td className="px-3 py-2">
+                                    <code className="font-mono text-foreground">{param.name}</code>
+                                  </td>
+                                  <td className="px-3 py-2 text-muted-foreground/70">{param.type}</td>
+                                  <td className="px-3 py-2 text-muted-foreground">{param.description}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                      ))}
-                    </DisclosurePanel>
-                  </Disclosure>
-                )}
+                      </DisclosurePanel>
+                    </Disclosure>
 
-                {!toolInfo.hasData && (
-                  <p className="text-xs text-muted-foreground italic">
-                    Fetch the API to see response field semantics.
-                  </p>
-                )}
+                    {toolInfo.responseFields.length > 0 && (
+                      <Disclosure defaultOpen>
+                        <DisclosureButton className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                          {({ open: isOpen }) => (
+                            <>
+                              Response Fields ({toolInfo.responseFields.length})
+                              <ChevronIcon open={isOpen} />
+                            </>
+                          )}
+                        </DisclosureButton>
+                        <DisclosurePanel className="mt-2 flex flex-wrap gap-2">
+                          {toolInfo.responseFields.map((field) => (
+                            <div
+                              key={field.name}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border text-xs"
+                            >
+                              <code className="font-mono text-foreground">{field.name}</code>
+                              <span className="text-muted-foreground/70">{field.category}</span>
+                            </div>
+                          ))}
+                        </DisclosurePanel>
+                      </Disclosure>
+                    )}
 
+                    {!toolInfo.hasData && (
+                      <p className="text-xs text-muted-foreground italic">
+                        Fetch the API to see response field semantics.
+                      </p>
+                    )}
+                  </>
+                )}
               </TabPanel>
 
               {/* Export Tab */}
