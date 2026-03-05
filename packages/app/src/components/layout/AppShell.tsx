@@ -46,28 +46,31 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   // Desktop with chat: resizable panel layout
+  // The outer div constrains height to exactly the viewport so panels don't overflow
   return (
-    <Group
-      orientation="horizontal"
-      onLayoutChanged={handleLayoutChanged}
-      className="h-screen"
-    >
-      <Panel id="main" minSize="35" defaultSize={`${100 - chatDefault}`}>
-        <div className="h-full overflow-auto">
-          {children}
-        </div>
-      </Panel>
-      <Separator className="w-1.5 bg-border hover:bg-primary/20 transition-colors cursor-col-resize flex items-center justify-center group">
-        <div className="w-0.5 h-8 bg-muted-foreground/30 rounded-full group-hover:bg-primary/50 transition-colors" />
-      </Separator>
-      <Panel
-        id="chat"
-        minSize={CHAT_MIN_SIZE}
-        maxSize={CHAT_MAX_SIZE}
-        defaultSize={`${chatDefault}`}
+    <div className="h-dvh overflow-hidden">
+      <Group
+        orientation="horizontal"
+        onLayoutChanged={handleLayoutChanged}
       >
-        <ChatPanel />
-      </Panel>
-    </Group>
+        <Panel id="main" minSize="35" defaultSize={`${100 - chatDefault}`}>
+          <div className="h-full overflow-auto">
+            {children}
+          </div>
+        </Panel>
+        <Separator className="w-1.5 bg-border hover:bg-primary/20 transition-colors cursor-col-resize flex items-center justify-center group">
+          <div className="w-0.5 h-8 bg-muted-foreground/30 rounded-full group-hover:bg-primary/50 transition-colors" />
+        </Separator>
+        <Panel
+          id="chat"
+          className="h-full"
+          minSize={CHAT_MIN_SIZE}
+          maxSize={CHAT_MAX_SIZE}
+          defaultSize={`${chatDefault}`}
+        >
+          <ChatPanel />
+        </Panel>
+      </Group>
+    </div>
   )
 }
