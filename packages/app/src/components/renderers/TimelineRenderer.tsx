@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react'
 import type { RendererProps } from '../../types/components'
 import { PrimitiveRenderer } from './PrimitiveRenderer'
 import { DrilldownContainer } from '../detail/DrilldownContainer'
-import { FieldConfigPopover } from '../config/FieldConfigPopover'
 import { useItemDrilldown } from '../../hooks/useItemDrilldown'
 import { getItemLabel } from '../../utils/itemLabel'
 import { formatLabel } from '../../utils/formatLabel'
@@ -29,38 +27,9 @@ function findDateField(fields: Array<[string, { type: { kind: string; type?: str
 
 /** Renders arrays of objects as a vertical timeline */
 export function TimelineRenderer({ data, schema, path, depth }: RendererProps) {
-  const [popoverState, setPopoverState] = useState<{
-    fieldPath: string
-    fieldName: string
-    fieldValue: unknown
-    position: { x: number; y: number }
-  } | null>(null)
   const { selectedItem, handleItemClick, clearSelection } = useItemDrilldown(
     schema.kind === 'array' ? schema.items : schema, path, data, schema
   )
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const { fieldPath } = (e as CustomEvent).detail
-      if (schema.kind === 'array' && schema.items.kind === 'object') {
-        const columns = Array.from(schema.items.fields.entries())
-        const match = columns.find(([name]) => `${path}[].${name}` === fieldPath)
-        if (match) {
-          const [fieldName] = match
-          const firstRow = Array.isArray(data) && data.length > 0 ? data[0] as Record<string, unknown> : null
-          const fieldValue = firstRow ? firstRow[fieldName] : undefined
-          const el = document.querySelector(`[data-field-path="${fieldPath}"]`)
-          const rect = el?.getBoundingClientRect()
-          const pos = rect
-            ? { x: rect.right, y: rect.top }
-            : { x: window.innerWidth / 2, y: window.innerHeight / 3 }
-          setPopoverState({ fieldPath, fieldName, fieldValue, position: pos })
-        }
-      }
-    }
-    document.addEventListener('api2aux:configure-field', handler)
-    return () => document.removeEventListener('api2aux:configure-field', handler)
-  }, [schema, data])
 
   if (schema.kind !== 'array' || schema.items.kind !== 'object') {
     return <div className="text-red-500">TimelineRenderer expects array of objects</div>
@@ -158,16 +127,6 @@ export function TimelineRenderer({ data, schema, path, depth }: RendererProps) {
         itemSchema={schema.items}
         onClose={clearSelection}
       />
-
-      {popoverState && (
-        <FieldConfigPopover
-          fieldPath={popoverState.fieldPath}
-          fieldName={popoverState.fieldName}
-          fieldValue={popoverState.fieldValue}
-          position={popoverState.position}
-          onClose={() => setPopoverState(null)}
-        />
-      )}
     </div>
   )
 }

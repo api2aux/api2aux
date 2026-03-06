@@ -7,6 +7,7 @@ import { TopBarLayout } from './TopBarLayout'
 import { SplitLayout } from './SplitLayout'
 import { DrawerLayout } from './DrawerLayout'
 import { ShareButton } from '../ShareButton'
+import { ThemeToggle } from '../config/ThemeToggle'
 import { MCPButton } from '../MCPExportDialog'
 import { ChatButton } from '../chat/ChatPanel'
 import { DrilldownModeToggle } from '../navigation/DrilldownModeToggle'
@@ -64,6 +65,7 @@ export function LayoutContainer({
             <ChatButton />
             <MCPButton />
             <ShareButton />
+            <ThemeToggle />
           </div>
         </div>
       )}

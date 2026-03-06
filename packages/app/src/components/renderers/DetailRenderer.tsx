@@ -6,9 +6,6 @@ import { PrimitiveRenderer } from './PrimitiveRenderer'
 import { DynamicRenderer } from '../DynamicRenderer'
 import { useConfigStore } from '../../store/configStore'
 import { useAppStore } from '../../store/appStore'
-import { FieldConfigPopover } from '../config/FieldConfigPopover'
-import { SortableFieldList } from '../config/SortableFieldList'
-import { DraggableField } from '../config/DraggableField'
 import { isImageUrl, getHeroImageField } from '../../utils/imageDetection'
 import { DetailRendererGrouped } from './DetailRendererGrouped'
 import { FieldRow } from './FieldRow'
@@ -77,56 +74,15 @@ function classifyNestedObject(typeSig: TypeSignature): 'small' | 'large' {
 }
 
 export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
-  const [popoverState, setPopoverState] = useState<{
-    fieldPath: string
-    fieldName: string
-    fieldValue: unknown
-    position: { x: number; y: number }
-  } | null>(null)
   const [showGrouped, setShowGrouped] = useState(true)
   const [showNullFields, setShowNullFields] = useState(false)
-  const { mode, fieldConfigs, reorderFields } = useConfigStore()
+  const { fieldConfigs } = useConfigStore()
   const { getAnalysisCache } = useAppStore()
 
   // Reset showNullFields when data changes
   useEffect(() => {
     setShowNullFields(false)
   }, [data])
-
-  // Listen for cross-navigation events from ConfigPanel
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const { fieldPath } = (e as CustomEvent).detail
-      if (schema.kind === 'object') {
-        const fields = Array.from(schema.fields.entries())
-        const match = fields.find(([name]) => `${path}.${name}` === fieldPath)
-        if (match) {
-          const [fieldName] = match
-          const obj = (typeof data === 'object' && data !== null) ? data as Record<string, unknown> : {}
-          const fieldValue = obj[fieldName]
-          const el = document.querySelector(`[data-field-path="${fieldPath}"]`)
-          const rect = el?.getBoundingClientRect()
-          const pos = rect
-            ? { x: rect.right, y: rect.top }
-            : { x: window.innerWidth / 2, y: window.innerHeight / 3 }
-          setPopoverState({ fieldPath, fieldName, fieldValue, position: pos })
-        }
-      }
-    }
-    document.addEventListener('api2aux:configure-field', handler)
-    return () => document.removeEventListener('api2aux:configure-field', handler)
-  }, [schema, data, path])
-
-  const handleFieldContextMenu = (
-    e: React.MouseEvent,
-    fieldPath: string,
-    fieldName: string,
-    fieldValue: unknown
-  ) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setPopoverState({ fieldPath, fieldName, fieldValue, position: { x: e.clientX, y: e.clientY } })
-  }
 
   if (schema.kind !== 'object') {
     return <div className="text-red-500">DetailRenderer expects object schema</div>
@@ -161,36 +117,31 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
     return allFields.findIndex(f => f[0] === a[0]) - allFields.findIndex(f => f[0] === b[0])
   })
 
-  // Filter fields based on visibility in View mode
-  const isConfigureMode = mode === 'configure'
+  // Filter fields based on visibility
+  const visibilityFiltered = sortedFields.filter(([fieldName]) => {
+    const fieldPath = `${path}.${fieldName}`
+    const config = fieldConfigs[fieldPath]
+    return config?.visible !== false
+  })
 
-  // First filter: visibility (both configure and view modes respect this)
-  const visibilityFiltered = isConfigureMode
-    ? sortedFields  // Show all in Configure mode
-    : sortedFields.filter(([fieldName]) => {
-        const fieldPath = `${path}.${fieldName}`
-        const config = fieldConfigs[fieldPath]
-        return config?.visible !== false
-      })
-
-  // Second filter: null/undefined values (only in view mode when showNullFields is false)
-  const visibleFields = isConfigureMode || showNullFields
+  // Second filter: null/undefined values (when showNullFields is false)
+  const visibleFields = showNullFields
     ? visibilityFiltered
     : visibilityFiltered.filter(([fieldName]) => {
         return !isEmptyValue(obj[fieldName])
       })
 
   // Count null fields that are hidden (for toggle button text)
-  const nullFieldCount = isConfigureMode ? 0 : visibilityFiltered.filter(([fieldName]) => {
+  const nullFieldCount = visibilityFiltered.filter(([fieldName]) => {
     return isEmptyValue(obj[fieldName])
   }).length
 
-  if (visibleFields.length === 0 && !isConfigureMode) {
+  if (visibleFields.length === 0) {
     return <div className="text-muted-foreground italic">All fields hidden</div>
   }
 
-  // Detect hero image for view mode
-  const heroImage = !isConfigureMode ? getHeroImageField(obj, allFields) : null
+  // Detect hero image
+  const heroImage = getHeroImageField(obj, allFields)
 
   // Read analysis cache for grouping data (in view mode only)
   const cached = getAnalysisCache(path) || getAnalysisCache(normalizePath(path))
@@ -198,8 +149,7 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
   const importance = cached?.importance ?? new Map()
 
   // Determine if grouped view should apply
-  const shouldGroup = !isConfigureMode &&
-    showGrouped &&
+  const shouldGroup = showGrouped &&
     grouping !== null &&
     grouping.groups.length > 0 &&
     visibleFields.length > 8
@@ -211,37 +161,28 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
   const metaFields: Array<[string, FieldDefinition]> = []
   const nestedFields: Array<[string, FieldDefinition]> = []
 
-  if (!isConfigureMode) {
-    for (const field of visibleFields) {
-      const [fieldName, fieldDef] = field
+  for (const field of visibleFields) {
+    const [fieldName, fieldDef] = field
 
-      // Skip hero image field to avoid duplication
-      if (heroImage && fieldName === heroImage.fieldName) continue
+    // Skip hero image field to avoid duplication
+    if (heroImage && fieldName === heroImage.fieldName) continue
 
-      if (fieldDef.type.kind === 'primitive') {
-        const value = obj[fieldName]
-        const isImage = typeof value === 'string' && isImageUrl(value)
+    if (fieldDef.type.kind === 'primitive') {
+      const value = obj[fieldName]
+      const isImage = typeof value === 'string' && isImageUrl(value)
 
-        if (isPrimaryField(fieldName)) {
-          primaryFields.push(field)
-        } else if (isMetadataField(fieldName)) {
-          metaFields.push(field)
-        } else if (isImage) {
-          imageFields.push(field)
-        } else {
-          regularFields.push(field)
-        }
+      if (isPrimaryField(fieldName)) {
+        primaryFields.push(field)
+      } else if (isMetadataField(fieldName)) {
+        metaFields.push(field)
+      } else if (isImage) {
+        imageFields.push(field)
       } else {
-        nestedFields.push(field)
+        regularFields.push(field)
       }
+    } else {
+      nestedFields.push(field)
     }
-  }
-
-  // Field paths for drag-and-drop ordering
-  const fieldPaths = visibleFields.map(([fieldName]) => `${path}.${fieldName}`)
-
-  const handleReorder = (orderedPaths: string[]) => {
-    reorderFields(orderedPaths)
   }
 
   // Helper to render a primitive field (uses FieldRow with tier styling)
@@ -269,7 +210,6 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
         fieldPath={fieldPath}
         tier={tier}
         depth={depth}
-        onContextMenu={handleFieldContextMenu}
       />
     )
   }
@@ -287,25 +227,6 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
       <div
         key={fieldName}
         className="space-y-2"
-        onContextMenu={(e) => handleFieldContextMenu(e, fieldPath, fieldName, value)}
-        onTouchStart={(e) => {
-          const touch = e.touches[0]
-          if (!touch) return
-          const touchX = touch.clientX
-          const touchY = touch.clientY
-          const timer = setTimeout(() => {
-            setPopoverState({ fieldPath, fieldName, fieldValue: value, position: { x: touchX, y: touchY } })
-          }, 800)
-          ;(e.currentTarget as HTMLElement).dataset.longPressTimer = String(timer)
-        }}
-        onTouchEnd={(e) => {
-          const timer = (e.currentTarget as HTMLElement).dataset.longPressTimer
-          if (timer) clearTimeout(Number(timer))
-        }}
-        onTouchMove={(e) => {
-          const timer = (e.currentTarget as HTMLElement).dataset.longPressTimer
-          if (timer) clearTimeout(Number(timer))
-        }}
       >
         <div className="text-sm font-medium text-muted-foreground">
           {displayLabel}
@@ -330,9 +251,8 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
       .replace(/\b\w/g, (char) => char.toUpperCase())
     const displayLabel = config?.label || defaultLabel
 
-    // In view mode, use DynamicRenderer for arrays of objects (enables smart selection + click handling)
+    // Use DynamicRenderer for arrays of objects (enables smart selection + click handling)
     if (
-      !isConfigureMode &&
       fieldDef.type.kind === 'array' &&
       fieldDef.type.items.kind === 'object' &&
       Array.isArray(value) &&
@@ -427,7 +347,6 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
       const value = obj[fieldName]
       const fieldPath = `${path}.${fieldName}`
       const config = fieldConfigs[fieldPath]
-      const isVisible = config?.visible !== false
 
       // Format label: use custom label if set, otherwise auto-format
       const defaultLabel = fieldName
@@ -441,140 +360,53 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
         const isImage = typeof value === 'string' && isImageUrl(value)
 
         if (isImage) {
-          const imageContent = (
-            <div
-              className="space-y-2"
-              onContextMenu={(e) => handleFieldContextMenu(e, fieldPath, fieldName, value)}
-              onTouchStart={(e) => {
-                const touch = e.touches[0]
-                if (!touch) return
-                const touchX = touch.clientX
-                const touchY = touch.clientY
-                const timer = setTimeout(() => {
-                  setPopoverState({ fieldPath, fieldName, fieldValue: value, position: { x: touchX, y: touchY } })
-                }, 800)
-                ;(e.currentTarget as HTMLElement).dataset.longPressTimer = String(timer)
-              }}
-              onTouchEnd={(e) => {
-                const timer = (e.currentTarget as HTMLElement).dataset.longPressTimer
-                if (timer) clearTimeout(Number(timer))
-              }}
-              onTouchMove={(e) => {
-                const timer = (e.currentTarget as HTMLElement).dataset.longPressTimer
-                if (timer) clearTimeout(Number(timer))
-              }}
-            >
-              <div className="text-sm font-medium text-muted-foreground">
-                {displayLabel}
+          return (
+            <div key={fieldName}>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">
+                  {displayLabel}
+                </div>
+                <img
+                  src={value as string}
+                  alt={displayLabel}
+                  loading="lazy"
+                  className="max-w-full max-h-64 object-contain rounded-lg border border-border bg-muted"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
               </div>
-              <img
-                src={value as string}
-                alt={displayLabel}
-                loading="lazy"
-                className="max-w-full max-h-64 object-contain rounded-lg border border-border bg-muted"
-                onError={(e) => { e.currentTarget.style.display = 'none' }}
-              />
             </div>
           )
-
-          // Wrap with DraggableField in Configure mode
-          if (isConfigureMode) {
-            return (
-              <DraggableField key={fieldName} id={fieldPath} fieldPath={fieldPath} isVisible={isVisible}>
-                {imageContent}
-              </DraggableField>
-            )
-          }
-          return <div key={fieldName}>{imageContent}</div>
         }
 
         // At depth > 0, disable primary field emphasis for visual uniformity
         const primary = depth === 0 && isPrimaryField(fieldName)
 
-        const contextMenuHandlers = {
-          onContextMenu: (e: React.MouseEvent) => handleFieldContextMenu(e, fieldPath, fieldName, value),
-          onTouchStart: (e: React.TouchEvent) => {
-            const touch = e.touches[0]
-            if (!touch) return
-            const touchX = touch.clientX
-            const touchY = touch.clientY
-            const timer = setTimeout(() => {
-              setPopoverState({ fieldPath, fieldName, fieldValue: value, position: { x: touchX, y: touchY } })
-            }, 800)
-            ;(e.currentTarget as HTMLElement).dataset.longPressTimer = String(timer)
-          },
-          onTouchEnd: (e: React.TouchEvent) => {
-            const timer = (e.currentTarget as HTMLElement).dataset.longPressTimer
-            if (timer) clearTimeout(Number(timer))
-          },
-          onTouchMove: (e: React.TouchEvent) => {
-            const timer = (e.currentTarget as HTMLElement).dataset.longPressTimer
-            if (timer) clearTimeout(Number(timer))
-          },
-        }
-
-        const fieldContent = (
-          <div className="grid grid-cols-[auto_1fr] gap-x-3 items-baseline min-w-0" {...contextMenuHandlers}>
-            <div className={primary
-              ? "text-base font-semibold text-foreground py-1 whitespace-nowrap"
-              : "text-sm font-medium text-muted-foreground py-1 whitespace-nowrap"
-            }>
-              {displayLabel}:
-            </div>
-            <div className={primary
-              ? "py-1 text-lg font-semibold text-foreground min-w-0"
-              : "py-1 min-w-0"
-            }>
-              <PrimitiveRenderer
-                data={value}
-                schema={fieldDef.type}
-                path={fieldPath}
-                depth={depth + 1}
-              />
+        return (
+          <div key={fieldName}>
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 items-baseline min-w-0">
+              <div className={primary
+                ? "text-base font-semibold text-foreground py-1 whitespace-nowrap"
+                : "text-sm font-medium text-muted-foreground py-1 whitespace-nowrap"
+              }>
+                {displayLabel}:
+              </div>
+              <div className={primary
+                ? "py-1 text-lg font-semibold text-foreground min-w-0"
+                : "py-1 min-w-0"
+              }>
+                <PrimitiveRenderer
+                  data={value}
+                  schema={fieldDef.type}
+                  path={fieldPath}
+                  depth={depth + 1}
+                />
+              </div>
             </div>
           </div>
         )
-
-        // In Configure mode: wrap with DraggableField (hover-reveal controls)
-        if (isConfigureMode) {
-          return (
-            <DraggableField key={fieldName} id={fieldPath} fieldPath={fieldPath} isVisible={isVisible}>
-              {fieldContent}
-            </DraggableField>
-          )
-        }
-
-        return <div key={fieldName}>{fieldContent}</div>
       }
 
-      // Render nested objects/arrays
-      // Configure mode: always collapsible Disclosure
-      if (isConfigureMode) {
-        const nestedContent = (
-          <Disclosure defaultOpen={depth === 0}>
-            <DisclosureButton className="flex items-center gap-2 text-primary hover:text-primary/80 text-sm font-medium">
-              <ChevronIcon />
-              {displayLabel} {getFieldSummary(fieldDef, value)}
-            </DisclosureButton>
-            <DisclosurePanel className="ml-4 mt-2 border-l-2 border-border pl-4">
-              <DynamicRenderer
-                data={value}
-                schema={fieldDef.type}
-                path={fieldPath}
-                depth={depth + 1}
-              />
-            </DisclosurePanel>
-          </Disclosure>
-        )
-
-        return (
-          <DraggableField key={fieldName} id={fieldPath} fieldPath={fieldPath} isVisible={isVisible} nested>
-            {nestedContent}
-          </DraggableField>
-        )
-      }
-
-      // View mode: use same hybrid logic as renderNestedField
+      // Render nested objects/arrays - use hybrid logic
       const classification = classifyNestedObject(fieldDef.type)
 
       // Small objects: flat merge with divider + heading
@@ -646,50 +478,24 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
 
   const fieldsContent = renderFields()
 
-  const popoverElement = popoverState && (
-    <FieldConfigPopover
-      fieldPath={popoverState.fieldPath}
-      fieldName={popoverState.fieldName}
-      fieldValue={popoverState.fieldValue}
-      position={popoverState.position}
-      onClose={() => setPopoverState(null)}
-    />
-  )
-
-  // In Configure mode: wrap with SortableFieldList
-  if (isConfigureMode) {
-    return (
-      <div className="space-y-3 border border-border rounded-lg p-4">
-        <SortableFieldList items={fieldPaths} onReorder={handleReorder}>
-          {fieldsContent}
-        </SortableFieldList>
-        {popoverElement}
-      </div>
-    )
-  }
-
-  // View mode: conditional grouped/ungrouped rendering
+  // Conditional grouped/ungrouped rendering
   if (shouldGroup) {
     return (
-      <>
-        <DetailRendererGrouped
-          data={obj}
-          schema={schema}
-          path={path}
-          depth={depth}
-          heroImage={heroImage}
-          groups={grouping.groups}
-          ungroupedFields={grouping.ungrouped}
-          importance={importance}
-          fieldConfigs={fieldConfigs}
-          onContextMenu={handleFieldContextMenu}
-          onToggleGrouping={() => setShowGrouped(false)}
-          showNullFields={showNullFields}
-          onToggleNullFields={() => setShowNullFields(prev => !prev)}
-          nullFieldCount={nullFieldCount}
-        />
-        {popoverElement}
-      </>
+      <DetailRendererGrouped
+        data={obj}
+        schema={schema}
+        path={path}
+        depth={depth}
+        heroImage={heroImage}
+        groups={grouping.groups}
+        ungroupedFields={grouping.ungrouped}
+        importance={importance}
+        fieldConfigs={fieldConfigs}
+        onToggleGrouping={() => setShowGrouped(false)}
+        showNullFields={showNullFields}
+        onToggleNullFields={() => setShowNullFields(prev => !prev)}
+        nullFieldCount={nullFieldCount}
+      />
     )
   }
 
@@ -776,7 +582,6 @@ export function DetailRenderer({ data, schema, path, depth }: RendererProps) {
           </div>
         )}
       </div>
-      {popoverElement}
     </div>
   )
 }

@@ -21,7 +21,6 @@ export interface DetailRendererGroupedProps {
   ungroupedFields: FieldInfo[]
   importance: Map<string, ImportanceScore>
   fieldConfigs: Record<string, any>
-  onContextMenu: (e: React.MouseEvent, fieldPath: string, fieldName: string, value: unknown) => void
   onToggleGrouping: () => void  // switches to ungrouped mode
   showNullFields: boolean
   onToggleNullFields: () => void
@@ -69,7 +68,6 @@ export function DetailRendererGrouped({
   ungroupedFields,
   importance,
   fieldConfigs,
-  onContextMenu,
   onToggleGrouping,
   showNullFields,
   onToggleNullFields,
@@ -138,7 +136,6 @@ export function DetailRendererGrouped({
         fieldPath={fieldPath}
         tier={tier}
         depth={depth + 1}
-        onContextMenu={onContextMenu}
       />
     )
   }
@@ -152,7 +149,6 @@ export function DetailRendererGrouped({
       <div
         key={fieldName}
         className="space-y-2"
-        onContextMenu={(e) => onContextMenu(e, fieldPath, fieldName, value)}
       >
         <div className="text-sm font-medium text-muted-foreground">
           {displayLabel}

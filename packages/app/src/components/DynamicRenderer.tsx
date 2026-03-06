@@ -6,14 +6,12 @@ import { JsonFallback } from './renderers/JsonFallback'
 import { useConfigStore } from '../store/configStore'
 import { useAppStore } from '../store/appStore'
 import { NavigationProvider } from '../contexts/NavigationContext'
-import { ComponentPicker } from './config/ComponentPicker'
-import { ViewModeBadge } from './config/ViewModeBadge'
-import { OnboardingTooltip } from './config/OnboardingTooltip'
 import { Breadcrumb } from './navigation/Breadcrumb'
 import { DrilldownModeToggle } from './navigation/DrilldownModeToggle'
 import { ShareButton } from './ShareButton'
 import { MCPButton } from './MCPExportDialog'
 import { ChatButton } from './chat/ChatPanel'
+import { ThemeToggle } from './config/ThemeToggle'
 import { getDefaultTypeName } from '../services/selection'
 
 /** Normalize indexed array paths to generic paths for cache lookup.
@@ -33,20 +31,6 @@ interface DynamicRendererProps {
 
 const MAX_DEPTH = 5
 
-/** Get the list of alternative component types for a given schema */
-function getAvailableTypes(schema: TypeSignature): string[] {
-  if (schema.kind === 'array' && schema.items.kind === 'object') {
-    return ['table', 'card-list', 'list', 'gallery', 'timeline', 'stats', 'json']
-  }
-  if (schema.kind === 'array' && schema.items.kind === 'primitive') {
-    return ['primitive-list', 'chips', 'inline', 'grid', 'json']
-  }
-  if (schema.kind === 'object') {
-    return ['detail', 'hero', 'tabs', 'split', 'json']
-  }
-  return [getDefaultTypeName(schema)]
-}
-
 export function DynamicRenderer({
   data,
   schema,
@@ -54,9 +38,8 @@ export function DynamicRenderer({
   depth = 0,
   hideViewControls = false,
 }: DynamicRendererProps) {
-  const { fieldConfigs, setFieldComponentType, drilldownMode } = useConfigStore()
+  const { fieldConfigs, drilldownMode } = useConfigStore()
   const { getAnalysisCache } = useAppStore()
-  const [showPicker, setShowPicker] = useState(false)
 
   // Navigation stack — only meaningful at depth=0
   const [navStack, setNavStack] = useState<NavStackEntry[]>([])
@@ -91,19 +74,6 @@ export function DynamicRenderer({
       setNavStack(prev => prev.slice(0, index + 1))
     }
   }, [])
-
-  // Listen for open-picker events from ComponentOverridePanel
-  useEffect(() => {
-    if (depth !== 0) return
-    const handler = (e: Event) => {
-      const { fieldPath } = (e as CustomEvent).detail
-      if (fieldPath === path) {
-        setShowPicker(true)
-      }
-    }
-    document.addEventListener('api2aux:open-picker', handler)
-    return () => document.removeEventListener('api2aux:open-picker', handler)
-  }, [depth, path])
 
   // Guard against excessive depth
   if (depth > MAX_DEPTH) {
@@ -150,12 +120,6 @@ export function DynamicRenderer({
   // Get the appropriate component from the registry - use currentType which includes smart selection
   const Component = getComponent(activeSchema, currentType)
 
-  // Determine component types for badge
-  const availableTypes = getAvailableTypes(activeSchema)
-
-  // Show badge on any renderer with alternatives
-  const canShowBadge = availableTypes.length > 1
-
   const content = (
     <div>
       {/* Navigation bar: breadcrumb + view controls — only at depth=0 when data exists */}
@@ -185,36 +149,11 @@ export function DynamicRenderer({
             <ChatButton />
             <MCPButton />
             <ShareButton />
+            <ThemeToggle />
           </div>
         </div>
       ))}
 
-      {canShowBadge && (
-        <div className="flex justify-end mb-1">
-          <ViewModeBadge
-            currentType={currentType}
-            availableTypes={availableTypes}
-            onSelect={(type) => {
-              setFieldComponentType(activePath, type)
-            }}
-            onOpenPicker={() => setShowPicker(true)}
-          />
-        </div>
-      )}
-      {showPicker && (
-        <ComponentPicker
-          currentType={currentType}
-          availableTypes={availableTypes}
-          fieldPath={activePath}
-          sampleData={activeData}
-          sampleSchema={activeSchema}
-          onSelect={(type) => {
-            setFieldComponentType(activePath, type)
-            setShowPicker(false)
-          }}
-          onClose={() => setShowPicker(false)}
-        />
-      )}
       <Component
         data={activeData}
         schema={activeSchema}
@@ -222,7 +161,6 @@ export function DynamicRenderer({
         depth={depth}
         importance={(getAnalysisCache(activePath) || getAnalysisCache(normalizePath(activePath)))?.importance}
       />
-      {depth === 0 && data != null && <OnboardingTooltip />}
     </div>
   )
 

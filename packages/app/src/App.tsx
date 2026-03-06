@@ -14,9 +14,8 @@ import { SkeletonTable } from './components/loading/SkeletonTable'
 import { OperationSelector } from './components/openapi/OperationSelector'
 import { ParameterForm } from './components/forms/ParameterForm'
 import { AppliedFilters } from './components/forms/AppliedFilters'
-import { ConfigToggle } from './components/config/ConfigToggle'
-import { ConfigPanel } from './components/config/ConfigPanel'
 import { ThemeApplier } from './components/config/ThemeApplier'
+import { ThemeToggle } from './components/config/ThemeToggle'
 import { Sidebar } from './components/navigation/Sidebar'
 import { LayoutContainer } from './components/layout/LayoutContainer'
 import { parseUrlParameters, reconstructQueryString } from './services/urlParser/parser'
@@ -42,11 +41,8 @@ function ResultsToolbar() {
           <ChatButton />
           <MCPButton />
           <ShareButton />
+          <ThemeToggle />
         </div>
-      </div>
-      {/* Skeleton placeholder matching ViewModeBadge pill size */}
-      <div className="flex justify-end mb-1">
-        <span className="inline-block bg-muted text-xs px-2.5 py-1 rounded-full animate-pulse w-16">&nbsp;</span>
       </div>
     </>
   )
@@ -67,7 +63,7 @@ function App() {
     detailPanelOpen
   } = useAppStore()
   const chatOpen = useChatStore((s) => s.open)
-  const { mode, setMode, clearFieldConfigs } = useConfigStore()
+  const { clearFieldConfigs } = useConfigStore()
   const { getValues, clearValue, clearEndpoint } = useParameterStore()
   const { fetchAndInfer, fetchOperation } = useAPIFetch()
 
@@ -215,8 +211,6 @@ function App() {
     setSelectedOperation(index)
   }
 
-  const isConfigureMode = mode === 'configure'
-
   // Determine if we should show the sidebar
   const showSidebar = parsedSpec !== null && parsedSpec.operations.length >= 2
 
@@ -260,34 +254,6 @@ function App() {
       {/* Theme and style synchronization */}
       <ThemeApplier />
 
-      {/* Configure mode indicator bar */}
-      {isConfigureMode && (
-        <div className="fixed top-0 left-0 right-0 bg-primary text-primary-foreground px-4 py-2 flex items-center justify-between z-30 shadow-md">
-          <div className="flex items-center gap-2">
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-              />
-            </svg>
-            <span className="font-medium">Configure Mode</span>
-          </div>
-          <button
-            onClick={() => setMode('view')}
-            className="px-3 py-1 bg-background text-foreground font-medium rounded hover:bg-muted transition-colors"
-          >
-            Done
-          </button>
-        </div>
-      )}
-
       <AppShell>
       {showSidebar ? (
         // Sidebar layout for multi-endpoint specs
@@ -299,9 +265,9 @@ function App() {
           />
           <main
             id="main-content"
-            className={`flex-1 overflow-y-auto py-8 px-6 transition-[padding] duration-300 ${isConfigureMode ? 'pt-20' : ''} ${detailPanelOpen ? 'pr-[42rem]' : ''}`}
+            className={`flex-1 overflow-y-auto py-8 px-6 transition-[padding] duration-300 ${detailPanelOpen ? 'pr-[42rem]' : ''}`}
           >
-            <div className={isConfigureMode ? 'ring-2 ring-ring ring-offset-4' : ''}>
+            <div>
               {/* Header */}
               <div className="text-center mb-8">
                 <h1 className="text-2xl font-semibold text-foreground mb-2">
@@ -404,8 +370,8 @@ function App() {
         </div>
       ) : (
         // Centered layout for single-endpoint and direct URLs
-        <div className={`min-h-screen bg-background text-foreground py-8 px-4 transition-[padding] duration-300 ${isConfigureMode ? 'pt-20' : ''} ${detailPanelOpen ? 'pr-[42rem]' : ''}`}>
-          <div className={`${chatOpen ? 'w-full' : 'max-w-6xl mx-auto'} ${isConfigureMode ? 'ring-2 ring-ring ring-offset-4' : ''}`}>
+        <div className={`min-h-screen bg-background text-foreground py-8 px-4 transition-[padding] duration-300 ${detailPanelOpen ? 'pr-[42rem]' : ''}`}>
+          <div className={chatOpen ? 'w-full' : 'max-w-6xl mx-auto'}>
             {/* Header */}
             <div className="text-center mb-8">
               <h1 className="text-2xl font-semibold text-foreground mb-2">
@@ -622,10 +588,6 @@ function App() {
         </div>
       )}
       </AppShell>
-
-      {/* Floating config toggle and panel */}
-      <ConfigToggle />
-      <ConfigPanel />
 
       {/* Toast notifications */}
       <Toaster position="bottom-right" />

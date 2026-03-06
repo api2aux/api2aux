@@ -30,9 +30,7 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
 
 interface ConfigStore extends ConfigState {
   // Mode
-  setMode: (mode: 'configure' | 'view') => void
   setDrilldownMode: (mode: DrilldownMode) => void
-  togglePanel: () => void
 
   // Field config
   setFieldConfig: (path: string, config: Partial<FieldConfig>) => void
@@ -77,20 +75,16 @@ export const useConfigStore = create<ConfigStore>()(
   persist(
     (set, get) => ({
       // State
-      mode: 'view' as const,
       drilldownMode: 'page' as DrilldownMode,
       fieldConfigs: {},
       globalTheme: 'light' as ThemePreset,
       styleOverrides: {} as StyleOverrides,
       endpointOverrides: {},
-      panelOpen: false,
       paginationConfigs: {},
       pluginPreferences: {},
 
       // Mode
-      setMode: (mode) => set({ mode }),
       setDrilldownMode: (mode) => set({ drilldownMode: mode }),
-      togglePanel: () => set((state) => ({ panelOpen: !state.panelOpen })),
 
       // Field config
       setFieldConfig: (path, config) =>

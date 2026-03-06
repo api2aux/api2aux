@@ -42,13 +42,11 @@ export interface PaginationConfig {
 }
 
 export interface ConfigState {
-  mode: 'configure' | 'view'
   drilldownMode: DrilldownMode
   fieldConfigs: Record<string, FieldConfig>
   globalTheme: ThemePreset
   styleOverrides: StyleOverrides
   endpointOverrides: Record<string, StyleOverrides>
-  panelOpen: boolean
   paginationConfigs: Record<string, PaginationConfig>  // keyed by field path (e.g., "$")
   pluginPreferences: Record<string, string>  // semantic category → preferred plugin ID
 }
