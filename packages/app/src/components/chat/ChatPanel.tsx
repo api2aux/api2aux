@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
+import type { ChatMessage as LLMMessage } from '../../services/llm/types'
 import { useChat } from '../../hooks/useChat'
 import { useChatStore } from '../../store/chatStore'
 import { useAppStore } from '../../store/appStore'
@@ -9,8 +10,9 @@ import { ChatSettings } from './ChatSettings'
 export function ChatPanel() {
   const { setOpen, clearMessages } = useChatStore()
   const url = useAppStore((s) => s.url)
-  const { messages, sendMessage, sending, hasApiKey, contextStats } = useChat()
+  const { messages, sendMessage, sending, hasApiKey, contextStats, llmHistory } = useChat()
   const [showSettings, setShowSettings] = useState(false)
+  const [showContext, setShowContext] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessageCount = useRef(messages.length)
 
@@ -116,7 +118,15 @@ export function ChatPanel() {
       {/* Context indicator */}
       {contextStats.messageCount > 0 && (
         <div className="flex items-center justify-between px-4 py-1 border-t border-border text-[10px] text-muted-foreground">
-          <span>{contextStats.messageCount} msgs in context</span>
+          <span>
+            {contextStats.messageCount} msgs in{' '}
+            <button
+              onClick={() => setShowContext(true)}
+              className="underline hover:text-foreground transition-colors cursor-pointer"
+            >
+              context
+            </button>
+          </span>
           <span
             className={contextStats.estimatedTokens > 6000 ? 'text-amber-500' : ''}
             title="Approximate token count of conversation history sent to LLM"
@@ -124,6 +134,11 @@ export function ChatPanel() {
             ~{contextStats.estimatedTokens.toLocaleString()} tokens
           </span>
         </div>
+      )}
+
+      {/* Context dialog */}
+      {showContext && (
+        <ContextDialog history={llmHistory} onClose={() => setShowContext(false)} />
       )}
 
       {/* Input */}
@@ -136,6 +151,78 @@ export function ChatPanel() {
           : 'Ask about this API...'
         }
       />
+    </div>
+  )
+}
+
+function roleBadge(role: string) {
+  const styles: Record<string, string> = {
+    system: 'bg-purple-500/15 text-purple-400',
+    user: 'bg-primary/15 text-primary',
+    assistant: 'bg-muted text-foreground',
+    tool: 'bg-amber-500/15 text-amber-400',
+  }
+  return styles[role] || 'bg-muted text-muted-foreground'
+}
+
+function truncate(text: string | null, max: number): string {
+  if (!text) return '(empty)'
+  if (text.length <= max) return text
+  return text.slice(0, max) + '…'
+}
+
+function ContextDialog({ history, onClose }: { history: LLMMessage[]; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="bg-background border border-border rounded-lg shadow-xl w-150 max-w-[90vw] max-h-[70vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold">LLM Context ({history.length} messages)</h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {history.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No messages in context yet.</p>
+          ) : (
+            history.map((msg, i) => (
+              <div key={i} className="text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${roleBadge(msg.role)}`}>
+                    {msg.role}
+                  </span>
+                  {msg.tool_call_id && (
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      id: {msg.tool_call_id}
+                    </span>
+                  )}
+                </div>
+                {msg.tool_calls && msg.tool_calls.length > 0 ? (
+                  <div className="space-y-1">
+                    {msg.tool_calls.map((tc, j) => (
+                      <pre key={j} className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
+                        {tc.function.name}({truncate(tc.function.arguments, 200)})
+                      </pre>
+                    ))}
+                  </div>
+                ) : (
+                  <pre className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
+                    {truncate(msg.content, 500)}
+                  </pre>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -316,5 +316,6 @@ export function useChat() {
     sending,
     hasApiKey: !!config.apiKey,
     contextStats,
+    llmHistory,
   }
 }
