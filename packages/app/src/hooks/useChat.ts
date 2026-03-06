@@ -185,9 +185,10 @@ export function useChat() {
         ...llmHistory,
       ]
 
-      // Tool calling loop: allow up to MAX_TOOL_CALLS per user message
-      const MAX_TOOL_CALLS = 3
-      let toolCallCount = 0
+      // Tool calling loop: allow up to MAX_ROUNDS of LLM→tool→LLM cycles
+      // Each round may have multiple parallel tool_calls that all get executed
+      const MAX_ROUNDS = 3
+      let roundCount = 0
       let currentResponse = await chatCompletion(llmMessages, tools, config)
       let currentChoice = currentResponse.choices[0]
       if (!currentChoice) throw new Error('No response from LLM')
@@ -195,74 +196,77 @@ export function useChat() {
       while (
         currentChoice.message.tool_calls &&
         currentChoice.message.tool_calls.length > 0 &&
-        toolCallCount < MAX_TOOL_CALLS
+        roundCount < MAX_ROUNDS
       ) {
-        toolCallCount++
-        const toolCall = currentChoice.message.tool_calls[0]!
-        const toolArgs = JSON.parse(toolCall.function.arguments)
+        roundCount++
+        const allToolCalls = currentChoice.message.tool_calls
 
-        // Track assistant tool_call in LLM history
+        // Track assistant message with ALL tool_calls in LLM history
         llmHistory.push({
           role: 'assistant',
           content: null,
-          tool_calls: currentChoice.message.tool_calls,
+          tool_calls: allToolCalls,
         })
 
-        // Update assistant message to show tool call
-        updateMessage(assistantId, {
-          text: `Calling ${toolCall.function.name}...${toolCallCount > 1 ? ` (${toolCallCount}/${MAX_TOOL_CALLS})` : ''}`,
-          toolName: toolCall.function.name,
-          toolArgs,
-        })
+        // Execute ALL tool calls and collect responses
+        for (const toolCall of allToolCalls) {
+          const toolArgs = JSON.parse(toolCall.function.arguments)
 
-        // Execute the tool
-        let toolResult: unknown
-        try {
-          toolResult = await executeToolCall(toolCall.function.name, toolArgs, url)
-        } catch (err) {
+          updateMessage(assistantId, {
+            text: `Calling ${toolCall.function.name}...${allToolCalls.length > 1 ? ` (${allToolCalls.length} parallel calls)` : ''}`,
+            toolName: toolCall.function.name,
+            toolArgs,
+          })
+
+          let toolResult: unknown
+          try {
+            toolResult = await executeToolCall(toolCall.function.name, toolArgs, url)
+          } catch (err) {
+            // Must still add a tool response for this call_id
+            llmHistory.push({
+              role: 'tool',
+              content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+              tool_call_id: toolCall.id,
+            })
+            addMessage({
+              id: nextId(),
+              role: 'tool-result',
+              text: `${toolCall.function.name} failed: ${err instanceof Error ? err.message : String(err)}`,
+              toolName: toolCall.function.name,
+              toolArgs,
+              timestamp: Date.now(),
+            })
+            continue
+          }
+
+          // Push result to main view (last successful call wins)
+          const toolSchema = inferSchema(toolResult, url)
+          useAppStore.getState().fetchSuccess(toolResult, toolSchema)
+
+          addMessage({
+            id: nextId(),
+            role: 'tool-result',
+            text: summarizeToolResult(toolResult, toolCall.function.name, toolArgs),
+            toolName: toolCall.function.name,
+            toolArgs,
+            timestamp: Date.now(),
+          })
+
+          const truncatedResult = JSON.stringify(toolResult).slice(0, 8000)
           llmHistory.push({
             role: 'tool',
-            content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+            content: truncatedResult,
             tool_call_id: toolCall.id,
           })
-          updateMessage(assistantId, {
-            text: `API call failed: ${err instanceof Error ? err.message : String(err)}`,
-            loading: false,
-            error: String(err),
-          })
-          setSending(false)
-          return
         }
 
-        // Push result to main view (last tool call wins)
-        const toolSchema = inferSchema(toolResult, url)
-        useAppStore.getState().fetchSuccess(toolResult, toolSchema)
-
-        // Add compact summary to chat
-        addMessage({
-          id: nextId(),
-          role: 'tool-result',
-          text: summarizeToolResult(toolResult, toolCall.function.name, toolArgs),
-          toolName: toolCall.function.name,
-          toolArgs,
-          timestamp: Date.now(),
-        })
-
-        // Track tool result in LLM history
-        const truncatedResult = JSON.stringify(toolResult).slice(0, 8000)
-        llmHistory.push({
-          role: 'tool',
-          content: truncatedResult,
-          tool_call_id: toolCall.id,
-        })
-
-        // Call LLM again — with tools so it can decide to call another, or respond with text
+        // Call LLM again — with tools so it can decide to call more, or respond with text
         const nextMessages: ChatMessage[] = [
           { role: 'system', content: systemPrompt },
           ...llmHistory,
         ]
-        // On last allowed iteration, send no tools to force a text response
-        const nextTools = toolCallCount >= MAX_TOOL_CALLS ? [] : tools
+        // On last allowed round, send no tools to force a text response
+        const nextTools = roundCount >= MAX_ROUNDS ? [] : tools
         currentResponse = await chatCompletion(nextMessages, nextTools, config)
         currentChoice = currentResponse.choices[0]
         if (!currentChoice) throw new Error('No response from LLM')
