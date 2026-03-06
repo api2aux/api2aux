@@ -165,29 +165,63 @@ function roleBadge(role: string) {
   return styles[role] || 'bg-muted text-muted-foreground'
 }
 
-function truncate(text: string | null, max: number): string {
+/** Pretty-print a string if it looks like JSON */
+function formatContent(text: string | null): string {
   if (!text) return '(empty)'
-  if (text.length <= max) return text
-  return text.slice(0, max) + '…'
+  try {
+    const parsed = JSON.parse(text)
+    return JSON.stringify(parsed, null, 2)
+  } catch {
+    return text
+  }
 }
 
 function ContextDialog({ history, onClose }: { history: LLMMessage[]; onClose: () => void }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    const text = JSON.stringify(history, null, 2)
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-background border border-border rounded-lg shadow-xl w-150 max-w-[90vw] max-h-[70vh] flex flex-col"
+        className="bg-background border border-border rounded-lg shadow-xl w-150 max-w-[90vw] max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="text-sm font-semibold">LLM Context ({history.length} messages)</h3>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopy}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Copy full context as JSON"
+            >
+              {copied ? (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              )}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {history.length === 0 ? (
@@ -209,13 +243,13 @@ function ContextDialog({ history, onClose }: { history: LLMMessage[]; onClose: (
                   <div className="space-y-1">
                     {msg.tool_calls.map((tc, j) => (
                       <pre key={j} className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
-                        {tc.function.name}({truncate(tc.function.arguments, 200)})
+                        {tc.function.name}({formatContent(tc.function.arguments)})
                       </pre>
                     ))}
                   </div>
                 ) : (
                   <pre className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
-                    {truncate(msg.content, 500)}
+                    {formatContent(msg.content)}
                   </pre>
                 )}
               </div>
