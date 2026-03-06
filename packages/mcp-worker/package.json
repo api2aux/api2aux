@@ -10,6 +10,7 @@
     "types": "wrangler types"
   },
   "dependencies": {
+    "@api2aux/tool-utils": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "hono": "^4.7.0",
     "zod": "^3.25.0"

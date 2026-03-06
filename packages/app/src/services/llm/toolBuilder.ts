@@ -1,95 +1,48 @@
 /**
  * Converts the current API URL or OpenAPI spec into LLM tool definitions.
  * These tools let the LLM make API calls on behalf of the user.
+ *
+ * Uses @api2aux/tool-utils as the single source of truth for tool definitions,
+ * with a thin adapter to convert UnifiedToolDefinition → OpenAI Tool format.
  */
 
-import type { Tool, ToolParameter } from './types'
-import type { ParsedSpec, ParsedOperation } from '../openapi/types'
+import type { Tool } from './types'
+import type { ParsedSpec } from '../openapi/types'
 import { parseUrlParameters } from '../urlParser/parser'
+import {
+  sanitizeToolName,
+  generateToolDefinitions,
+  generateRawUrlToolDefinition,
+} from '@api2aux/tool-utils'
+import type { UnifiedToolDefinition } from '@api2aux/tool-utils'
+
+/** Convert a UnifiedToolDefinition to the OpenAI function-calling Tool format. */
+function unifiedToOpenAI(def: UnifiedToolDefinition): Tool {
+  return {
+    type: 'function',
+    function: {
+      name: def.name,
+      description: def.description,
+      parameters: def.inputSchema,
+    },
+  }
+}
 
 /**
  * Build tools from a raw API URL (non-OpenAPI).
- * Creates a single tool that queries the API with optional path and query params.
  */
 export function buildToolsFromUrl(url: string): Tool[] {
-  const parsedUrl = new URL(url)
-  const hostname = parsedUrl.hostname.replace(/^(www|api)\./, '')
   const { parameters } = parseUrlParameters(url)
-
-  const pathname = parsedUrl.pathname.replace(/\/$/, '')
-  const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}${pathname}`
-
-  const properties: Record<string, ToolParameter> = {
-    path: {
-      type: 'string',
-      description: `Optional sub-path to append AFTER the base path "${pathname}". For example "/1" to get item by ID, or "/search" for a search endpoint. Do NOT repeat "${pathname}" — it is already included. Omit this parameter to call the base URL as-is.`,
-    },
-  }
-
-  for (const param of parameters) {
-    properties[param.name] = {
-      type: 'string',
-      description: `Query parameter: ${param.name}`,
-      ...(param.values?.[0] ? { default: param.values[0] } : {}),
-    }
-  }
-
-  return [{
-    type: 'function',
-    function: {
-      name: 'query_api',
-      description: `Query the REST API at ${hostname}. The base URL is ${baseUrl}. You can append path segments and set query parameters to filter or navigate the data.`,
-      parameters: {
-        type: 'object',
-        properties,
-      },
-    },
-  }]
+  const def = generateRawUrlToolDefinition(url, parameters)
+  return [unifiedToOpenAI(def)]
 }
 
 /**
  * Build tools from a parsed OpenAPI spec.
- * Creates one tool per operation.
  */
 export function buildToolsFromSpec(spec: ParsedSpec): Tool[] {
-  return spec.operations.map(op => {
-    const properties: Record<string, ToolParameter> = {}
-    const required: string[] = []
-
-    for (const param of op.parameters) {
-      properties[param.name] = {
-        type: param.schema?.type === 'integer' || param.schema?.type === 'number' ? 'number' : 'string',
-        description: param.description || `${param.in} parameter: ${param.name}`,
-        ...(param.schema?.enum ? { enum: param.schema.enum.map(String) } : {}),
-      }
-      if (param.required) {
-        required.push(param.name)
-      }
-    }
-
-    if (op.requestBody) {
-      properties['body'] = {
-        type: 'string',
-        description: 'Request body as JSON string',
-      }
-    }
-
-    const name = sanitizeToolName(op.operationId || `${op.method}_${op.path}`)
-    const description = buildToolDescription(op)
-
-    return {
-      type: 'function' as const,
-      function: {
-        name,
-        description,
-        parameters: {
-          type: 'object' as const,
-          properties,
-          ...(required.length > 0 ? { required } : {}),
-        },
-      },
-    }
-  })
+  const defs = generateToolDefinitions(spec.operations, { includePath: true })
+  return defs.map(unifiedToOpenAI)
 }
 
 function buildToolCatalog(spec: ParsedSpec): string | null {
@@ -111,34 +64,6 @@ function buildToolCatalog(spec: ParsedSpec): string | null {
     lines.push(`- ${tag} (${tools.length}): ${tools.join(', ')}`)
   }
   return lines.join('\n')
-}
-
-function buildToolDescription(op: ParsedOperation): string {
-  const parts: string[] = []
-  if (op.summary) {
-    parts.push(op.summary)
-  } else if (op.description) {
-    const firstSentence = op.description.split(/\.\s/)[0]
-    parts.push(firstSentence ? firstSentence + '.' : op.description)
-  } else {
-    parts.push(`${op.method.toUpperCase()} ${op.path}`)
-  }
-  // Include path so LLM can see endpoint structure
-  if (op.summary || op.description) {
-    parts.push(`${op.method.toUpperCase()} ${op.path}`)
-  }
-  if (op.tags.length > 0) {
-    parts.push(`Tags: ${op.tags.join(', ')}`)
-  }
-  return parts.join(' | ')
-}
-
-function sanitizeToolName(name: string): string {
-  return name
-    .replace(/[^a-zA-Z0-9_-]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
-    .substring(0, 64)
 }
 
 /**

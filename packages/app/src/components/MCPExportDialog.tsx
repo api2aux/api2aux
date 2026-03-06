@@ -7,6 +7,7 @@ import { parseUrlParameters } from '../services/urlParser/parser'
 import { deployAsMcpServer, type DeployResult } from '../services/mcp/deploy'
 import type { Credential } from '../types/auth'
 import type { ParsedOperation } from '@api2aux/semantic-analysis'
+import { generateToolName, generateDescription } from '@api2aux/tool-utils'
 
 type ExportFormat = 'claude-desktop' | 'claude-code' | 'cli'
 
@@ -41,24 +42,11 @@ function deriveServerName(url: string): string {
 }
 
 function operationToolName(op: ParsedOperation): string {
-  if (op.operationId) {
-    return op.operationId
-      .replace(/[^a-zA-Z0-9_]/g, '_')
-      .replace(/([a-z])([A-Z])/g, '$1_$2')
-      .toLowerCase()
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '')
-  }
-  const pathSegments = op.path
-    .replace(/\{[^}]+\}/g, 'by_id')
-    .split('/')
-    .filter(Boolean)
-    .join('_')
-  return `${op.method.toLowerCase()}_${pathSegments}`
+  return generateToolName(op)
 }
 
 function operationDescription(op: ParsedOperation): string {
-  return op.summary || op.description?.split(/\.\s/)[0]?.concat('.') || `${op.method} ${op.path}`
+  return generateDescription(op)
 }
 
 function getMcpCommand(): { command: string; pkg: string } {
