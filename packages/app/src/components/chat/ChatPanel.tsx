@@ -9,7 +9,7 @@ import { ChatSettings } from './ChatSettings'
 export function ChatPanel() {
   const { setOpen, clearMessages } = useChatStore()
   const url = useAppStore((s) => s.url)
-  const { messages, sendMessage, sending, hasApiKey } = useChat()
+  const { messages, sendMessage, sending, hasApiKey, contextStats } = useChat()
   const [showSettings, setShowSettings] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevMessageCount = useRef(messages.length)
@@ -112,6 +112,19 @@ export function ChatPanel() {
           </div>
         )}
       </div>
+
+      {/* Context indicator */}
+      {contextStats.messageCount > 0 && (
+        <div className="flex items-center justify-between px-4 py-1 border-t border-border text-[10px] text-muted-foreground">
+          <span>{contextStats.messageCount} msgs in context</span>
+          <span
+            className={contextStats.estimatedTokens > 6000 ? 'text-amber-500' : ''}
+            title="Approximate token count of conversation history sent to LLM"
+          >
+            ~{contextStats.estimatedTokens.toLocaleString()} tokens
+          </span>
+        </div>
+      )}
 
       {/* Input */}
       <ChatInput

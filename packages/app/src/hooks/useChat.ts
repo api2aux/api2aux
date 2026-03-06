@@ -260,7 +260,8 @@ export function useChat() {
           ...llmHistory,
         ]
 
-        const followUp = await chatCompletion(followUpMessages, tools, config)
+        // No tools needed for summarization — keeps the model focused on text
+        const followUp = await chatCompletion(followUpMessages, [], config)
         const followUpChoice = followUp.choices[0]
         const followUpText = followUpChoice?.message?.content || 'Done.'
 
@@ -291,11 +292,20 @@ export function useChat() {
     }
   }, [url, parsedSpec, messages, config, sending, addMessage, updateMessage, setSending])
 
+  // Approximate context size for the UI indicator
+  const contextStats = {
+    messageCount: llmHistory.length,
+    estimatedTokens: Math.ceil(
+      llmHistory.reduce((sum, m) => sum + (m.content?.length || 0), 0) / 4
+    ),
+  }
+
   return {
     messages,
     sendMessage,
     clearMessages,
     sending,
     hasApiKey: !!config.apiKey,
+    contextStats,
   }
 }

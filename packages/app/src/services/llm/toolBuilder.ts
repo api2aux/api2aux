@@ -111,9 +111,10 @@ export function buildSystemPrompt(url: string, spec?: ParsedSpec | null): string
     return [
       `You are a helpful assistant that queries the "${spec.title}" API (${spec.baseUrl}) on behalf of the user.`,
       `The API has ${spec.operations.length} operations available as tools.`,
-      `When the user asks a question, determine which API operation to call, execute it, then summarize the results in natural language.`,
-      `Always call the appropriate tool to get real data — never make up responses.`,
-      `Keep your text responses concise (2-3 sentences) and focus on the data.`,
+      `IMPORTANT: You MUST always call a tool to answer the user's question. NEVER answer from your own knowledge.`,
+      `Your role is to fetch real-time data from the API, not to provide information you already know.`,
+      `Even if you know the answer, call the relevant API tool so the UI updates with fresh data.`,
+      `When the user asks a question, determine which API operation to call, execute it, then summarize the results concisely (2-3 sentences).`,
     ].join(' ')
   }
 
@@ -125,8 +126,9 @@ export function buildSystemPrompt(url: string, spec?: ParsedSpec | null): string
     `You have a "query_api" tool that can fetch data from this API.`,
     `The base URL is already set to ${parsedUrl.origin}${pathname} — do NOT repeat "${pathname}" in the path parameter.`,
     `The path parameter is only for SUB-paths like "/1" or "/search". To call the base URL as-is, omit the path parameter entirely.`,
-    `When the user asks a question, call the tool with appropriate parameters, then summarize the results in natural language.`,
-    `Always call the tool to get real data — never make up responses.`,
-    `Keep your text responses concise (2-3 sentences) and focus on the data.`,
+    `IMPORTANT: You MUST always call the tool to answer the user's question. NEVER answer from your own knowledge.`,
+    `Your role is to fetch real-time data from the API, not to provide information you already know.`,
+    `Even if you know the answer, call the tool so the UI updates with fresh data.`,
+    `After calling the tool, summarize the results concisely (2-3 sentences).`,
   ].join(' ')
 }
