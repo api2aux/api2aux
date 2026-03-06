@@ -73,4 +73,44 @@ register.post('/register', async (c) => {
   }, 201)
 })
 
+// List all deployed tenants
+register.get('/tenants', async (c) => {
+  const store = c.get('store')
+  const keys = await store.list('tenant:')
+  const workerUrl = new URL(c.req.url).origin
+
+  const tenants = await Promise.all(
+    keys.map(async (key) => {
+      const id = key.replace('tenant:', '')
+      const config = await store.get(key)
+      if (!config) return null
+      return {
+        tenantId: id,
+        name: config.name,
+        apiUrl: config.apiUrl,
+        mcpUrl: `${workerUrl}/t/${id}`,
+        operations: config.operations.length,
+        createdAt: config.createdAt,
+        expiresAt: config.expiresAt,
+      }
+    })
+  )
+
+  return c.json({ tenants: tenants.filter(Boolean) })
+})
+
+// Delete a tenant
+register.delete('/tenants/:tenantId', async (c) => {
+  const tenantId = c.req.param('tenantId')
+  const store = c.get('store')
+
+  const config = await store.get(`tenant:${tenantId}`)
+  if (!config) {
+    return c.json({ error: 'Tenant not found' }, 404)
+  }
+
+  await store.delete(`tenant:${tenantId}`)
+  return c.json({ deleted: tenantId })
+})
+
 export { register }

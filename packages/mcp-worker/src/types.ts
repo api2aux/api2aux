@@ -10,6 +10,7 @@
 export interface TenantStore {
   get(key: string): Promise<TenantConfig | null>
   put(key: string, config: TenantConfig, ttlSeconds?: number): Promise<void>
+  delete(key: string): Promise<void>
   list(prefix: string): Promise<string[]>
 }
 
