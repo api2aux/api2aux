@@ -43,7 +43,7 @@ function ToolResultLinks({ results }: { results: ToolResultEntry[] }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1 mt-2 pt-2 border-t border-border/50">
+    <div className="flex flex-wrap items-center justify-end gap-1 mt-2 pt-2 border-t border-border/50">
       <span className="text-[10px] text-muted-foreground">Sources:</span>
       {results.map((entry, i) => (
         <button
