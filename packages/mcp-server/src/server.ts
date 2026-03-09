@@ -6,25 +6,27 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { parseOpenAPISpec } from '@api2aux/semantic-analysis'
-import type { ParsedSpec } from '@api2aux/semantic-analysis'
+import type { ParsedAPI } from 'api-bridge-rt'
+import { injectAuth } from 'api-bridge-rt'
 import { generateTools } from './tool-generator'
 import { enrichTools, describeFieldsFromData } from './semantic-enrichment'
 import { executeTool } from './tool-executor'
 import { formatResponse } from './response-formatter'
 import type { ServerConfig, AuthConfig } from './types'
+import { toAuth, AuthConfigType } from './types'
 
 /**
  * Parse auth config from CLI options.
  */
 function parseAuth(config: ServerConfig): AuthConfig {
   if (config.token) {
-    return { type: 'bearer', token: config.token }
+    return { type: AuthConfigType.BEARER, token: config.token }
   }
   if (config.header) {
     const colonIdx = config.header.indexOf(':')
     if (colonIdx > 0) {
       return {
-        type: 'header',
+        type: AuthConfigType.HEADER,
         headerName: config.header.slice(0, colonIdx).trim(),
         headerValue: config.header.slice(colonIdx + 1).trim(),
       }
@@ -34,13 +36,13 @@ function parseAuth(config: ServerConfig): AuthConfig {
     const eqIdx = config.apiKey.indexOf('=')
     if (eqIdx > 0) {
       return {
-        type: 'apikey',
+        type: AuthConfigType.API_KEY,
         paramName: config.apiKey.slice(0, eqIdx),
         paramValue: config.apiKey.slice(eqIdx + 1),
       }
     }
   }
-  return { type: 'none' }
+  return { type: AuthConfigType.NONE }
 }
 
 /**
@@ -122,7 +124,7 @@ async function registerOpenAPITools(
   debug: boolean,
   fullResponse: boolean
 ): Promise<void> {
-  let spec: ParsedSpec
+  let spec: ParsedAPI
 
   try {
     spec = await parseOpenAPISpec(specUrl)
@@ -132,8 +134,9 @@ async function registerOpenAPITools(
 
   const baseUrl = spec.baseUrl
   const rawTools = generateTools(spec.operations)
+  const bridgeAuth = toAuth(auth)
 
-  console.error(`[api2aux-mcp] Parsed "${spec.title}" v${spec.version} (${spec.specVersion})`)
+  console.error(`[api2aux-mcp] Parsed "${spec.title}" v${spec.version} (${spec.specFormat})`)
   console.error(`[api2aux-mcp] Base URL: ${baseUrl}`)
   console.error(`[api2aux-mcp] Enriching ${rawTools.length} tools with semantic analysis...`)
 
@@ -155,7 +158,7 @@ async function registerOpenAPITools(
       const showDebug = debug || args.debug === true
       const noTruncate = fullResponse || args.full_response === true
       try {
-        const result = await executeTool(baseUrl, tool.operation, args, auth)
+        const result = await executeTool(baseUrl, tool.operation, args, bridgeAuth)
         const responseText = formatResponse(result.data, noTruncate)
         const prefix = showDebug
           ? formatDebugInfo(result.request.method, result.request.url, result.request.headers, result.status, responseText.length, result.elapsedMs)
@@ -232,6 +235,8 @@ async function registerRawAPITool(
   fullResponse: boolean
 ): Promise<void> {
   console.error(`[api2aux-mcp] Raw API mode: ${apiUrl}`)
+
+  const bridgeAuth = toAuth(auth)
 
   // Parse URL into base path and individual query params
   const parsed = new URL(apiUrl)
@@ -329,17 +334,10 @@ async function registerRawAPITool(
         }
 
         const headers: Record<string, string> = { 'Accept': 'application/json' }
-        if (auth.type === 'bearer' && auth.token) {
-          headers['Authorization'] = `Bearer ${auth.token}`
-        } else if (auth.type === 'header' && auth.headerName && auth.headerValue) {
-          headers[auth.headerName] = auth.headerValue
-        }
-
-        // API key auth: append as query parameter
-        if (auth.type === 'apikey' && auth.paramName && auth.paramValue) {
-          const urlObj = new URL(url)
-          urlObj.searchParams.set(auth.paramName, auth.paramValue)
-          url = urlObj.toString()
+        if (bridgeAuth) {
+          const authed = injectAuth(url, headers, bridgeAuth)
+          url = authed.url
+          Object.assign(headers, authed.headers)
         }
 
         const start = performance.now()

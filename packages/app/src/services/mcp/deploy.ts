@@ -3,7 +3,7 @@
  * Sends pre-parsed operations to the MCP Worker registration endpoint.
  */
 
-import type { ParsedOperation, ParsedSpec } from '@api2aux/semantic-analysis'
+import type { Operation, ParsedAPI, AuthConfigType } from '@api2aux/semantic-analysis'
 
 const MCP_WORKER_URL = import.meta.env.VITE_MCP_WORKER_URL || ''
 
@@ -11,9 +11,9 @@ export interface DeployConfig {
   apiUrl: string
   baseUrl: string
   name: string
-  authType: 'bearer' | 'header' | 'apikey' | 'none'
+  authType: AuthConfigType
   authParamName?: string
-  operations: ParsedOperation[]
+  operations: Operation[]
 }
 
 export interface DeployResult {
@@ -89,7 +89,7 @@ export async function findExistingDeployment(apiUrl: string): Promise<DeployResu
 /**
  * Build a DeployConfig from a parsed OpenAPI spec.
  */
-export function buildDeployConfig(spec: ParsedSpec, authType: 'none' | 'bearer' | 'header' | 'apikey' = 'none'): DeployConfig {
+export function buildDeployConfig(spec: ParsedAPI, authType: AuthConfigType = 'none'): DeployConfig {
   // Derive a short name from the spec title
   const name = spec.title
     .toLowerCase()

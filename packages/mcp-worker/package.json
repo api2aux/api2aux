@@ -13,6 +13,7 @@
     "@api2aux/tool-utils": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "api-bridge-rt": "file:../../../api-bridge-rt",
     "hono": "^4.7.0",
     "zod": "^3.25.0"
   },

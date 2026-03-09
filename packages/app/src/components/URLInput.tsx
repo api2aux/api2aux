@@ -7,11 +7,11 @@ import { AuthPanel } from './auth/AuthPanel'
 import { ExamplesCarousel } from './ExamplesCarousel'
 import { RequestBodyEditor } from './forms/RequestBodyEditor'
 import type { AuthStatus } from '../types/auth'
-import type { ParsedSecurityScheme } from '../services/openapi/types'
+import type { AuthScheme } from '@api2aux/semantic-analysis'
 
 interface URLInputProps {
   authError?: { status: 401 | 403; message: string } | null
-  detectedAuth?: ParsedSecurityScheme[]
+  detectedAuth?: AuthScheme[]
 }
 
 export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {

@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import type { ParsedParameter } from '../../services/openapi/types'
+import type { Parameter } from '@api2aux/semantic-analysis'
+
+/** Parameter with optional URL-parsing enrichments */
+type FormParameter = Parameter & { inferredType?: string; isArray?: boolean }
 import { TypeIcon } from './TypeIcon'
 import { DateTimePicker } from './DateTimePicker'
 import { TagInput } from './TagInput'
@@ -7,7 +10,7 @@ import { RangeSlider, shouldUseSlider } from './RangeSlider'
 import { EnumCheckboxGroup, shouldUseEnumCheckboxGroup, getEnumOptions } from './EnumCheckboxGroup'
 
 interface ParameterInputProps {
-  parameter: ParsedParameter
+  parameter: FormParameter
   value: string                    // Keep for single values
   arrayValue?: string[]            // New: for array parameters
   onChange: (value: string) => void

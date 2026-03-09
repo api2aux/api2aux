@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { UnifiedSchema, SemanticMetadata } from '../types/schema'
-import type { ParsedSpec } from '../services/openapi/types'
+import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import type { ImportanceScore, GroupingResult } from '../services/analysis/types'
 import type { ComponentSelection } from '../services/selection/types'
 import type { DeployResult } from '../services/mcp/deploy'
@@ -24,7 +24,7 @@ interface AppState {
   schema: UnifiedSchema | null
 
   // OpenAPI state
-  parsedSpec: ParsedSpec | null
+  parsedSpec: ParsedAPI | null
   selectedOperationIndex: number
   parameterValues: Record<string, string>
 
@@ -61,7 +61,7 @@ interface AppState {
 
   // OpenAPI actions
   clearSpec: () => void
-  specSuccess: (spec: ParsedSpec) => void
+  specSuccess: (spec: ParsedAPI) => void
   setSelectedOperation: (index: number) => void
   setParameterValue: (name: string, value: string) => void
   clearParameters: () => void

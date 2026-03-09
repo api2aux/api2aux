@@ -1,4 +1,4 @@
-import type { ParsedOperation } from '../../services/openapi/types'
+import type { Operation } from '@api2aux/semantic-analysis'
 
 const METHOD_BADGE: Record<string, string> = {
   GET: 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-950',
@@ -9,7 +9,7 @@ const METHOD_BADGE: Record<string, string> = {
 const methodBadgeClass = (method: string) => METHOD_BADGE[method] ?? METHOD_BADGE.GET
 
 interface OperationSelectorProps {
-  operations: ParsedOperation[]
+  operations: Operation[]
   selectedIndex: number
   onSelect: (index: number) => void
 }

@@ -23,7 +23,7 @@ export function ThemeApplier() {
     let endpointKey: string | null = null
     if (parsedSpec && parsedSpec.operations[selectedOperationIndex]) {
       const operation = parsedSpec.operations[selectedOperationIndex]
-      endpointKey = operation.operationId || `${operation.method}-${operation.path}`
+      endpointKey = operation.id || `${operation.method}-${operation.path}`
     }
 
     // Merge global and endpoint-specific overrides

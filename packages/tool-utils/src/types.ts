@@ -1,15 +1,15 @@
 /**
  * Minimal operation interface for tool generation.
- * Satisfied by both ParsedOperation and SerializableOperation via structural typing.
+ * Satisfied by api-bridge-rt's Operation via structural typing.
  */
 export interface ToolOperation {
+  id: string
   path: string
   method: string
-  operationId?: string
   summary?: string
   description?: string
   tags: string[]
-  responseSchema: unknown
+  responseSchema?: unknown
 }
 
 export interface DescriptionOptions {

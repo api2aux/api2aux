@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
-import type { ParsedSpec } from '../../services/openapi/types'
+import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import { TagGroup } from './TagGroup'
 import { OperationItem } from './OperationItem'
 
 interface SidebarProps {
-  parsedSpec: ParsedSpec
+  parsedSpec: ParsedAPI
   selectedIndex: number
   onSelect: (index: number) => void
 }

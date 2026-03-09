@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react'
-import type { ParsedParameter, ParsedRequestBody } from '../../services/openapi/types'
+import type { Parameter, RequestBody } from '@api2aux/semantic-analysis'
+
+/** Parameter with optional URL-parsing enrichments for form rendering */
+type FormParameter = Parameter & { inferredType?: string; isArray?: boolean; values?: string[] }
 import { ParameterInput } from './ParameterInput'
 import { ParameterGroup } from './ParameterGroup'
 import { URLPreview } from './URLPreview'
@@ -12,8 +15,8 @@ import { useParameterStore } from '../../store/parameterStore'
 import { useDebouncedPersist } from '../../hooks/useDebouncedPersist'
 
 interface ParameterFormProps {
-  parameters: ParsedParameter[]
-  requestBody?: ParsedRequestBody
+  parameters: FormParameter[]
+  requestBody?: RequestBody
   onSubmit: (values: Record<string, string>, bodyJson?: string) => void
   loading?: boolean
   endpoint?: string           // For persistence key
@@ -24,7 +27,7 @@ interface ParameterFormProps {
 /**
  * Get default values from parameter schema defaults/examples.
  */
-function getDefaultValues(params: ParsedParameter[]): Record<string, string> {
+function getDefaultValues(params: FormParameter[]): Record<string, string> {
   const initial: Record<string, string> = {}
   for (const param of params) {
     if (param.schema.default !== undefined) {
@@ -60,9 +63,9 @@ export function ParameterForm({
   const { effectiveParams, warnings } = useMemo(() => {
     if (rawUrl) {
       const parsed = parseUrlParameters(rawUrl)
-      // Convert ParsedUrlParameter to ParsedParameter (compatible types)
+      // Convert ParsedUrlParameter to FormParameter (compatible types)
       return {
-        effectiveParams: parsed.parameters as ParsedParameter[],
+        effectiveParams: parsed.parameters as FormParameter[],
         warnings: parsed.warnings,
       }
     }
@@ -180,8 +183,8 @@ export function ParameterForm({
     return Object.keys(obj).length > 0 ? JSON.stringify(obj) : undefined
   }
 
-  // Convert request body properties to ParsedParameter for reuse with ParameterInput
-  const bodyParams: ParsedParameter[] = useMemo(() => {
+  // Convert request body properties to FormParameter for reuse with ParameterInput
+  const bodyParams: FormParameter[] = useMemo(() => {
     if (!requestBody?.schema.properties || useRawBody) return []
     return Object.entries(requestBody.schema.properties)
       .filter(([, prop]) => !prop.nested)
@@ -211,8 +214,8 @@ export function ParameterForm({
 
   // Extract groups from parameters
   const { grouped, ungrouped } = useMemo(() => {
-    const groups = new Map<string, ParsedParameter[]>()
-    const ungroupedList: ParsedParameter[] = []
+    const groups = new Map<string, FormParameter[]>()
+    const ungroupedList: FormParameter[] = []
 
     for (const param of paramsWithTypes) {
       const prefix = extractGroupPrefix(param.name)

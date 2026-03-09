@@ -7,7 +7,7 @@
  */
 
 import type { Tool } from './types'
-import type { ParsedSpec } from '../openapi/types'
+import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import { parseUrlParameters } from '../urlParser/parser'
 import {
   sanitizeToolName,
@@ -40,18 +40,18 @@ export function buildToolsFromUrl(url: string): Tool[] {
 /**
  * Build tools from a parsed OpenAPI spec.
  */
-export function buildToolsFromSpec(spec: ParsedSpec): Tool[] {
+export function buildToolsFromSpec(spec: ParsedAPI): Tool[] {
   const defs = generateToolDefinitions(spec.operations, { includePath: true })
   return defs.map(unifiedToOpenAI)
 }
 
-function buildToolCatalog(spec: ParsedSpec): string | null {
+function buildToolCatalog(spec: ParsedAPI): string | null {
   if (spec.operations.length <= 10) return null // Not needed for small APIs
 
   const tagMap = new Map<string, string[]>()
   for (const op of spec.operations) {
     const tags = op.tags.length > 0 ? op.tags : ['Other']
-    const toolName = sanitizeToolName(op.operationId || `${op.method}_${op.path}`)
+    const toolName = sanitizeToolName(op.id || `${op.method}_${op.path}`)
     for (const tag of tags) {
       const list = tagMap.get(tag) || []
       list.push(toolName)
@@ -69,7 +69,7 @@ function buildToolCatalog(spec: ParsedSpec): string | null {
 /**
  * Build the system prompt that describes the API and instructs the LLM.
  */
-export function buildSystemPrompt(url: string, spec?: ParsedSpec | null): string {
+export function buildSystemPrompt(url: string, spec?: ParsedAPI | null): string {
   const hostname = new URL(url).hostname
 
   if (spec) {

@@ -60,15 +60,15 @@ describe('extractResponseFields', () => {
 })
 
 describe('generateToolName', () => {
-  it('converts operationId to snake_case', () => {
+  it('converts id to snake_case', () => {
     expect(generateToolName({
-      path: '/pets', method: 'get', operationId: 'listPets', tags: [], responseSchema: null,
+      path: '/pets', method: 'get', id: 'listPets', tags: [],
     })).toBe('list_pets')
   })
 
-  it('falls back to method_path', () => {
+  it('falls back to method_path when id is empty', () => {
     expect(generateToolName({
-      path: '/users/{id}', method: 'get', tags: [], responseSchema: null,
+      id: '', path: '/users/{id}', method: 'get', tags: [],
     })).toBe('get_users_by_id')
   })
 })
@@ -81,6 +81,7 @@ describe('sanitizeToolName', () => {
 
 describe('generateDescription', () => {
   const op = {
+    id: 'getClassByIndex',
     path: '/api/classes/{index}',
     method: 'get',
     summary: 'Get a class by index.',
@@ -152,7 +153,7 @@ describe('generateToolDefinition', () => {
   const op: ToolOperationWithParams = {
     path: '/pets/{petId}',
     method: 'get',
-    operationId: 'getPetById',
+    id: 'getPetById',
     summary: 'Get a pet by ID',
     tags: ['Pets'],
     responseSchema: { type: 'object', properties: { name: {}, species: {} } },
@@ -172,7 +173,7 @@ describe('generateToolDefinition', () => {
 
   it('includes request body when present', () => {
     const opWithBody: ToolOperationWithParams = {
-      ...op, method: 'post', operationId: 'createPet',
+      ...op, method: 'post', id: 'createPet',
       requestBody: { required: true, description: 'Pet data' },
     }
     const def = generateToolDefinition(opWithBody)
@@ -196,8 +197,8 @@ describe('generateToolDefinition', () => {
 describe('generateToolDefinitions', () => {
   it('generates definitions for multiple operations', () => {
     const ops: ToolOperationWithParams[] = [
-      { path: '/a', method: 'get', tags: [], responseSchema: null, parameters: [] },
-      { path: '/b', method: 'post', tags: [], responseSchema: null, parameters: [] },
+      { id: 'getA', path: '/a', method: 'get', tags: [], parameters: [] },
+      { id: 'postB', path: '/b', method: 'post', tags: [], parameters: [] },
     ]
     const defs = generateToolDefinitions(ops)
     expect(defs).toHaveLength(2)

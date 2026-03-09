@@ -1,15 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { parseOpenAPISpec } from '../parser'
-import type { ParsedSpec } from '../types'
-
-// Mock SwaggerParser to avoid network calls
-vi.mock('@apidevtools/swagger-parser', () => ({
-  default: {
-    dereference: vi.fn(),
-  },
-}))
-
-import SwaggerParser from '@apidevtools/swagger-parser'
 
 // OpenAPI 3.0 fixture
 const openapi3Fixture = {
@@ -264,60 +254,50 @@ const emptySpecFixture = {
 }
 
 describe('parseOpenAPISpec', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('parses OpenAPI 3.0 spec correctly', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
     const result = await parseOpenAPISpec(openapi3Fixture)
 
     expect(result.title).toBe('Pet Store API')
     expect(result.version).toBe('1.0.0')
-    expect(result.specVersion).toBe('3.0.3')
+    expect(result.rawSpecVersion).toBe('3.0.3')
+    expect(result.specFormat).toBe('openapi-3')
     expect(result.baseUrl).toBe('https://api.example.com/v1')
-    expect(result.operations).toHaveLength(4) // 3 GET + 1 POST
+    // 3 GET + 1 POST + 1 DELETE = 5 operations
+    expect(result.operations).toHaveLength(5)
   })
 
   it('parses Swagger 2.0 spec correctly', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(swagger2Fixture as never)
-
     const result = await parseOpenAPISpec(swagger2Fixture)
 
     expect(result.title).toBe('Legacy API')
     expect(result.version).toBe('2.5.0')
-    expect(result.specVersion).toBe('2.0')
+    expect(result.rawSpecVersion).toBe('2.0')
+    expect(result.specFormat).toBe('openapi-2')
     expect(result.baseUrl).toBe('https://api.legacy.com/api/v2')
     expect(result.operations).toHaveLength(1)
   })
 
-  it('extracts GET, POST, PUT, PATCH operations (not DELETE)', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
+  it('extracts GET, POST, and DELETE operations', async () => {
     const result = await parseOpenAPISpec(openapi3Fixture)
 
-    // Should have 3 GET + 1 POST = 4 operations
-    // Should NOT include DELETE (deletePet)
-    expect(result.operations).toHaveLength(4)
+    const ids = result.operations.map(op => op.id)
+    expect(ids).toContain('listPets')
+    expect(ids).toContain('getPetById')
+    expect(ids).toContain('listUsers')
+    expect(ids).toContain('createPet')
+    expect(ids).toContain('deletePet')
 
-    const operationIds = result.operations.map(op => op.operationId)
-    expect(operationIds).toContain('listPets')
-    expect(operationIds).toContain('getPetById')
-    expect(operationIds).toContain('listUsers')
-    expect(operationIds).toContain('createPet')
-    expect(operationIds).not.toContain('deletePet')
-
-    const createPet = result.operations.find(op => op.operationId === 'createPet')
+    const createPet = result.operations.find(op => op.id === 'createPet')
     expect(createPet!.method).toBe('POST')
+
+    const deletePet = result.operations.find(op => op.id === 'deletePet')
+    expect(deletePet!.method).toBe('DELETE')
   })
 
   it('extracts requestBody schema from POST operations', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
     const result = await parseOpenAPISpec(openapi3Fixture)
 
-    const createPet = result.operations.find(op => op.operationId === 'createPet')
+    const createPet = result.operations.find(op => op.id === 'createPet')
     expect(createPet).toBeDefined()
     expect(createPet!.requestBody).toBeDefined()
     expect(createPet!.requestBody!.required).toBe(true)
@@ -330,16 +310,14 @@ describe('parseOpenAPISpec', () => {
     expect(createPet!.requestBody!.schema.required).toEqual(['name'])
 
     // GET operations should not have requestBody
-    const listPets = result.operations.find(op => op.operationId === 'listPets')
+    const listPets = result.operations.find(op => op.id === 'listPets')
     expect(listPets!.requestBody).toBeUndefined()
   })
 
   it('extracts parameters with correct required flags', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
     const result = await parseOpenAPISpec(openapi3Fixture)
 
-    const listPets = result.operations.find(op => op.operationId === 'listPets')
+    const listPets = result.operations.find(op => op.id === 'listPets')
     expect(listPets).toBeDefined()
     expect(listPets!.parameters).toHaveLength(2)
 
@@ -358,11 +336,9 @@ describe('parseOpenAPISpec', () => {
   })
 
   it('detects path parameters and merges with operation parameters', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
     const result = await parseOpenAPISpec(openapi3Fixture)
 
-    const getPetById = result.operations.find(op => op.operationId === 'getPetById')
+    const getPetById = result.operations.find(op => op.id === 'getPetById')
     expect(getPetById).toBeDefined()
     expect(getPetById!.path).toBe('/pets/{petId}')
     expect(getPetById!.parameters).toHaveLength(2) // petId (path-level) + fields (operation-level)
@@ -381,38 +357,28 @@ describe('parseOpenAPISpec', () => {
   })
 
   it('extracts enum parameters', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
     const result = await parseOpenAPISpec(openapi3Fixture)
 
-    const listPets = result.operations.find(op => op.operationId === 'listPets')
+    const listPets = result.operations.find(op => op.id === 'listPets')
     const statusParam = listPets!.parameters.find(p => p.name === 'status')
 
     expect(statusParam!.schema.enum).toEqual(['available', 'pending', 'sold'])
   })
 
   it('extracts base URL from OpenAPI 3.x servers', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
     const result = await parseOpenAPISpec(openapi3Fixture)
-
     expect(result.baseUrl).toBe('https://api.example.com/v1')
   })
 
   it('extracts base URL from Swagger 2.0 host and basePath', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(swagger2Fixture as never)
-
     const result = await parseOpenAPISpec(swagger2Fixture)
-
     expect(result.baseUrl).toBe('https://api.legacy.com/api/v2')
   })
 
   it('handles Swagger 2.0 parameter format (type at root level)', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(swagger2Fixture as never)
-
     const result = await parseOpenAPISpec(swagger2Fixture)
 
-    const getItems = result.operations.find(op => op.operationId === 'getItems')
+    const getItems = result.operations.find(op => op.id === 'getItems')
     const searchParam = getItems!.parameters.find(p => p.name === 'search')
 
     expect(searchParam).toBeDefined()
@@ -421,8 +387,6 @@ describe('parseOpenAPISpec', () => {
   })
 
   it('handles empty spec without errors', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(emptySpecFixture as never)
-
     const result = await parseOpenAPISpec(emptySpecFixture)
 
     expect(result.operations).toEqual([])
@@ -430,20 +394,15 @@ describe('parseOpenAPISpec', () => {
   })
 
   it('throws descriptive error on invalid spec', async () => {
-    const error = new Error('Invalid OpenAPI spec: missing required field')
-    vi.mocked(SwaggerParser.dereference).mockRejectedValue(error)
-
-    await expect(parseOpenAPISpec('https://invalid.com/spec')).rejects.toThrow(
-      'Failed to parse OpenAPI spec'
+    await expect(parseOpenAPISpec({ invalid: true })).rejects.toThrow(
+      'Failed to parse OpenAPI spec',
     )
   })
 
   it('extracts response schemas correctly', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
     const result = await parseOpenAPISpec(openapi3Fixture)
 
-    const listPets = result.operations.find(op => op.operationId === 'listPets')
+    const listPets = result.operations.find(op => op.id === 'listPets')
     expect(listPets!.responseSchema).toEqual({
       type: 'array',
       items: {
@@ -457,24 +416,20 @@ describe('parseOpenAPISpec', () => {
   })
 
   it('extracts operation metadata (summary, description, tags)', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
     const result = await parseOpenAPISpec(openapi3Fixture)
 
-    const listPets = result.operations.find(op => op.operationId === 'listPets')
+    const listPets = result.operations.find(op => op.id === 'listPets')
     expect(listPets!.summary).toBe('List all pets')
     expect(listPets!.description).toBe('Returns a list of pets')
     expect(listPets!.tags).toEqual(['pets'])
   })
 
-  it('extracts security schemes from OpenAPI 3.x spec', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(openapi3Fixture as never)
-
+  it('extracts auth schemes from OpenAPI 3.x spec', async () => {
     const result = await parseOpenAPISpec(openapi3Fixture)
 
-    expect(result.securitySchemes).toHaveLength(3)
+    expect(result.authSchemes).toHaveLength(3)
 
-    const apiKey = result.securitySchemes.find(s => s.name === 'ApiKeyAuth')
+    const apiKey = result.authSchemes.find(s => s.name === 'ApiKeyAuth')
     expect(apiKey).toEqual({
       name: 'ApiKeyAuth',
       authType: 'apiKey',
@@ -482,7 +437,7 @@ describe('parseOpenAPISpec', () => {
       description: 'API key for authentication',
     })
 
-    const bearer = result.securitySchemes.find(s => s.name === 'BearerAuth')
+    const bearer = result.authSchemes.find(s => s.name === 'BearerAuth')
     expect(bearer).toEqual({
       name: 'BearerAuth',
       authType: 'bearer',
@@ -490,7 +445,7 @@ describe('parseOpenAPISpec', () => {
       description: 'BearerAuth',
     })
 
-    const basic = result.securitySchemes.find(s => s.name === 'BasicAuth')
+    const basic = result.authSchemes.find(s => s.name === 'BasicAuth')
     expect(basic).toEqual({
       name: 'BasicAuth',
       authType: 'basic',
@@ -500,13 +455,11 @@ describe('parseOpenAPISpec', () => {
   })
 
   it('extracts security definitions from Swagger 2.0 spec', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(swagger2Fixture as never)
-
     const result = await parseOpenAPISpec(swagger2Fixture)
 
-    expect(result.securitySchemes).toHaveLength(2)
+    expect(result.authSchemes).toHaveLength(2)
 
-    const apiKey = result.securitySchemes.find(s => s.name === 'api_key')
+    const apiKey = result.authSchemes.find(s => s.name === 'api_key')
     expect(apiKey).toEqual({
       name: 'api_key',
       authType: 'queryParam',
@@ -514,7 +467,7 @@ describe('parseOpenAPISpec', () => {
       description: 'api_key',
     })
 
-    const basic = result.securitySchemes.find(s => s.name === 'basic_auth')
+    const basic = result.authSchemes.find(s => s.name === 'basic_auth')
     expect(basic).toEqual({
       name: 'basic_auth',
       authType: 'basic',
@@ -523,11 +476,8 @@ describe('parseOpenAPISpec', () => {
     })
   })
 
-  it('returns empty securitySchemes for specs without security', async () => {
-    vi.mocked(SwaggerParser.dereference).mockResolvedValue(emptySpecFixture as never)
-
+  it('returns empty authSchemes for specs without security', async () => {
     const result = await parseOpenAPISpec(emptySpecFixture)
-
-    expect(result.securitySchemes).toEqual([])
+    expect(result.authSchemes).toEqual([])
   })
 })

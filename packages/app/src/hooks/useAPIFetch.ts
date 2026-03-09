@@ -2,8 +2,8 @@ import { useAppStore } from '../store/appStore'
 import { useConfigStore } from '../store/configStore'
 import { fetchWithAuth, type FetchOptions } from '../services/api/fetcher'
 import { inferSchema } from '../services/schema/inferrer'
-import { parseOpenAPISpec } from '../services/openapi/parser'
-import type { ParsedOperation } from '../services/openapi/types'
+import { parseOpenAPISpec } from '@api2aux/semantic-analysis'
+import type { Operation } from '@api2aux/semantic-analysis'
 
 /**
  * Hook that provides a function to fetch and infer schema from a URL.
@@ -60,7 +60,7 @@ export function useAPIFetch() {
    */
   const fetchOperation = async (
     baseUrl: string,
-    operation: ParsedOperation,
+    operation: Operation,
     params: Record<string, string>,
     bodyJson?: string
   ) => {

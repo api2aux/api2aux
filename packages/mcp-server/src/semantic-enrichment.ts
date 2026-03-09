@@ -10,10 +10,8 @@ import {
   detectSemantics,
   getBestMatch,
 } from '@api2aux/semantic-analysis'
-import type {
-  ParsedOperation,
-  ParsedParameter,
-} from '@api2aux/semantic-analysis'
+import type { Operation, Parameter } from 'api-bridge-rt'
+import { HttpMethod, ParamLocation } from 'api-bridge-rt'
 import type { GeneratedTool } from './tool-generator'
 
 // ---------------------------------------------------------------------------
@@ -70,7 +68,7 @@ function detectCategoryByName(name: string): string | null {
  * Enhance a parameter's Zod schema based on semantic detection.
  */
 function enhanceParameterSchema(
-  param: ParsedParameter,
+  param: Parameter,
   zodSchema: z.ZodTypeAny
 ): z.ZodTypeAny {
   // Only enhance string parameters
@@ -177,12 +175,12 @@ export function describeFieldsFromData(data: unknown, url: string): string | nul
  */
 async function describeResponseFields(
   baseUrl: string,
-  operation: ParsedOperation
+  operation: Operation
 ): Promise<string | null> {
   // Only enrich GET endpoints with no required path params (safe to fetch)
-  if (operation.method.toUpperCase() !== 'GET') return null
+  if (operation.method.toUpperCase() !== HttpMethod.GET) return null
   const hasRequiredPathParams = operation.parameters.some(
-    p => p.in === 'path' && p.required
+    p => p.in === ParamLocation.PATH && p.required
   )
   if (hasRequiredPathParams) return null
 
@@ -236,11 +234,11 @@ function formatCategory(category: string): string {
  * Sort parameters: path params first, then required, then optional.
  * Within each group, semantically detected params come first.
  */
-function sortParameters(params: ParsedParameter[]): ParsedParameter[] {
+function sortParameters(params: Parameter[]): Parameter[] {
   return [...params].sort((a, b) => {
     // Path params always first
-    if (a.in === 'path' && b.in !== 'path') return -1
-    if (b.in === 'path' && a.in !== 'path') return 1
+    if (a.in === ParamLocation.PATH && b.in !== ParamLocation.PATH) return -1
+    if (b.in === ParamLocation.PATH && a.in !== ParamLocation.PATH) return 1
 
     // Required before optional
     if (a.required && !b.required) return -1

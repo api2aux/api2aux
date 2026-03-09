@@ -1,10 +1,10 @@
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react'
-import type { ParsedOperation } from '../../services/openapi/types'
+import type { Operation } from '@api2aux/semantic-analysis'
 import { OperationItem } from './OperationItem'
 
 interface TagGroupProps {
   tag: string
-  operations: ParsedOperation[]
+  operations: Operation[]
   operationIndices: number[]
   selectedIndex: number
   onSelect: (index: number) => void

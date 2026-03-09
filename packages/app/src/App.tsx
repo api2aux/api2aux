@@ -285,7 +285,7 @@ function App() {
 
               {/* URL Input */}
               <div className="flex justify-center mb-8">
-                <URLInput authError={authError} detectedAuth={parsedSpec?.securitySchemes} />
+                <URLInput authError={authError} detectedAuth={parsedSpec?.authSchemes} />
               </div>
 
               {/* Main Content Area */}
@@ -308,7 +308,7 @@ function App() {
                           v{parsedSpec.version}
                         </span>
                         <span className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded">
-                          OpenAPI {parsedSpec.specVersion}
+                          OpenAPI {parsedSpec.rawSpecVersion}
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{parsedSpec.baseUrl}</p>
@@ -392,7 +392,7 @@ function App() {
 
             {/* URL Input */}
             <div className="flex justify-center mb-8">
-              <URLInput authError={authError} detectedAuth={parsedSpec?.securitySchemes} />
+              <URLInput authError={authError} detectedAuth={parsedSpec?.authSchemes} />
             </div>
 
             {/* Main Content Area */}
@@ -415,7 +415,7 @@ function App() {
                         v{parsedSpec.version}
                       </span>
                       <span className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded">
-                        OpenAPI {parsedSpec.specVersion}
+                        OpenAPI {parsedSpec.rawSpecVersion}
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">{parsedSpec.baseUrl}</p>

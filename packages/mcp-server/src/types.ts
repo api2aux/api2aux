@@ -2,6 +2,9 @@
  * Configuration types for the MCP server.
  */
 
+export { toAuth, AuthConfigType } from 'api-bridge-rt'
+export type { AuthConfig } from 'api-bridge-rt'
+
 export interface ServerConfig {
   /** API URL to proxy (for raw JSON APIs) */
   apiUrl?: string
@@ -19,13 +22,4 @@ export interface ServerConfig {
   debug?: boolean
   /** Disable response truncation (return full response) */
   fullResponse?: boolean
-}
-
-export interface AuthConfig {
-  type: 'bearer' | 'header' | 'apikey' | 'none'
-  token?: string
-  headerName?: string
-  headerValue?: string
-  paramName?: string
-  paramValue?: string
 }

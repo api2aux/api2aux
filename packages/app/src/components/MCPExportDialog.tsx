@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import { parseUrlParameters } from '../services/urlParser/parser'
 import { deployAsMcpServer, findExistingDeployment, isMcpWorkerConfigured } from '../services/mcp/deploy'
 import type { Credential } from '../types/auth'
-import type { ParsedOperation } from '@api2aux/semantic-analysis'
+import type { Operation } from '@api2aux/semantic-analysis'
 import { generateToolName, generateDescription } from '@api2aux/tool-utils'
 
 type ExportFormat = 'claude-desktop' | 'claude-code' | 'cli'
@@ -41,11 +41,11 @@ function deriveServerName(url: string): string {
   return deriveToolName(url).replace('fetch_', '')
 }
 
-function operationToolName(op: ParsedOperation): string {
+function operationToolName(op: Operation): string {
   return generateToolName(op)
 }
 
-function operationDescription(op: ParsedOperation): string {
+function operationDescription(op: Operation): string {
   return generateDescription(op)
 }
 
@@ -419,7 +419,7 @@ export function MCPExportDialog({ open, onClose }: MCPExportDialogProps) {
 
                     {/* Group by tag */}
                     {(() => {
-                      const grouped = new Map<string, ParsedOperation[]>()
+                      const grouped = new Map<string, Operation[]>()
                       for (const op of parsedSpec.operations) {
                         const tag = op.tags[0] || 'other'
                         if (!grouped.has(tag)) grouped.set(tag, [])

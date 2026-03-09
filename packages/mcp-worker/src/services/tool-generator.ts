@@ -1,11 +1,11 @@
 /**
- * Converts SerializableOperations into MCP tool definitions with Zod schemas.
+ * Converts Operations into MCP tool definitions with Zod schemas.
  * Uses @api2aux/tool-utils as the single source of truth for tool definitions,
  * with a thin adapter to convert JSON Schema properties → Zod (required by MCP SDK).
  */
 
 import { z } from 'zod'
-import type { SerializableOperation } from '../types'
+import type { Operation } from 'api-bridge-rt'
 import { generateToolDefinitions } from '@api2aux/tool-utils'
 import type { JsonSchemaProperty, UnifiedToolDefinition } from '@api2aux/tool-utils'
 
@@ -13,7 +13,7 @@ export interface GeneratedTool {
   name: string
   description: string
   inputSchema: Record<string, z.ZodTypeAny>
-  operation: SerializableOperation
+  operation: Operation
 }
 
 /**
@@ -66,7 +66,7 @@ function unifiedToZodShape(def: UnifiedToolDefinition): Record<string, z.ZodType
   return shape
 }
 
-export function generateTools(operations: SerializableOperation[]): GeneratedTool[] {
+export function generateTools(operations: Operation[]): GeneratedTool[] {
   const defs = generateToolDefinitions(operations)
 
   return defs.map((def, i) => ({

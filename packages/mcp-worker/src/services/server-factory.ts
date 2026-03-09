@@ -6,8 +6,8 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import type { TenantConfig } from '../types'
-import type { AuthConfig } from '../types'
+import type { TenantConfig, AuthConfig } from '../types'
+import { toAuth } from '../types'
 import { generateTools } from './tool-generator'
 import { executeTool } from './tool-executor'
 import { formatResponse } from './response-formatter'
@@ -19,6 +19,7 @@ export function createWorkerServer(config: TenantConfig, auth: AuthConfig): McpS
   })
 
   const tools = generateTools(config.operations)
+  const bridgeAuth = toAuth(auth)
 
   for (const tool of tools) {
     const toolSchema = {
@@ -31,7 +32,7 @@ export function createWorkerServer(config: TenantConfig, auth: AuthConfig): McpS
     const handler = async (args: Record<string, unknown>) => {
       const noTruncate = args.full_response === true
       try {
-        const result = await executeTool(config.baseUrl, tool.operation, args, auth)
+        const result = await executeTool(config.baseUrl, tool.operation, args, bridgeAuth)
         const responseText = formatResponse(result.data, noTruncate)
 
         if (result.status >= 400) {

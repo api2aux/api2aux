@@ -81,11 +81,11 @@ export function extractResponseFields(schema: unknown): string[] | null {
 
 /**
  * Generate a tool name from an operation.
- * Prefers operationId (converted to snake_case), falls back to method_path.
+ * Prefers id (converted to snake_case), falls back to method_path.
  */
 export function generateToolName(op: ToolOperation): string {
-  if (op.operationId) {
-    return op.operationId
+  if (op.id) {
+    return op.id
       .replace(/[^a-zA-Z0-9_]/g, '_')
       .replace(/([a-z])([A-Z])/g, '$1_$2')
       .toLowerCase()

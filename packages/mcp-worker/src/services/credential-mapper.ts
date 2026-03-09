@@ -4,6 +4,7 @@
  */
 
 import type { TenantConfig, AuthConfig } from '../types'
+import { AuthConfigType } from '../types'
 
 /**
  * Extract credentials from incoming request headers and map them
@@ -15,8 +16,8 @@ import type { TenantConfig, AuthConfig } from '../types'
  * - Authorization: forwarded as-is for bearer auth
  */
 export function mapCredentials(request: Request, config: TenantConfig): AuthConfig {
-  if (config.authType === 'none') {
-    return { type: 'none' }
+  if (config.authType === AuthConfigType.NONE) {
+    return { type: AuthConfigType.NONE }
   }
 
   // Try multiple header names for the forwarded credential
@@ -28,34 +29,34 @@ export function mapCredentials(request: Request, config: TenantConfig): AuthConf
   const authHeader = request.headers.get('Authorization')
 
   switch (config.authType) {
-    case 'bearer': {
+    case AuthConfigType.BEARER: {
       // Use Authorization header directly, or construct from forwarded key
       const token = authHeader?.startsWith('Bearer ')
         ? authHeader.slice(7)
         : forwardedKey
-      if (!token) return { type: 'none' }
-      return { type: 'bearer', token }
+      if (!token) return { type: AuthConfigType.NONE }
+      return { type: AuthConfigType.BEARER, token }
     }
 
-    case 'header': {
-      if (!config.authParamName || !forwardedKey) return { type: 'none' }
+    case AuthConfigType.HEADER: {
+      if (!config.authParamName || !forwardedKey) return { type: AuthConfigType.NONE }
       return {
-        type: 'header',
+        type: AuthConfigType.HEADER,
         headerName: config.authParamName,
         headerValue: forwardedKey,
       }
     }
 
-    case 'apikey': {
-      if (!config.authParamName || !forwardedKey) return { type: 'none' }
+    case AuthConfigType.API_KEY: {
+      if (!config.authParamName || !forwardedKey) return { type: AuthConfigType.NONE }
       return {
-        type: 'apikey',
+        type: AuthConfigType.API_KEY,
         paramName: config.authParamName,
         paramValue: forwardedKey,
       }
     }
 
     default:
-      return { type: 'none' }
+      return { type: AuthConfigType.NONE }
   }
 }

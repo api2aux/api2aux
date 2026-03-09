@@ -28,6 +28,7 @@
     "@api2aux/semantic-analysis": "workspace:*",
     "@api2aux/tool-utils": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "api-bridge-rt": "file:../../../api-bridge-rt",
     "zod": "^3.25.0"
   },
   "devDependencies": {

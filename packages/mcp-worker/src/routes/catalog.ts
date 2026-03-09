@@ -10,7 +10,8 @@ import type { AppEnv } from '../index'
 import { createWorkerServer } from '../services/server-factory'
 import { CATALOG_APIS } from '../data/catalog-apis'
 import { CATALOG_SEED_DATA } from '../data/catalog-seed'
-import type { TenantConfig } from '../types'
+import type { TenantConfig, AuthConfig } from '../types'
+import { AuthConfigType } from '../types'
 
 const catalog = new Hono<AppEnv>()
 
@@ -21,7 +22,7 @@ catalog.get('/catalog', (c) => {
     name: api.name,
     description: api.description,
     category: api.category,
-    auth: 'none',
+    auth: AuthConfigType.NONE,
     mcpUrl: `${workerUrl}/catalog/${api.name}`,
   }))
 
@@ -40,7 +41,7 @@ catalog.post('/catalog/seed', async (c) => {
       apiUrl: seed.baseUrl,
       baseUrl: seed.baseUrl,
       name: seed.name,
-      authType: 'none',
+      authType: AuthConfigType.NONE,
       operations: seed.operations,
       createdAt: now.toISOString(),
       expiresAt: sixMonths.toISOString(),
@@ -69,7 +70,7 @@ catalog.all('/catalog/:name', async (c) => {
   }
 
   // Catalog APIs have no auth (all public)
-  const auth = { type: 'none' as const }
+  const auth: AuthConfig = { type: AuthConfigType.NONE }
 
   const server = createWorkerServer(config, auth)
   const transport = new WebStandardStreamableHTTPServerTransport({

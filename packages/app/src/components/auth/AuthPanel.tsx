@@ -4,7 +4,7 @@ import { AuthTypeSelector } from './AuthTypeSelector'
 import { CredentialForm } from './CredentialForm'
 import { AuthErrorDisplay } from './AuthErrorDisplay'
 import type { AuthType } from '../../types/auth'
-import type { ParsedSecurityScheme } from '../../services/openapi/types'
+import type { AuthScheme } from '@api2aux/semantic-analysis'
 import { AlertTriangle } from 'lucide-react'
 
 interface AuthPanelProps {
@@ -12,7 +12,7 @@ interface AuthPanelProps {
   isOpen: boolean
   onToggle: () => void
   authError?: { status: 401 | 403; message: string } | null
-  detectedAuth?: ParsedSecurityScheme[]
+  detectedAuth?: AuthScheme[]
   onConfigureClick?: () => void
 }
 
@@ -37,7 +37,8 @@ export function AuthPanel({ url, isOpen, authError, detectedAuth, onConfigureCli
   }, [storeType])
 
   // Separate supported and unsupported schemes
-  const supportedSchemes = detectedAuth?.filter(s => s.authType !== null) ?? []
+  const APP_AUTH_TYPES = new Set<string>(['bearer', 'basic', 'apiKey', 'queryParam'])
+  const supportedSchemes = detectedAuth?.filter(s => s.authType !== null && APP_AUTH_TYPES.has(s.authType)) ?? []
   const unsupportedSchemes = detectedAuth?.filter(s => s.authType === null) ?? []
 
   // Auto-select first supported scheme when detectedAuth changes
@@ -48,7 +49,7 @@ export function AuthPanel({ url, isOpen, authError, detectedAuth, onConfigureCli
     if (apiCreds === null || storeType === 'none') {
       const firstSupported = supportedSchemes[0]
       if (firstSupported?.authType) {
-        handleTypeChange(firstSupported.authType)
+        handleTypeChange(firstSupported.authType as AuthType)
       }
     }
   }, [detectedAuth, apiCreds, storeType, supportedSchemes])
@@ -94,7 +95,7 @@ export function AuthPanel({ url, isOpen, authError, detectedAuth, onConfigureCli
           <AuthTypeSelector
             value={selectedType}
             onChange={handleTypeChange}
-            detectedType={matchedScheme?.authType ?? undefined}
+            detectedType={matchedScheme?.authType as AuthType | undefined}
           />
 
           {/* Dynamic credential form */}

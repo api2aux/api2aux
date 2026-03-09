@@ -68,15 +68,22 @@ export type {
 
 // === OpenAPI Parsing ===
 export { parseOpenAPISpec } from './openapi/parser'
-export { mapSecuritySchemes } from './openapi/security-mapper'
 
 export type {
-  ParsedParameter,
-  ParsedRequestBody,
-  ParsedOperation,
-  ParsedSecurityScheme,
-  ParsedSpec,
-} from './openapi/types'
+  ParsedAPI,
+  Operation,
+  Parameter,
+  ParameterSchema,
+  RequestBody,
+  RequestBodySchema,
+  RequestBodyProperty,
+  AuthScheme,
+  Auth,
+  AuthConfig,
+  ExecutionResult,
+} from 'api-bridge-rt'
+
+export { AuthConfigType, ParamLocation } from 'api-bridge-rt'
 
 // === Shared Types ===
 export { FieldType, Confidence } from './types/schema'

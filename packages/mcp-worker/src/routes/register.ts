@@ -4,7 +4,8 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import type { TenantConfig, SerializableOperation } from '../types'
+import type { Operation, AuthConfigType, ParamLocation } from 'api-bridge-rt'
+import type { TenantConfig } from '../types'
 import { validateApiUrl } from '../services/security'
 
 const SIX_MONTHS_SECONDS = 6 * 30 * 24 * 60 * 60 // ~180 days
@@ -13,10 +14,10 @@ interface RegisterBody {
   apiUrl: string
   baseUrl: string
   name: string
-  authType: 'bearer' | 'header' | 'apikey' | 'none'
+  authType: AuthConfigType
   authParamName?: string
-  authSource?: 'query' | 'header'
-  operations: SerializableOperation[]
+  authSource?: ParamLocation
+  operations: Operation[]
 }
 
 const register = new Hono<AppEnv>()

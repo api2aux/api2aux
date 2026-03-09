@@ -1,16 +1,16 @@
 /**
  * Types for URL parameter parsing.
- * Extends ParsedParameter from OpenAPI with URL-specific fields.
+ * Extends Parameter from api-bridge-rt with URL-specific fields.
  */
 
-import type { ParsedParameter } from '../openapi/types'
+import type { Parameter } from '@api2aux/semantic-analysis'
 
 /**
- * A parsed URL parameter, extending OpenAPI's ParsedParameter.
+ * A parsed URL parameter, extending api-bridge-rt's Parameter.
  * For URL parsing, we always use 'query' location and mark required as false
  * since we can't know requiredness from URL alone.
  */
-export interface ParsedUrlParameter extends Omit<ParsedParameter, 'in' | 'required'> {
+export interface ParsedUrlParameter extends Omit<Parameter, 'in' | 'required'> {
   in: 'query'
   required: false
   /** Original key from URL (decoded, e.g., "tag[]" or "filter[name]") */
