@@ -1,94 +1,66 @@
 /**
  * Pre-defined operations for catalog APIs.
- * Used by both the seed endpoint and the seed script.
+ * Uses api-invoke's defineAPI builder for readable, type-safe definitions.
  */
 
-import type { Operation } from 'api-invoke'
+import { defineAPI } from 'api-invoke'
+import type { ParsedAPI } from 'api-invoke'
 
 export interface CatalogSeedEntry {
   name: string
   baseUrl: string
-  operations: Operation[]
+  operations: ParsedAPI['operations']
 }
 
+const jsonplaceholder = defineAPI('JSONPlaceholder')
+  .baseUrl('https://jsonplaceholder.typicode.com')
+  .get('/users', { id: 'getUsers', summary: 'Get all users', tags: ['users'] })
+  .get('/users/{id}', {
+    id: 'getUserById', summary: 'Get user by ID', tags: ['users'],
+    params: { id: { type: 'integer', description: 'User ID' } },
+  })
+  .get('/posts', {
+    id: 'getPosts', summary: 'Get all posts', tags: ['posts'],
+    params: { userId: { type: 'integer', description: 'Filter by user ID' } },
+  })
+  .get('/posts/{id}', {
+    id: 'getPostById', summary: 'Get post by ID', tags: ['posts'],
+    params: { id: { type: 'integer', description: 'Post ID' } },
+  })
+  .get('/posts/{postId}/comments', {
+    id: 'getPostComments', summary: 'Get comments for a post', tags: ['comments'],
+    params: { postId: { type: 'integer', description: 'Post ID' } },
+  })
+  .get('/todos', {
+    id: 'getTodos', summary: 'Get all todos', tags: ['todos'],
+    params: { userId: { type: 'integer', description: 'Filter by user ID' } },
+  })
+  .build()
+
+const catfact = defineAPI('Cat Facts')
+  .baseUrl('https://catfact.ninja')
+  .get('/fact', { id: 'getRandomFact', summary: 'Get a random cat fact', tags: ['facts'] })
+  .get('/facts', {
+    id: 'getFacts', summary: 'Get a list of cat facts', tags: ['facts'],
+    params: {
+      limit: { type: 'integer', description: 'Number of facts', default: 10 },
+      page: { type: 'integer', description: 'Page number' },
+    },
+  })
+  .build()
+
+const dogceo = defineAPI('Dog CEO')
+  .baseUrl('https://dog.ceo/api')
+  .get('/breeds/list/all', { id: 'listAllBreeds', summary: 'List all dog breeds', tags: ['breeds'] })
+  .get('/breeds/image/random', { id: 'getRandomImage', summary: 'Get a random dog image', tags: ['images'] })
+  .get('/breed/{breed}/images/random', {
+    id: 'getBreedImage', summary: 'Get a random image of a specific breed', tags: ['images'],
+    params: { breed: { description: 'Dog breed name (e.g., "labrador")' } },
+  })
+  .build()
+
 export const CATALOG_SEED_DATA: CatalogSeedEntry[] = [
-  {
-    name: 'jsonplaceholder',
-    baseUrl: 'https://jsonplaceholder.typicode.com',
-    operations: [
-      {
-        path: '/users', method: 'GET', id: 'getUsers',
-        summary: 'Get all users', parameters: [], tags: ['users'],
-      },
-      {
-        path: '/users/{id}', method: 'GET', id: 'getUserById',
-        summary: 'Get user by ID',
-        parameters: [{ name: 'id', in: 'path', required: true, description: 'User ID', schema: { type: 'integer' } }],
-        tags: ['users'],
-      },
-      {
-        path: '/posts', method: 'GET', id: 'getPosts',
-        summary: 'Get all posts',
-        parameters: [{ name: 'userId', in: 'query', required: false, description: 'Filter by user ID', schema: { type: 'integer' } }],
-        tags: ['posts'],
-      },
-      {
-        path: '/posts/{id}', method: 'GET', id: 'getPostById',
-        summary: 'Get post by ID',
-        parameters: [{ name: 'id', in: 'path', required: true, description: 'Post ID', schema: { type: 'integer' } }],
-        tags: ['posts'],
-      },
-      {
-        path: '/posts/{postId}/comments', method: 'GET', id: 'getPostComments',
-        summary: 'Get comments for a post',
-        parameters: [{ name: 'postId', in: 'path', required: true, description: 'Post ID', schema: { type: 'integer' } }],
-        tags: ['comments'],
-      },
-      {
-        path: '/todos', method: 'GET', id: 'getTodos',
-        summary: 'Get all todos',
-        parameters: [{ name: 'userId', in: 'query', required: false, description: 'Filter by user ID', schema: { type: 'integer' } }],
-        tags: ['todos'],
-      },
-    ],
-  },
-  {
-    name: 'catfact',
-    baseUrl: 'https://catfact.ninja',
-    operations: [
-      {
-        path: '/fact', method: 'GET', id: 'getRandomFact',
-        summary: 'Get a random cat fact', parameters: [], tags: ['facts'],
-      },
-      {
-        path: '/facts', method: 'GET', id: 'getFacts',
-        summary: 'Get a list of cat facts',
-        parameters: [
-          { name: 'limit', in: 'query', required: false, description: 'Number of facts', schema: { type: 'integer', default: 10 } },
-          { name: 'page', in: 'query', required: false, description: 'Page number', schema: { type: 'integer' } },
-        ],
-        tags: ['facts'],
-      },
-    ],
-  },
-  {
-    name: 'dogceo',
-    baseUrl: 'https://dog.ceo/api',
-    operations: [
-      {
-        path: '/breeds/list/all', method: 'GET', id: 'listAllBreeds',
-        summary: 'List all dog breeds', parameters: [], tags: ['breeds'],
-      },
-      {
-        path: '/breeds/image/random', method: 'GET', id: 'getRandomImage',
-        summary: 'Get a random dog image', parameters: [], tags: ['images'],
-      },
-      {
-        path: '/breed/{breed}/images/random', method: 'GET', id: 'getBreedImage',
-        summary: 'Get a random image of a specific breed',
-        parameters: [{ name: 'breed', in: 'path', required: true, description: 'Dog breed name (e.g., "labrador")', schema: { type: 'string' } }],
-        tags: ['images'],
-      },
-    ],
-  },
+  { name: 'jsonplaceholder', baseUrl: jsonplaceholder.baseUrl, operations: jsonplaceholder.operations },
+  { name: 'catfact', baseUrl: catfact.baseUrl, operations: catfact.operations },
+  { name: 'dogceo', baseUrl: dogceo.baseUrl, operations: dogceo.operations },
 ]
