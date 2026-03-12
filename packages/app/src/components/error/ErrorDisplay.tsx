@@ -137,11 +137,11 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
               <span className="font-semibold">Kind:</span> {appError.kind}
             </p>
           )}
-          {'errors' in error && Array.isArray((error as any).errors) && (
+          {'errors' in error && Array.isArray((error as Error & { errors: unknown }).errors) && (
             <div className="mt-2">
               <p className="text-xs font-semibold text-foreground mb-1">GraphQL Errors:</p>
               <ul className="text-xs font-mono text-muted-foreground list-disc ml-4 space-y-1">
-                {(error as any).errors.map((e: { message: string }, i: number) => (
+                {((error as Error & { errors: Array<{ message: string }> }).errors).map((e, i) => (
                   <li key={i}>{e.message}</li>
                 ))}
               </ul>
