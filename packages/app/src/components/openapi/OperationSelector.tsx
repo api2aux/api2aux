@@ -16,8 +16,9 @@ interface OperationSelectorProps {
 
 export function OperationSelector({ operations, selectedIndex, onSelect }: OperationSelectorProps) {
   // Check if all operations share the same path (e.g. GraphQL: all POST /graphql)
+  const firstPath = operations[0]?.path
   const allSamePath = operations.length > 1 &&
-    operations.every(op => op.path === operations[0].path)
+    operations.every(op => op.path === firstPath)
 
   const getOperationLabel = (operation: Operation): string => {
     if (allSamePath) {

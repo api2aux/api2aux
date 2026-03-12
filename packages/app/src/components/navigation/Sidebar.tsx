@@ -32,8 +32,9 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
   const allUncategorized = groupedOperations.size === 1 && groupedOperations.has('Uncategorized')
 
   // Check if all operations share the same path (e.g. GraphQL: all POST /graphql)
+  const firstPath = parsedSpec.operations[0]?.path
   const allSamePath = parsedSpec.operations.length > 1 &&
-    parsedSpec.operations.every(op => op.path === parsedSpec.operations[0].path)
+    parsedSpec.operations.every(op => op.path === firstPath)
 
   return (
     <nav
