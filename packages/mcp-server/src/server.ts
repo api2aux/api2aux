@@ -7,7 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { parseOpenAPISpec } from '@api2aux/semantic-analysis'
 import type { ParsedAPI, ExecutionResult, Auth } from 'api-invoke'
-import { parseRawUrl, parseGraphQLSchema, hasGraphQLErrors, getGraphQLErrors, ApiInvokeError, ErrorKind } from 'api-invoke'
+import { parseRawUrl, parseGraphQLSchema, buildRequest, hasGraphQLErrors, getGraphQLErrors, ApiInvokeError, ErrorKind } from 'api-invoke'
 import { generateTools } from './tool-generator'
 import type { GeneratedTool } from './tool-generator'
 import { enrichTools } from './semantic-enrichment'
@@ -141,6 +141,16 @@ function createToolHandler(
   fullResponse: boolean
 ) {
   return async (args: Record<string, unknown>) => {
+    if (args.dry_run === true) {
+      const req = buildRequest(baseUrl, tool.operation, args, { auth: bridgeAuth })
+      const maskedH = maskHeaders(req.headers)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ method: req.method, url: req.url, headers: maskedH, body: req.body }, null, 2),
+        }],
+      }
+    }
     const showDebug = debug || args.debug === true
     const noTruncate = fullResponse || args.full_response === true
     try {
@@ -228,6 +238,16 @@ function createStreamingToolHandler(
   fullResponse: boolean
 ) {
   return async (args: Record<string, unknown>) => {
+    if (args.dry_run === true) {
+      const req = buildRequest(baseUrl, tool.operation, args, { auth: bridgeAuth })
+      const maskedH = maskHeaders(req.headers)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ method: req.method, url: req.url, headers: maskedH, body: req.body }, null, 2),
+        }],
+      }
+    }
     const showDebug = debug || args.debug === true
     const maxEvents = fullResponse || args.full_response === true
       ? Infinity
@@ -317,6 +337,7 @@ function registerToolsOnServer(
       ...tool.inputSchema,
       debug: z.boolean().optional().describe('Set to true to see the request URL, headers, and timing'),
       full_response: z.boolean().optional().describe('Set to true to disable truncation and return the full response'),
+      dry_run: z.boolean().optional().describe('Set to true to preview the request without executing it'),
     }
 
     const hasInputs = Object.keys(tool.inputSchema).length > 0
@@ -398,6 +419,16 @@ function createGraphQLToolHandler(
   fullResponse: boolean
 ) {
   return async (args: Record<string, unknown>) => {
+    if (args.dry_run === true) {
+      const req = buildRequest(baseUrl, tool.operation, args, { auth: bridgeAuth })
+      const maskedH = maskHeaders(req.headers)
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ method: req.method, url: req.url, headers: maskedH, body: req.body }, null, 2),
+        }],
+      }
+    }
     const showDebug = debug || args.debug === true
     const noTruncate = fullResponse || args.full_response === true
     try {
@@ -497,6 +528,7 @@ function registerGraphQLToolsOnServer(
       ...tool.inputSchema,
       debug: z.boolean().optional().describe('Set to true to see the request URL, headers, and timing'),
       full_response: z.boolean().optional().describe('Set to true to disable truncation and return the full response'),
+      dry_run: z.boolean().optional().describe('Set to true to preview the request without executing it'),
     }
 
     const hasInputs = Object.keys(tool.inputSchema).length > 0
