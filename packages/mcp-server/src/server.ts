@@ -124,7 +124,7 @@ function createToolHandler(
     const showDebug = debug || args.debug === true
     const noTruncate = fullResponse || args.full_response === true
     try {
-      const result = await executeTool(baseUrl, tool.operation, args, bridgeAuth)
+      const result = await executeTool(baseUrl, tool.operation, args, bridgeAuth, { debug: showDebug })
       const responseText = formatResponse(result.data, noTruncate)
       const prefix = showDebug
         ? formatDebugInfo(result, responseText.length)

@@ -5,10 +5,12 @@
  * error details to the LLM).
  */
 
-import { executeOperation } from 'api-invoke'
+import { executeOperation, withRetry } from 'api-invoke'
 import type { Operation, Auth, ExecutionResult } from 'api-invoke'
 
 export type { ExecutionResult }
+
+const retryFetch = withRetry({ maxRetries: 2, initialDelayMs: 1000 })
 
 export async function executeTool(
   baseUrl: string,
@@ -16,5 +18,10 @@ export async function executeTool(
   args: Record<string, unknown>,
   auth?: Auth
 ): Promise<ExecutionResult> {
-  return executeOperation(baseUrl, operation, args, { auth, throwOnHttpError: false, timeoutMs: 30000 })
+  return executeOperation(baseUrl, operation, args, {
+    auth,
+    throwOnHttpError: false,
+    timeoutMs: 30000,
+    fetch: retryFetch,
+  })
 }
