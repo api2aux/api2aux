@@ -1,7 +1,8 @@
-import type { AppError, ErrorKind } from '../../types/errors'
+import { ErrorKind } from '../../types/errors'
+import type { AppError } from '../../types/errors'
 
 export class CORSError extends Error implements AppError {
-  readonly kind: ErrorKind = 'cors'
+  readonly kind: ErrorKind = ErrorKind.Cors
   readonly suggestion: string
 
   constructor(url: string) {
@@ -12,7 +13,7 @@ export class CORSError extends Error implements AppError {
 }
 
 export class NetworkError extends Error implements AppError {
-  readonly kind: ErrorKind = 'network'
+  readonly kind: ErrorKind = ErrorKind.Network
   readonly suggestion: string
 
   constructor(url: string) {
@@ -23,7 +24,7 @@ export class NetworkError extends Error implements AppError {
 }
 
 export class APIError extends Error implements AppError {
-  readonly kind: ErrorKind = 'api'
+  readonly kind: ErrorKind = ErrorKind.Api
   readonly suggestion: string
   readonly status: number
 
@@ -40,7 +41,7 @@ export class APIError extends Error implements AppError {
 }
 
 export class ParseError extends Error implements AppError {
-  readonly kind: ErrorKind = 'parse'
+  readonly kind: ErrorKind = ErrorKind.Parse
   readonly suggestion: string
 
   constructor(url: string) {
@@ -51,7 +52,7 @@ export class ParseError extends Error implements AppError {
 }
 
 export class GraphQLError extends Error implements AppError {
-  readonly kind: ErrorKind = 'graphql'
+  readonly kind: ErrorKind = ErrorKind.Graphql
   readonly suggestion: string
   readonly errors: Array<{ message: string }>
 
@@ -65,7 +66,7 @@ export class GraphQLError extends Error implements AppError {
 }
 
 export class AuthError extends Error implements AppError {
-  readonly kind: ErrorKind = 'auth'
+  readonly kind: ErrorKind = ErrorKind.Auth
   readonly suggestion: string
   readonly status: 401 | 403
   readonly authContext: string

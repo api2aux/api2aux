@@ -2,6 +2,7 @@ import { executeRaw, corsProxy, ApiInvokeError, ErrorKind, ParamLocation } from 
 import type { Auth } from 'api-invoke'
 import { CORSError, NetworkError, APIError, ParseError, AuthError, GraphQLError } from './errors'
 import { useAuthStore } from '../../store/authStore'
+import { AuthType } from '../../types/auth'
 import type { Credential } from '../../types/auth'
 
 /**
@@ -15,15 +16,15 @@ const proxy = corsProxy()
  */
 function credentialToAuth(credential: Credential): Auth {
   switch (credential.type) {
-    case 'bearer':
+    case AuthType.Bearer:
       return { type: 'bearer', token: credential.token }
-    case 'basic':
+    case AuthType.Basic:
       return { type: 'basic', username: credential.username, password: credential.password }
-    case 'apiKey':
+    case AuthType.ApiKey:
       return { type: 'apiKey', location: ParamLocation.HEADER, name: credential.headerName, value: credential.value }
-    case 'queryParam':
+    case AuthType.QueryParam:
       return { type: 'apiKey', location: ParamLocation.QUERY, name: credential.paramName, value: credential.value }
-    case 'cookie':
+    case AuthType.Cookie:
       return { type: 'cookie', name: credential.cookieName, value: credential.value }
     default: {
       const _exhaustive: never = credential
@@ -125,24 +126,24 @@ export function isAuthConfigured(url: string): boolean {
  */
 export function maskCredential(credential: Credential): string {
   switch (credential.type) {
-    case 'bearer': {
+    case AuthType.Bearer: {
       const preview = credential.token.substring(0, 4)
       return `Bearer ${preview}***`
     }
 
-    case 'basic': {
+    case AuthType.Basic: {
       return `Basic ${credential.username}:***`
     }
 
-    case 'apiKey': {
+    case AuthType.ApiKey: {
       return `${credential.headerName}: ***`
     }
 
-    case 'queryParam': {
+    case AuthType.QueryParam: {
       return `?${credential.paramName}=***`
     }
 
-    case 'cookie': {
+    case AuthType.Cookie: {
       return `Cookie ${credential.cookieName}=***`
     }
 

@@ -1,6 +1,6 @@
 import { Lock, LockOpen } from 'lucide-react'
 import { Button } from '../ui/button'
-import type { AuthStatus, AuthType } from '../../types/auth'
+import { AuthStatus, AuthType } from '../../types/auth'
 
 interface LockIconProps {
   status: AuthStatus
@@ -16,7 +16,7 @@ interface LockIconProps {
  */
 export function LockIcon({ status, activeType, onClick }: LockIconProps) {
   const getIconState = () => {
-    if (status === 'success' || (status === 'untested' && activeType)) {
+    if (status === AuthStatus.Success || (status === AuthStatus.Untested && activeType)) {
       // Active state: green lock
       return {
         Icon: Lock,
@@ -25,7 +25,7 @@ export function LockIcon({ status, activeType, onClick }: LockIconProps) {
       }
     }
 
-    if (status === 'failed') {
+    if (status === AuthStatus.Failed) {
       // Failed state: red lock
       return {
         Icon: Lock,
@@ -62,15 +62,15 @@ export function LockIcon({ status, activeType, onClick }: LockIconProps) {
  */
 function formatAuthType(type: AuthType): string {
   switch (type) {
-    case 'bearer':
+    case AuthType.Bearer:
       return 'Bearer Token'
-    case 'basic':
+    case AuthType.Basic:
       return 'Basic Auth'
-    case 'apiKey':
+    case AuthType.ApiKey:
       return 'API Key'
-    case 'queryParam':
+    case AuthType.QueryParam:
       return 'Query Parameter'
-    case 'cookie':
+    case AuthType.Cookie:
       return 'Cookie'
   }
 }

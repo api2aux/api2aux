@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ErrorKind } from '../../types/errors'
 import type { AppError } from '../../types/errors'
 
 interface ErrorDisplayProps {
@@ -15,11 +16,11 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
   }
 
   const appError = isAppError(error) ? error : null
-  const kind = appError?.kind || 'unknown'
+  const kind = appError?.kind || ErrorKind.Unknown
 
   // Configuration for each error type
   const errorConfig = {
-    cors: {
+    [ErrorKind.Cors]: {
       title: 'CORS Error',
       icon: '🛡️',
       bgColor: 'bg-red-50',
@@ -27,7 +28,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
       textColor: 'text-red-800',
       iconBg: 'bg-red-100',
     },
-    network: {
+    [ErrorKind.Network]: {
       title: 'Network Error',
       icon: '📡',
       bgColor: 'bg-orange-50',
@@ -35,7 +36,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
       textColor: 'text-orange-800',
       iconBg: 'bg-orange-100',
     },
-    api: {
+    [ErrorKind.Api]: {
       title: 'API Error',
       icon: '⚠️',
       bgColor: 'bg-yellow-50',
@@ -43,7 +44,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
       textColor: 'text-yellow-800',
       iconBg: 'bg-yellow-100',
     },
-    auth: {
+    [ErrorKind.Auth]: {
       title: 'Authentication Error',
       icon: '🔒',
       bgColor: 'bg-purple-50',
@@ -51,7 +52,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
       textColor: 'text-purple-800',
       iconBg: 'bg-purple-100',
     },
-    parse: {
+    [ErrorKind.Parse]: {
       title: 'Parse Error',
       icon: '📝',
       bgColor: 'bg-blue-50',
@@ -59,7 +60,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
       textColor: 'text-blue-800',
       iconBg: 'bg-blue-100',
     },
-    graphql: {
+    [ErrorKind.Graphql]: {
       title: 'GraphQL Error',
       icon: '⬡',
       bgColor: 'bg-indigo-50',
@@ -67,7 +68,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
       textColor: 'text-indigo-800',
       iconBg: 'bg-indigo-100',
     },
-    unknown: {
+    [ErrorKind.Unknown]: {
       title: 'Error',
       icon: '❌',
       bgColor: 'bg-gray-50',

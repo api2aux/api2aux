@@ -1,13 +1,19 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { AuthTypeSelector } from './AuthTypeSelector'
 import { CredentialForm } from './CredentialForm'
 import { AuthErrorDisplay } from './AuthErrorDisplay'
-import type { AuthType } from '../../types/auth'
+import { AuthType } from '../../types/auth'
 import type { AuthScheme } from '@api2aux/semantic-analysis'
 import { AlertTriangle } from 'lucide-react'
 
-const APP_AUTH_TYPES = new Set<string>(['bearer', 'basic', 'apiKey', 'queryParam', 'cookie'])
+const APP_AUTH_TYPES = new Set<string>([
+  AuthType.Bearer,
+  AuthType.Basic,
+  AuthType.ApiKey,
+  AuthType.QueryParam,
+  AuthType.Cookie,
+])
 
 interface AuthPanelProps {
   url: string
@@ -48,6 +54,14 @@ export function AuthPanel({ url, isOpen, authError, detectedAuth, onConfigureCli
     [detectedAuth]
   )
 
+  const handleTypeChange = useCallback((type: AuthType | 'none') => {
+    setSelectedType(type)
+    if (type === 'none') {
+      clearForApi(url)
+    }
+    // For other types, CredentialForm will handle credential creation on input
+  }, [clearForApi, url])
+
   // Auto-select first supported scheme when detectedAuth changes
   useEffect(() => {
     if (!detectedAuth || detectedAuth.length === 0) return
@@ -59,18 +73,10 @@ export function AuthPanel({ url, isOpen, authError, detectedAuth, onConfigureCli
         handleTypeChange(firstSupported.authType as AuthType)
       }
     }
-  }, [detectedAuth, apiCreds, storeType, supportedSchemes])
+  }, [detectedAuth, apiCreds, storeType, supportedSchemes, handleTypeChange])
 
   // Find matching detected scheme for current selected type
   const matchedScheme = detectedAuth?.find(s => s.authType === selectedType)
-
-  const handleTypeChange = (type: AuthType | 'none') => {
-    setSelectedType(type)
-    if (type === 'none') {
-      clearForApi(url)
-    }
-    // For other types, CredentialForm will handle credential creation on input
-  }
 
   return (
     <div className="transition-all duration-200 ease-in-out">

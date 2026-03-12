@@ -3,7 +3,8 @@ import { Eye, EyeOff } from 'lucide-react'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { useAuthStore } from '../../store/authStore'
-import type { AuthType, Credential } from '../../types/auth'
+import { AuthType } from '../../types/auth'
+import type { Credential } from '../../types/auth'
 
 interface CredentialFormProps {
   type: AuthType | 'none'
@@ -50,22 +51,22 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
     const cred = apiCreds?.credentials[type as AuthType]
     if (cred) {
       switch (cred.type) {
-        case 'bearer':
+        case AuthType.Bearer:
           setToken(cred.token)
           break
-        case 'basic':
+        case AuthType.Basic:
           setUsername(cred.username)
           setPassword(cred.password)
           break
-        case 'apiKey':
+        case AuthType.ApiKey:
           setHeaderName(cred.headerName)
           setHeaderValue(cred.value)
           break
-        case 'queryParam':
+        case AuthType.QueryParam:
           setParamName(cred.paramName)
           setParamValue(cred.value)
           break
-        case 'cookie':
+        case AuthType.Cookie:
           setCookieName(cred.cookieName)
           setCookieValue(cred.value)
           break
@@ -94,7 +95,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
   if (type === 'none') return null
 
   // Bearer Token
-  if (type === 'bearer') {
+  if (type === AuthType.Bearer) {
     return (
       <div className="space-y-3">
         <div className="space-y-1.5">
@@ -109,7 +110,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
               onChange={(e) => {
                 setToken(e.target.value)
                 saveCredential({
-                  type: 'bearer',
+                  type: AuthType.Bearer,
                   label: '',
                   token: e.target.value,
                 })
@@ -120,7 +121,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
                 const cleaned = pasted.replace(/[\n\r]/g, '').trim()
                 setToken(cleaned)
                 saveCredential({
-                  type: 'bearer',
+                  type: AuthType.Bearer,
                   label: '',
                   token: cleaned,
                 })
@@ -148,7 +149,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
   }
 
   // Basic Auth
-  if (type === 'basic') {
+  if (type === AuthType.Basic) {
     return (
       <div className="space-y-3">
         <div className="space-y-1.5">
@@ -162,7 +163,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
             onChange={(e) => {
               setUsername(e.target.value)
               saveCredential({
-                type: 'basic',
+                type: AuthType.Basic,
                 label: '',
                 username: e.target.value,
                 password,
@@ -183,7 +184,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
               onChange={(e) => {
                 setPassword(e.target.value)
                 saveCredential({
-                  type: 'basic',
+                  type: AuthType.Basic,
                   label: '',
                   username,
                   password: e.target.value,
@@ -212,7 +213,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
   }
 
   // API Key (custom header)
-  if (type === 'apiKey') {
+  if (type === AuthType.ApiKey) {
     return (
       <div className="space-y-3">
         <div className="space-y-1.5">
@@ -226,7 +227,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
             onChange={(e) => {
               setHeaderName(e.target.value)
               saveCredential({
-                type: 'apiKey',
+                type: AuthType.ApiKey,
                 label: '',
                 headerName: e.target.value,
                 value: headerValue,
@@ -247,7 +248,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
               onChange={(e) => {
                 setHeaderValue(e.target.value)
                 saveCredential({
-                  type: 'apiKey',
+                  type: AuthType.ApiKey,
                   label: '',
                   headerName,
                   value: e.target.value,
@@ -276,7 +277,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
   }
 
   // Cookie
-  if (type === 'cookie') {
+  if (type === AuthType.Cookie) {
     return (
       <div className="space-y-3">
         <div className="space-y-1.5">
@@ -290,7 +291,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
             onChange={(e) => {
               setCookieName(e.target.value)
               saveCredential({
-                type: 'cookie',
+                type: AuthType.Cookie,
                 label: '',
                 cookieName: e.target.value,
                 value: cookieValue,
@@ -311,7 +312,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
               onChange={(e) => {
                 setCookieValue(e.target.value)
                 saveCredential({
-                  type: 'cookie',
+                  type: AuthType.Cookie,
                   label: '',
                   cookieName,
                   value: e.target.value,
@@ -340,7 +341,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
   }
 
   // Query Parameter
-  if (type === 'queryParam') {
+  if (type === AuthType.QueryParam) {
     return (
       <div className="space-y-3">
         <div className="space-y-1.5">
@@ -354,7 +355,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
             onChange={(e) => {
               setParamName(e.target.value)
               saveCredential({
-                type: 'queryParam',
+                type: AuthType.QueryParam,
                 label: '',
                 paramName: e.target.value,
                 value: paramValue,
@@ -375,7 +376,7 @@ export function CredentialForm({ type, url, detectedMetadata }: CredentialFormPr
               onChange={(e) => {
                 setParamValue(e.target.value)
                 saveCredential({
-                  type: 'queryParam',
+                  type: AuthType.QueryParam,
                   label: '',
                   paramName,
                   value: e.target.value,
