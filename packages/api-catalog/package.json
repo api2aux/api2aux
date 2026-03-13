@@ -11,7 +11,9 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "ingest": "tsx scripts/ingest-csv.ts",
-    "upload-specs": "tsx scripts/upload-specs.ts"
+    "upload-specs": "tsx scripts/upload-specs.ts",
+    "admin": "pnpm --filter @api2aux/api-catalog-admin dev",
+    "admin:build": "pnpm --filter @api2aux/api-catalog-admin build"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",

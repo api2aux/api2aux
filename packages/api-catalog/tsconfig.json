@@ -7,5 +7,5 @@
     "noUncheckedIndexedAccess": true
   },
   "include": ["src"],
-  "exclude": ["dist"]
+  "exclude": ["dist", "src/admin"]
 }
