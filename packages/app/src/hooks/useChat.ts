@@ -71,7 +71,9 @@ async function executeToolCall(
       if (pathSegment) targetUrl += pathSegment
     }
 
-    const queryParams = new URLSearchParams()
+    // Start with the original URL's query params (e.g. api_key, auth tokens)
+    // then let the LLM's args override/add to them
+    const queryParams = new URLSearchParams(parsedUrl.search)
     for (const [key, value] of Object.entries(args)) {
       if (key !== 'path' && value !== undefined && value !== '') {
         queryParams.set(key, String(value))
