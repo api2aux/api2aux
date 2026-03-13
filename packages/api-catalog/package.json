@@ -3,17 +3,19 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "API catalog — CRUD, search, MCP discovery, and sync",
+  "description": "API catalog \u2014 CRUD, search, MCP discovery, and sync",
   "scripts": {
     "dev": "tsx src/dev.ts",
     "build": "tsup src/index.ts --outDir dist --format esm",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "ingest": "tsx scripts/ingest-csv.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
     "better-sqlite3": "^12.6.2",
+    "csv-parse": "^6.1.0",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.12.7",
     "zod": "^4.3.6"

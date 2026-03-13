@@ -34,3 +34,8 @@ wrangler.toml
 !.env.example
 
 data/
+
+# SQLite dev databases
+*.db
+*.db-wal
+*.db-shm
