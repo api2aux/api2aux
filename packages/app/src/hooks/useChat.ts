@@ -9,7 +9,7 @@
 import { useCallback } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useChatStore } from '../store/chatStore'
-import { chatCompletion } from '../services/llm/client'
+import { chatCompletionStream } from '../services/llm/client'
 import { buildToolsFromUrl, buildToolsFromSpec, buildSystemPrompt } from '../services/llm/toolBuilder'
 import { generateToolName } from '@api2aux/tool-utils'
 import { useParameterStore } from '../store/parameterStore'
@@ -186,18 +186,18 @@ function autoSelectTab(data: unknown, responseText: string) {
 }
 
 // LLM-format history that preserves tool_calls and tool responses.
-// Reset when clearMessages is called (tracked via messages.length === 0).
 let llmHistory: ChatMessage[] = []
 
 export function useChat() {
   const url = useAppStore((s) => s.url)
   const parsedSpec = useAppStore((s) => s.parsedSpec)
-  const { messages, addMessage, updateMessage, clearMessages, config, sending, setSending, setChatApiUrl } = useChatStore()
+  const { messages, addMessage, updateMessage, clearMessages: storeClearMessages, config, sending, setSending, setChatApiUrl } = useChatStore()
 
-  // Reset LLM history when messages are cleared
-  if (messages.length === 0 && llmHistory.length > 0) {
+  // Wrap clearMessages to also reset LLM history
+  const clearMessages = useCallback(() => {
+    storeClearMessages()
     llmHistory = []
-  }
+  }, [storeClearMessages])
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || !url || sending) return
@@ -249,28 +249,55 @@ export function useChat() {
       // Add the new user message to LLM history
       llmHistory.push({ role: 'user', content: text.trim() })
 
-      // Build full message array with system prompt
-      const llmMessages: ChatMessage[] = [
-        { role: 'system', content: systemPrompt },
-        ...llmHistory,
-      ]
-
-      // Tool calling loop: allow up to MAX_ROUNDS of LLM→tool→LLM cycles
-      // Each round may have multiple parallel tool_calls that all get executed
+      // Tool calling loop with streaming: allow up to MAX_ROUNDS of LLM→tool→LLM cycles.
+      // Each round streams text tokens to the UI. If tool_calls come back instead,
+      // execute them and loop again.
       const MAX_ROUNDS = 3
       let roundCount = 0
       const collectedResults: ToolResultEntry[] = []
-      let currentResponse = await chatCompletion(llmMessages, tools, config)
-      let currentChoice = currentResponse.choices[0]
-      if (!currentChoice) throw new Error('No response from LLM')
 
-      while (
-        currentChoice.message.tool_calls &&
-        currentChoice.message.tool_calls.length > 0 &&
-        roundCount < MAX_ROUNDS
-      ) {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const llmMessages: ChatMessage[] = [
+          { role: 'system', content: systemPrompt },
+          ...llmHistory,
+        ]
+        // On last allowed round, send no tools to force a text response
+        const roundTools = roundCount >= MAX_ROUNDS ? [] : tools
+
+        // Stream the response — text tokens update the UI live
+        let streamedText = ''
+        const streamResult = await chatCompletionStream(
+          llmMessages,
+          roundTools,
+          config,
+          (token) => {
+            streamedText += token
+            updateMessage(assistantId, { text: streamedText })
+          },
+        )
+
+        // If no tool calls, this was the final text response
+        if (streamResult.tool_calls.length === 0) {
+          const responseText = streamResult.content || 'Done.'
+          llmHistory.push({ role: 'assistant', content: responseText })
+          updateMessage(assistantId, {
+            text: responseText,
+            loading: false,
+            ...(collectedResults.length > 0 ? { toolResults: collectedResults } : {}),
+          })
+
+          // Auto-select the most relevant tab based on the LLM response text
+          if (collectedResults.length > 0) {
+            const lastData = collectedResults[collectedResults.length - 1]!.data
+            autoSelectTab(lastData, responseText)
+          }
+          break
+        }
+
+        // Tool calls returned — execute them, then loop
         roundCount++
-        const allToolCalls = currentChoice.message.tool_calls
+        const allToolCalls = streamResult.tool_calls
 
         // Track assistant message with ALL tool_calls in LLM history
         llmHistory.push({
@@ -342,32 +369,8 @@ export function useChat() {
           })
         }
 
-        // Call LLM again — with tools so it can decide to call more, or respond with text
-        const nextMessages: ChatMessage[] = [
-          { role: 'system', content: systemPrompt },
-          ...llmHistory,
-        ]
-        // On last allowed round, send no tools to force a text response
-        const nextTools = roundCount >= MAX_ROUNDS ? [] : tools
-        currentResponse = await chatCompletion(nextMessages, nextTools, config)
-        currentChoice = currentResponse.choices[0]
-        if (!currentChoice) throw new Error('No response from LLM')
-      }
-
-      // Final text response (either after tool calls or direct response)
-      const responseText = currentChoice.message.content || 'Done.'
-      llmHistory.push({ role: 'assistant', content: responseText })
-      updateMessage(assistantId, {
-        text: responseText,
-        loading: false,
-        // Attach tool results so the user can click to view them
-        ...(collectedResults.length > 0 ? { toolResults: collectedResults } : {}),
-      })
-
-      // Auto-select the most relevant tab based on the LLM response text
-      if (collectedResults.length > 0) {
-        const lastData = collectedResults[collectedResults.length - 1]!.data
-        autoSelectTab(lastData, responseText)
+        // Safety: if we've hit max rounds the next iteration will send no tools,
+        // forcing a text response
       }
     } catch (err) {
       updateMessage(assistantId, {

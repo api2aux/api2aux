@@ -8,9 +8,9 @@ import { ChatInput } from './ChatInput'
 import { ChatSettings } from './ChatSettings'
 
 export function ChatPanel() {
-  const { setOpen, clearMessages, chatApiUrl } = useChatStore()
+  const { setOpen, chatApiUrl } = useChatStore()
   const url = useAppStore((s) => s.url)
-  const { messages, sendMessage, sending, hasApiKey, contextStats, llmHistory } = useChat()
+  const { messages, sendMessage, clearMessages, sending, hasApiKey, contextStats, llmHistory } = useChat()
   const [showSettings, setShowSettings] = useState(false)
   const [showContext, setShowContext] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)

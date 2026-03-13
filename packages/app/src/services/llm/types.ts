@@ -82,3 +82,31 @@ export interface ChatConfig {
   model: string
   provider: 'openrouter' | 'openai' | 'anthropic'
 }
+
+/** A single SSE chunk from a streaming chat completion */
+export interface StreamChunk {
+  id: string
+  choices: Array<{
+    delta: {
+      role?: string
+      content?: string | null
+      tool_calls?: Array<{
+        index: number
+        id?: string
+        type?: 'function'
+        function?: {
+          name?: string
+          arguments?: string
+        }
+      }>
+    }
+    finish_reason: string | null
+  }>
+}
+
+/** The result of a streaming completion: either streamed text or accumulated tool calls */
+export interface StreamResult {
+  content: string
+  tool_calls: ToolCall[]
+  finish_reason: string
+}
