@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { UIMessage, ChatConfig } from '../services/llm/types'
-import { DEFAULT_MODELS } from '../services/llm/client'
+import { getProvider } from '../services/llm/providers/registry'
 
 interface ChatState {
   /** Whether the chat panel is open */
@@ -40,7 +40,7 @@ export const useChatStore = create<ChatState>()(
       chatApiUrl: '',
       config: {
         apiKey: '',
-        model: DEFAULT_MODELS.openrouter,
+        model: getProvider('openrouter')?.models[0]?.value ?? 'anthropic/claude-haiku',
         provider: 'openrouter',
       },
       panelSize: 30,

@@ -36,19 +36,6 @@ export interface ToolParameter {
   default?: unknown
 }
 
-export interface LLMResponse {
-  id: string
-  choices: Array<{
-    message: ChatMessage
-    finish_reason: string
-  }>
-  usage?: {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
-  }
-}
-
 /** A cached tool result that can be viewed in the main panel */
 export interface ToolResultEntry {
   toolName: string
@@ -77,31 +64,12 @@ export interface UIMessage {
   timestamp: number
 }
 
+export type ProviderId = 'openrouter' | 'anthropic' | 'openai' | 'groq' | 'deepseek' | 'xai' | 'moonshot'
+
 export interface ChatConfig {
   apiKey: string
   model: string
-  provider: 'openrouter' | 'openai' | 'anthropic'
-}
-
-/** A single SSE chunk from a streaming chat completion */
-export interface StreamChunk {
-  id: string
-  choices: Array<{
-    delta: {
-      role?: string
-      content?: string | null
-      tool_calls?: Array<{
-        index: number
-        id?: string
-        type?: 'function'
-        function?: {
-          name?: string
-          arguments?: string
-        }
-      }>
-    }
-    finish_reason: string | null
-  }>
+  provider: ProviderId
 }
 
 /** The result of a streaming completion: either streamed text or accumulated tool calls */
