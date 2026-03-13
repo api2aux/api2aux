@@ -1,0 +1,28 @@
+{
+  "name": "@api2aux/api-catalog",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "API catalog — CRUD, search, MCP discovery, and sync",
+  "scripts": {
+    "dev": "tsx src/dev.ts",
+    "build": "tsup src/index.ts --outDir dist --format esm",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "better-sqlite3": "^12.6.2",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.12.7",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.9",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3"
+  }
+}

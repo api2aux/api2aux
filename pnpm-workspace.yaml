@@ -1,4 +1,6 @@
 packages:
   - packages/*
 
-onlyBuiltDependencies: esbuild
+onlyBuiltDependencies:
+  - esbuild
+  - better-sqlite3
