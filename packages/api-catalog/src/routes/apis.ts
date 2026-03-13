@@ -4,15 +4,22 @@
  *
  * Read operations (GET) are public.
  * Write operations (POST, PUT, DELETE) require authentication.
+ *
+ * Uses @hono/zod-openapi for automatic OpenAPI spec generation.
  */
 
-import { Hono } from 'hono'
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi'
 import { ApiRepository } from '../repositories/api-repository'
 import { ApiService } from '../services/api-service'
 import { requireAuth } from '../middleware/auth'
 import type { AppEnv } from '../types'
+import {
+  ApiSchema, ApiDetailSchema, SearchResultSchema, SearchQuerySchema,
+  FacetsSchema, CreateApiSchema, UpdateApiSchema,
+  ErrorSchema, DeletedSchema, IdParamSchema,
+} from '../schemas'
 
-const apisRouter = new Hono<AppEnv>()
+const apisRouter = new OpenAPIHono<AppEnv>()
 
 function getService(c: { get(key: 'deps'): { db: import('../types').Database } }) {
   const { db } = c.get('deps')
@@ -21,60 +28,137 @@ function getService(c: { get(key: 'deps'): { db: import('../types').Database } }
 
 // ── Public read routes ────────────────────────────────────────────────
 
-apisRouter.get('/api/apis', (c) => {
+const listRoute = createRoute({
+  method: 'get',
+  path: '/api/apis',
+  tags: ['APIs'],
+  summary: 'Search and list APIs',
+  description: 'Search the catalog with text search and faceted filters. Returns paginated results.',
+  request: { query: SearchQuerySchema },
+  responses: {
+    200: { content: { 'application/json': { schema: SearchResultSchema } }, description: 'Paginated list of APIs' },
+  },
+})
+
+apisRouter.openapi(listRoute, (c) => {
   const service = getService(c)
+  const q = c.req.valid('query')
   const result = service.search({
-    q: c.req.query('q'),
-    category: c.req.query('category'),
-    subcategory: c.req.query('subcategory'),
-    authType: c.req.query('authType'),
-    freeTier: c.req.query('freeTier'),
-    corsSupport: c.req.query('corsSupport'),
-    hasSpec: c.req.query('hasSpec'),
-    status: c.req.query('status'),
-    page: c.req.query('page') ? Number(c.req.query('page')) : undefined,
-    limit: c.req.query('limit') ? Number(c.req.query('limit')) : undefined,
+    ...q,
+    page: q.page ? Number(q.page) : undefined,
+    limit: q.limit ? Number(q.limit) : undefined,
   })
-  return c.json(result)
+  return c.json(result, 200)
 })
 
-apisRouter.get('/api/apis/facets', (c) => {
-  return c.json(getService(c).facets())
+const facetsRoute = createRoute({
+  method: 'get',
+  path: '/api/apis/facets',
+  tags: ['APIs'],
+  summary: 'Get facet counts',
+  description: 'Returns category, auth type, free tier, and status distributions for filtering.',
+  responses: {
+    200: { content: { 'application/json': { schema: FacetsSchema } }, description: 'Facet counts' },
+  },
 })
 
-apisRouter.get('/api/apis/:id', (c) => {
-  const result = getService(c).getById(c.req.param('id'))
+apisRouter.openapi(facetsRoute, (c) => {
+  return c.json(getService(c).facets(), 200)
+})
+
+const getByIdRoute = createRoute({
+  method: 'get',
+  path: '/api/apis/{id}',
+  tags: ['APIs'],
+  summary: 'Get API by ID',
+  description: 'Returns a single API with its parsed operations (if available).',
+  request: { params: IdParamSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: ApiDetailSchema } }, description: 'API details with operations' },
+    404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'API not found' },
+  },
+})
+
+apisRouter.openapi(getByIdRoute, (c) => {
+  const { id } = c.req.valid('param')
+  const result = getService(c).getById(id)
   if (!result) return c.json({ error: 'API not found' }, 404)
-  return c.json(result)
+  return c.json(result, 200)
 })
 
 // ── Protected write routes ────────────────────────────────────────────
 
-apisRouter.post('/api/apis', requireAuth, async (c) => {
-  const body = await c.req.json()
-
-  if (!body.id || !body.name || !body.category || !body.baseUrl) {
-    return c.json({ error: 'Missing required fields: id, name, category, baseUrl' }, 400)
-  }
-
-  const result = getService(c).create(body)
-  if ('error' in result) return c.json({ error: result.error }, result.status)
-  return c.json(result.data, result.status)
+const createApiRoute = createRoute({
+  method: 'post',
+  path: '/api/apis',
+  tags: ['APIs'],
+  summary: 'Create a new API',
+  description: 'Add a new API to the catalog. Requires authentication.',
+  middleware: [requireAuth],
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: { content: { 'application/json': { schema: CreateApiSchema } }, required: true },
+  },
+  responses: {
+    201: { content: { 'application/json': { schema: ApiSchema } }, description: 'API created' },
+    400: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Missing required fields' },
+    409: { content: { 'application/json': { schema: ErrorSchema } }, description: 'API already exists' },
+  },
 })
 
-apisRouter.put('/api/apis/:id', requireAuth, async (c) => {
-  const id = c.req.param('id') as string
-  const body = await c.req.json()
+apisRouter.openapi(createApiRoute, (c) => {
+  const body = c.req.valid('json')
+  const result = getService(c).create(body)
+  if (result.status === 409) return c.json({ error: result.error }, 409)
+  return c.json(result.data, 201)
+})
+
+const updateRoute = createRoute({
+  method: 'put',
+  path: '/api/apis/{id}',
+  tags: ['APIs'],
+  summary: 'Update an API',
+  description: 'Update an existing API\'s metadata. Requires authentication.',
+  middleware: [requireAuth],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: IdParamSchema,
+    body: { content: { 'application/json': { schema: UpdateApiSchema } }, required: true },
+  },
+  responses: {
+    200: { content: { 'application/json': { schema: ApiSchema } }, description: 'API updated' },
+    404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'API not found' },
+  },
+})
+
+apisRouter.openapi(updateRoute, (c) => {
+  const { id } = c.req.valid('param')
+  const body = c.req.valid('json')
   const updated = getService(c).update(id, body)
   if (!updated) return c.json({ error: 'API not found' }, 404)
-  return c.json(updated)
+  return c.json(updated, 200)
 })
 
-apisRouter.delete('/api/apis/:id', requireAuth, (c) => {
-  const id = c.req.param('id') as string
+const deleteRoute = createRoute({
+  method: 'delete',
+  path: '/api/apis/{id}',
+  tags: ['APIs'],
+  summary: 'Delete an API',
+  description: 'Soft-delete an API (sets deleted_at timestamp). Requires authentication.',
+  middleware: [requireAuth],
+  security: [{ bearerAuth: [] }],
+  request: { params: IdParamSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: DeletedSchema } }, description: 'API deleted' },
+    404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'API not found' },
+  },
+})
+
+apisRouter.openapi(deleteRoute, (c) => {
+  const { id } = c.req.valid('param')
   const deleted = getService(c).delete(id)
   if (!deleted) return c.json({ error: 'API not found' }, 404)
-  return c.json({ deleted: id })
+  return c.json({ deleted: id }, 200)
 })
 
 export { apisRouter }

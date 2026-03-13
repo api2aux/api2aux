@@ -23,7 +23,10 @@ export interface SearchConditions {
 }
 
 export class ApiRepository {
-  constructor(private db: Database) {}
+  private readonly db: Database
+  constructor(db: Database) {
+    this.db = db
+  }
 
   findById(id: string): ApiRecord | undefined {
     return this.db.select().from(apis).where(eq(apis.id, id)).get()

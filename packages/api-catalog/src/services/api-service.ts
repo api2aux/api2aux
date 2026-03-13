@@ -36,7 +36,10 @@ export interface CreateApiInput {
 }
 
 export class ApiService {
-  constructor(private repo: ApiRepository) {}
+  private readonly repo: ApiRepository
+  constructor(repo: ApiRepository) {
+    this.repo = repo
+  }
 
   search(params: SearchParams): SearchResult {
     const page = params.page ?? 1
@@ -73,10 +76,10 @@ export class ApiService {
     return { ...api, operations }
   }
 
-  create(input: CreateApiInput) {
+  create(input: CreateApiInput): { error: string; status: 409 } | { data: ApiRecord; status: 201 } {
     const existing = this.repo.findById(input.id)
     if (existing) {
-      return { error: `API "${input.id}" already exists`, status: 409 as const }
+      return { error: `API "${input.id}" already exists`, status: 409 }
     }
 
     const record: ApiInsert = {
@@ -105,7 +108,7 @@ export class ApiService {
       source: (input.source as string) ?? 'manual',
     }
 
-    const created = this.repo.insert(record)
+    const created = this.repo.insert(record)!
     return { data: created, status: 201 as const }
   }
 

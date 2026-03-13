@@ -4,14 +4,15 @@
  * and call createApp() to get the Hono app.
  */
 
-import { Hono } from 'hono'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import { Scalar } from '@scalar/hono-api-reference'
 import { cors } from 'hono/cors'
 import type { AppDeps, AppEnv } from './types'
 import { health } from './routes/health'
 import { apisRouter } from './routes/apis'
 
 export function createApp(deps: AppDeps) {
-  const app = new Hono<AppEnv>()
+  const app = new OpenAPIHono<AppEnv>()
 
   // CORS — credentials required for auth cookies
   app.use('*', cors({
@@ -42,6 +43,21 @@ export function createApp(deps: AppDeps) {
   // Mount routes
   app.route('/', health)
   app.route('/', apisRouter)
+
+  // OpenAPI spec endpoint
+  app.doc('/api/openapi.json', {
+    openapi: '3.1.0',
+    info: {
+      title: 'API Catalog',
+      version: '0.1.0',
+      description: 'CRUD and faceted search for the api2aux API catalog.',
+    },
+    servers: [{ url: '/' }],
+    security: [],
+  })
+
+  // Scalar API docs UI
+  app.get('/docs', Scalar({ url: '/api/openapi.json' }))
 
   return app
 }

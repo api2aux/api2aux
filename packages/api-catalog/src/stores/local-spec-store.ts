@@ -8,7 +8,10 @@ import { join } from 'path'
 import type { SpecStore } from '../types'
 
 export class LocalSpecStore implements SpecStore {
-  constructor(private readonly dir: string) {}
+  private readonly dir: string
+  constructor(dir: string) {
+    this.dir = dir
+  }
 
   async get(key: string): Promise<ArrayBuffer | null> {
     try {

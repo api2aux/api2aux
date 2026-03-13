@@ -56,6 +56,6 @@ export type AppEnv = {
   Variables: {
     deps: AppDeps
     user: { id: string; name: string; email: string; image?: string | null } | null
-    session: { id: string; userId: string; token: string; expiresAt: string } | null
+    session: { id: string; userId: string; token: string; expiresAt: Date | string } | null
   }
 }
