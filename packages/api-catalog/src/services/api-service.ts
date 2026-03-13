@@ -5,6 +5,7 @@
 
 import { ApiRepository } from '../repositories/api-repository'
 import type { ApiRecord, ApiInsert } from '../repositories/api-repository'
+import type { SyncService } from './sync'
 
 export interface SearchParams {
   q?: string
@@ -37,8 +38,11 @@ export interface CreateApiInput {
 
 export class ApiService {
   private readonly repo: ApiRepository
-  constructor(repo: ApiRepository) {
+  private readonly sync: SyncService | null
+
+  constructor(repo: ApiRepository, sync?: SyncService | null) {
     this.repo = repo
+    this.sync = sync ?? null
   }
 
   search(params: SearchParams): SearchResult {
@@ -109,6 +113,7 @@ export class ApiService {
     }
 
     const created = this.repo.insert(record)!
+    this.sync?.logAction(created.id, 'created')
     return { data: created, status: 201 as const }
   }
 
@@ -120,7 +125,9 @@ export class ApiService {
     delete input.id
     delete input.createdAt
 
-    return this.repo.update(id, input)
+    const updated = this.repo.update(id, input)
+    if (updated) this.sync?.logAction(id, 'updated')
+    return updated
   }
 
   delete(id: string): boolean {
@@ -128,6 +135,7 @@ export class ApiService {
     if (!existing) return false
 
     this.repo.softDelete(id)
+    this.sync?.logAction(id, 'deleted')
     return true
   }
 }

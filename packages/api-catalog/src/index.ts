@@ -11,6 +11,7 @@ import type { AppDeps, AppEnv } from './types'
 import { health } from './routes/health'
 import { apisRouter } from './routes/apis'
 import { mcpRouter } from './routes/mcp'
+import { syncRouter } from './routes/sync'
 
 export function createApp(deps: AppDeps) {
   const app = new OpenAPIHono<AppEnv>()
@@ -46,6 +47,7 @@ export function createApp(deps: AppDeps) {
   app.route('/', health)
   app.route('/', apisRouter)
   app.route('/', mcpRouter)
+  app.route('/', syncRouter)
 
   // OpenAPI spec endpoint
   app.doc('/api/openapi.json', {

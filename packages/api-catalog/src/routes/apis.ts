@@ -11,6 +11,7 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi'
 import { ApiRepository } from '../repositories/api-repository'
 import { ApiService } from '../services/api-service'
+import { SyncService } from '../services/sync'
 import { requireAuth } from '../middleware/auth'
 import type { AppEnv } from '../types'
 import {
@@ -21,9 +22,10 @@ import {
 
 const apisRouter = new OpenAPIHono<AppEnv>()
 
-function getService(c: { get(key: 'deps'): { db: import('../types').Database } }) {
-  const { db } = c.get('deps')
-  return new ApiService(new ApiRepository(db))
+function getService(c: { get(key: 'deps'): { db: import('../types').Database; syncTarget: import('../types').SyncTarget } }) {
+  const { db, syncTarget } = c.get('deps')
+  const sync = new SyncService(db, syncTarget)
+  return new ApiService(new ApiRepository(db), sync)
 }
 
 // ── Public read routes ────────────────────────────────────────────────
