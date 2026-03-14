@@ -156,6 +156,20 @@ function App() {
     }
   }, [error])
 
+  // Auto-invoke first safe endpoint after spec loads
+  useEffect(() => {
+    if (parsedSpec && parsedSpec.operations.length > 0 && !data && !schema && !loading) {
+      const autoOp = parsedSpec.operations.find(op =>
+        op.method === 'GET' &&
+        !op.parameters.some(p => p.in === 'path' && p.required)
+      ) ?? parsedSpec.operations[0]
+      const idx = parsedSpec.operations.indexOf(autoOp)
+      if (idx !== selectedOperationIndex) setSelectedOperation(idx)
+      fetchOperation(parsedSpec.baseUrl, autoOp, {})
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsedSpec])
+
   // Derive selected operation
   const selectedOperation = parsedSpec?.operations[selectedOperationIndex]
 

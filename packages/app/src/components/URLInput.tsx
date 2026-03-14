@@ -36,7 +36,7 @@ interface URLInputProps {
 }
 
 export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
-  const { url, setUrl, loading, schema, parsedSpec, error, httpMethod, setHttpMethod, requestBody, setRequestBody, requestBodyFormat, setRequestBodyFormat, reset, urlMode, setUrlMode, optionsOpen, setOptionsOpen, additionalEndpoints, addEndpoint, removeEndpoint, updateEndpoint } = useAppStore()
+  const { url, setUrl, loading, schema, parsedSpec, error, httpMethod, setHttpMethod, requestBody, setRequestBody, requestBodyFormat, setRequestBodyFormat, reset, urlMode, setUrlMode, additionalEndpoints, addEndpoint, removeEndpoint, updateEndpoint, clearEndpoints } = useAppStore()
   const { fetchAndInfer, fetchMultiEndpoints } = useAPIFetch()
   const [validationError, setValidationError] = useState<string | null>(null)
   const [loadingExampleUrl, setLoadingExampleUrl] = useState<string | null>(null)
@@ -74,6 +74,8 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
     }
   }, [detectedAuth])
 
+  const isMultiEndpoint = urlMode === UrlMode.ENDPOINT && additionalEndpoints.length > 0
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -93,7 +95,7 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
     newUrl.searchParams.set('api', url)
     window.history.pushState({}, '', newUrl.toString())
 
-    if (urlMode === UrlMode.ENDPOINT && additionalEndpoints.length > 0) {
+    if (urlMode === UrlMode.ENDPOINT && isMultiEndpoint) {
       fetchMultiEndpoints()
       return
     }
@@ -140,210 +142,242 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url])
 
+  const handleAddMultipleEndpoints = () => {
+    if (urlMode !== UrlMode.ENDPOINT) setUrlMode(UrlMode.ENDPOINT)
+    addEndpoint()
+  }
+
   const hasData = schema || parsedSpec
   const urlEmpty = !url.trim()
   const showCarousel = !loading && (urlEmpty || (!schema && !parsedSpec && !error))
 
   return (
     <div className="w-full max-w-4xl">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value)
-              setValidationError(null)
-            }}
-            placeholder="https://jsonplaceholder.typicode.com/users"
-            className="flex-1 px-4 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus-visible:ring-ring/50 focus:border-transparent"
-            disabled={loading}
-          />
-          {(url || hasData) && !loading && (
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {/* Single endpoint: URL bar with method dropdown */}
+        {!isMultiEndpoint && (
+          <div className="flex gap-2">
+            <select
+              value={httpMethod}
+              onChange={(e) => setHttpMethod(e.target.value)}
+              className="px-2 py-2 border border-input rounded-md bg-background text-sm font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+              disabled={loading}
+            >
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="PATCH">PATCH</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value)
+                setValidationError(null)
+              }}
+              placeholder="https://jsonplaceholder.typicode.com/users"
+              className="flex-1 px-4 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus-visible:ring-ring/50 focus:border-transparent"
+              disabled={loading}
+            />
+            {(url || hasData) && !loading && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="px-2 py-2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                title="Clear and start over"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+            <LockIcon
+              status={lockStatus}
+              activeType={apiCreds?.activeType}
+              onClick={() => setAuthPanelOpen(!authPanelOpen)}
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2 bg-primary text-primary-foreground font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Loading...' : 'Go'}
+            </button>
+          </div>
+        )}
+
+        {/* Multi-endpoint view */}
+        {isMultiEndpoint && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">Endpoints</span>
+              <button
+                type="button"
+                onClick={clearEndpoints}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                disabled={loading}
+              >
+                Single endpoint
+              </button>
+            </div>
+            {/* Primary endpoint row */}
+            <div className="flex items-center gap-2">
+              <select
+                value={httpMethod}
+                onChange={(e) => setHttpMethod(e.target.value)}
+                className="px-2 py-1.5 border border-input rounded-md bg-background text-xs font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+                disabled={loading}
+              >
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
+                <option value="DELETE">DELETE</option>
+              </select>
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value)
+                  setValidationError(null)
+                }}
+                placeholder="https://api.example.com/resource"
+                className="flex-1 px-3 py-1.5 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+                disabled={loading}
+              />
+              <LockIcon
+                status={lockStatus}
+                activeType={apiCreds?.activeType}
+                onClick={() => setAuthPanelOpen(!authPanelOpen)}
+              />
+            </div>
+            {/* Additional endpoint rows */}
+            {additionalEndpoints.map((ep, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <select
+                  value={ep.method}
+                  onChange={(e) => updateEndpoint(i, 'method', e.target.value)}
+                  className="px-2 py-1.5 border border-input rounded-md bg-background text-xs font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+                  disabled={loading}
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="PATCH">PATCH</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+                <input
+                  type="text"
+                  value={ep.url}
+                  onChange={(e) => updateEndpoint(i, 'url', e.target.value)}
+                  placeholder="https://api.example.com/resource"
+                  className="flex-1 px-3 py-1.5 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeEndpoint(i)}
+                  className="px-1 py-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Remove endpoint"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
             <button
               type="button"
-              onClick={handleClear}
-              className="px-2 py-2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Clear and start over"
+              onClick={addEndpoint}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              disabled={loading}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              + Add endpoint
+            </button>
+          </div>
+        )}
+
+        {/* Mode toggle row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex rounded-md border border-border overflow-hidden">
+              {URL_MODES.map((mode) => (
+                <button
+                  key={mode.value}
+                  type="button"
+                  title={mode.tooltip}
+                  onClick={() => setUrlMode(mode.value)}
+                  className={`px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                    urlMode === mode.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            {/* "Add multiple endpoints" — right next to mode toggle, Endpoint mode only */}
+            {urlMode === UrlMode.ENDPOINT && !isMultiEndpoint && (
+              <button
+                type="button"
+                onClick={handleAddMultipleEndpoints}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                disabled={loading}
+              >
+                + Add multiple endpoints
+              </button>
+            )}
+          </div>
+          {/* Go button in multi-endpoint view */}
+          {isMultiEndpoint && (
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Loading...' : 'Go'}
             </button>
           )}
-          <LockIcon
-            status={lockStatus}
-            activeType={apiCreds?.activeType}
-            onClick={() => setAuthPanelOpen(!authPanelOpen)}
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-2 bg-primary text-primary-foreground font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? 'Fetching...' : 'Fetch'}
-          </button>
         </div>
 
-        {/* Collapsible Options section */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setOptionsOpen(!optionsOpen)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            <svg
-              className={`w-3 h-3 transition-transform ${optionsOpen ? 'rotate-90' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            Options
-            {urlMode !== UrlMode.AUTO && (
-              <span className="ml-1 px-1.5 py-0.5 rounded bg-muted text-[10px] font-medium">
-                {URL_MODES.find(m => m.value === urlMode)?.label}
-              </span>
-            )}
-          </button>
-
-          {optionsOpen && (
-            <div className="mt-2 p-3 border border-border rounded-md bg-muted/20 space-y-3">
-              {/* Mode toggle */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground w-12 shrink-0">Mode</span>
-                <div className="inline-flex rounded-md border border-border overflow-hidden">
-                  {URL_MODES.map((mode) => (
-                    <button
-                      key={mode.value}
-                      type="button"
-                      title={mode.tooltip}
-                      onClick={() => {
-                        setUrlMode(mode.value)
-                        if (mode.value !== UrlMode.AUTO) setOptionsOpen(true)
-                      }}
-                      className={`px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                        urlMode === mode.value
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-                      }`}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Endpoint-specific options: method selector + body */}
-              {urlMode === UrlMode.ENDPOINT && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-muted-foreground w-12 shrink-0">Method</span>
-                    <select
-                      value={httpMethod}
-                      onChange={(e) => setHttpMethod(e.target.value)}
-                      className="px-2 py-1 border border-input rounded-md bg-background text-xs font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
-                      disabled={loading}
-                    >
-                      <option value="GET">GET</option>
-                      <option value="POST">POST</option>
-                      <option value="PUT">PUT</option>
-                      <option value="PATCH">PATCH</option>
-                      <option value="DELETE">DELETE</option>
-                    </select>
-                  </div>
-
-                  {httpMethod !== 'GET' && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground w-12 shrink-0">Body</span>
-                      <div className="inline-flex rounded-md border border-border overflow-hidden">
-                        {BODY_FORMATS.map((fmt) => (
-                          <button
-                            key={fmt.value}
-                            type="button"
-                            onClick={() => setRequestBodyFormat(fmt.value)}
-                            className={`px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                              requestBodyFormat === fmt.value
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-                            }`}
-                          >
-                            {fmt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {httpMethod !== 'GET' && !parsedSpec && additionalEndpoints.length === 0 && (
-                    <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">
-                        Request Body
-                      </label>
-                      <RequestBodyEditor
-                        value={requestBody}
-                        onChange={setRequestBody}
-                        rows={4}
-                      />
-                    </div>
-                  )}
-
-                  {/* Additional endpoints */}
-                  {additionalEndpoints.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="text-xs font-medium text-muted-foreground">Additional Endpoints</span>
-                      {additionalEndpoints.map((ep, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <select
-                            value={ep.method}
-                            onChange={(e) => updateEndpoint(i, 'method', e.target.value)}
-                            className="px-2 py-1 border border-input rounded-md bg-background text-xs font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
-                            disabled={loading}
-                          >
-                            <option value="GET">GET</option>
-                            <option value="POST">POST</option>
-                            <option value="PUT">PUT</option>
-                            <option value="PATCH">PATCH</option>
-                            <option value="DELETE">DELETE</option>
-                          </select>
-                          <input
-                            type="text"
-                            value={ep.url}
-                            onChange={(e) => updateEndpoint(i, 'url', e.target.value)}
-                            placeholder="https://api.example.com/resource"
-                            className="flex-1 px-2 py-1 border border-input rounded-md text-xs focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
-                            disabled={loading}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeEndpoint(i)}
-                            className="px-1 py-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                            title="Remove endpoint"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
+        {/* Endpoint mode: body format + editor (single endpoint, non-GET) */}
+        {urlMode === UrlMode.ENDPOINT && !isMultiEndpoint && httpMethod !== 'GET' && (
+          <div className="space-y-3 p-3 border border-border rounded-md bg-muted/20">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground w-12 shrink-0">Body</span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                {BODY_FORMATS.map((fmt) => (
                   <button
+                    key={fmt.value}
                     type="button"
-                    onClick={addEndpoint}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    disabled={loading}
+                    onClick={() => setRequestBodyFormat(fmt.value)}
+                    className={`px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                      requestBodyFormat === fmt.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
                   >
-                    + Add endpoint
+                    {fmt.label}
                   </button>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+            {!parsedSpec && (
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  Request Body
+                </label>
+                <RequestBodyEditor
+                  value={requestBody}
+                  onChange={setRequestBody}
+                  rows={4}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Auth Panel */}
         <AuthPanel
