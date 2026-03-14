@@ -15,10 +15,24 @@ interface AnalysisCacheEntry {
   grouping: GroupingResult | null
 }
 
+export const UrlMode = {
+  AUTO: 'auto',
+  SPEC: 'spec',
+  GRAPHQL: 'graphql',
+  ENDPOINT: 'endpoint',
+} as const
+export type UrlMode = (typeof UrlMode)[keyof typeof UrlMode]
+
 interface AppState {
   // Input
   url: string
   setUrl: (url: string) => void
+
+  // URL mode & options panel
+  urlMode: UrlMode
+  setUrlMode: (mode: UrlMode) => void
+  optionsOpen: boolean
+  setOptionsOpen: (open: boolean) => void
 
   // Pipeline state
   loading: boolean
@@ -80,6 +94,8 @@ interface AppState {
 
 export const useAppStore = create<AppState>()((set, get) => ({
   url: '',
+  urlMode: UrlMode.AUTO,
+  optionsOpen: false,
   loading: false,
   error: null,
   data: null,
@@ -97,6 +113,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   detailPanelOpen: false,
 
   setUrl: (url) => set({ url }),
+  setUrlMode: (mode) => set({ urlMode: mode }),
+  setOptionsOpen: (open) => set({ optionsOpen: open }),
   setHttpMethod: (method) => set({ httpMethod: method }),
   setRequestBody: (body) => set({ requestBody: body }),
   startFetch: () => set({ loading: true, error: null, data: null, schema: null }),
@@ -104,6 +122,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   fetchError: (error) => set({ loading: false, error, data: null, schema: null }),
   reset: () => set({
     url: '',
+    urlMode: UrlMode.AUTO,
+    optionsOpen: false,
     loading: false,
     error: null,
     data: null,

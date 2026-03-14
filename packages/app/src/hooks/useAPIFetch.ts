@@ -12,6 +12,9 @@ import {
   parseGraphQLSchema,
   hasGraphQLErrors,
   getGraphQLErrors,
+  isSpecUrl,
+  isSpecContent,
+  isGraphQLUrl,
 } from 'api-invoke'
 import type { BuiltRequest, SSEEvent } from 'api-invoke'
 import { useAuthStore } from '../store/authStore'
@@ -46,46 +49,6 @@ function buildArgs(
 export function useAPIFetch() {
   const { startFetch, fetchSuccess, fetchError, specSuccess, clearSpec, startStream, appendStreamEvents, streamComplete } = useAppStore()
   const { clearFieldConfigs } = useConfigStore()
-
-  /**
-   * Heuristic to detect if a URL points to an OpenAPI/Swagger spec
-   */
-  const isSpecUrl = (url: string): boolean => {
-    const lower = url.toLowerCase()
-    return (
-      lower.endsWith('/openapi.json') ||
-      lower.endsWith('/openapi.yaml') ||
-      lower.endsWith('/swagger.json') ||
-      lower.endsWith('/swagger.yaml') ||
-      lower.endsWith('/api-docs') ||
-      lower.endsWith('/v2/api-docs') ||
-      lower.endsWith('/v3/api-docs') ||
-      lower.includes('swagger') ||
-      lower.includes('openapi')
-    )
-  }
-
-  /**
-   * Heuristic to detect if fetched JSON content is an OpenAPI/Swagger spec.
-   */
-  const isSpecContent = (data: unknown): data is Record<string, unknown> => {
-    if (!data || typeof data !== 'object' || Array.isArray(data)) return false
-    const obj = data as Record<string, unknown>
-    return typeof obj.openapi === 'string' || typeof obj.swagger === 'string'
-  }
-
-  /**
-   * Heuristic to detect if a URL points to a GraphQL endpoint
-   */
-  const isGraphQLUrl = (url: string): boolean => {
-    try {
-      const { pathname } = new URL(url)
-      const lower = pathname.toLowerCase()
-      return lower.endsWith('/graphql') || lower.endsWith('/gql')
-    } catch {
-      return false
-    }
-  }
 
   /**
    * Fetch and parse an OpenAPI spec URL
