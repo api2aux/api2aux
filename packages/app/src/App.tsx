@@ -349,7 +349,7 @@ function App() {
                           v{parsedSpec.version}
                         </span>
                         <span className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded">
-                          {parsedSpec.specFormat === 'graphql' ? 'GraphQL' : `OpenAPI ${parsedSpec.rawSpecVersion}`}
+                          {parsedSpec.specFormat === 'graphql' ? 'GraphQL' : parsedSpec.specFormat === 'raw-url' ? parsedSpec.title : `OpenAPI ${parsedSpec.rawSpecVersion}`}
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{parsedSpec.baseUrl}</p>
@@ -465,7 +465,7 @@ function App() {
                         v{parsedSpec.version}
                       </span>
                       <span className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded">
-                        {parsedSpec.specFormat === 'graphql' ? 'GraphQL' : `OpenAPI ${parsedSpec.rawSpecVersion}`}
+                        {parsedSpec.specFormat === 'graphql' ? 'GraphQL' : parsedSpec.specFormat === 'raw-url' ? parsedSpec.title : `OpenAPI ${parsedSpec.rawSpecVersion}`}
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">{parsedSpec.baseUrl}</p>

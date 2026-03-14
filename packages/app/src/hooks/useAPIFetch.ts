@@ -66,6 +66,15 @@ export function useAPIFetch() {
   }
 
   /**
+   * Heuristic to detect if fetched JSON content is an OpenAPI/Swagger spec.
+   */
+  const isSpecContent = (data: unknown): data is Record<string, unknown> => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+    const obj = data as Record<string, unknown>
+    return typeof obj.openapi === 'string' || typeof obj.swagger === 'string'
+  }
+
+  /**
    * Heuristic to detect if a URL points to a GraphQL endpoint
    */
   const isGraphQLUrl = (url: string): boolean => {
@@ -201,6 +210,15 @@ export function useAPIFetch() {
 
       // Fetch raw data from API
       const data = await fetchWithAuth(url, options)
+
+      // Content-based spec detection fallback: if the response looks like
+      // an OpenAPI/Swagger spec (has `openapi` or `swagger` top-level key),
+      // parse it as a spec instead of treating it as raw data.
+      if (isSpecContent(data)) {
+        const spec = await parseOpenAPISpec(data as Record<string, unknown>, { specUrl: url })
+        specSuccess(spec)
+        return
+      }
 
       // Infer schema from data
       const schema = inferSchema(data, url)
