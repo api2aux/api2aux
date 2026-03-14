@@ -1,5 +1,6 @@
 import { EXAMPLES, CATEGORIES } from '../data/examples'
 import type { Example } from '../data/examples'
+import { Badge } from '../components/ui/badge'
 
 interface ExamplesPageProps {
   onExampleClick: (url: string, method?: string, body?: string) => void
@@ -71,7 +72,12 @@ export function ExamplesPage({ onExampleClick, onBack }: ExamplesPageProps) {
             if (categoryExamples.length === 0) return null
             return (
               <section key={key}>
-                <h2 className="text-lg font-medium text-foreground mb-3">{label}</h2>
+                <h2 className="text-lg font-medium text-foreground mb-3">
+                  {label}
+                  {key === 'graphql' && (
+                    <Badge variant="warning" className="ml-2 text-[10px] px-1.5 py-0">beta</Badge>
+                  )}
+                </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {categoryExamples.map((example) => (
                     <ExampleCard

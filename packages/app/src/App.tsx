@@ -16,6 +16,7 @@ import { ParameterForm } from './components/forms/ParameterForm'
 import { AppliedFilters } from './components/forms/AppliedFilters'
 import { ThemeApplier } from './components/config/ThemeApplier'
 import { ThemeToggle } from './components/config/ThemeToggle'
+import { Badge } from './components/ui/badge'
 import { Sidebar } from './components/navigation/Sidebar'
 import { LayoutContainer } from './components/layout/LayoutContainer'
 import { parseUrlParameters, reconstructQueryString } from './services/urlParser/parser'
@@ -371,6 +372,9 @@ function App() {
                         <span className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded">
                           {parsedSpec.specFormat === 'graphql' ? 'GraphQL' : parsedSpec.specFormat === 'raw-url' ? parsedSpec.title : `OpenAPI ${parsedSpec.rawSpecVersion}`}
                         </span>
+                        {parsedSpec.specFormat === 'graphql' && (
+                          <Badge variant="warning" className="text-[10px] px-1.5 py-0">beta</Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{parsedSpec.baseUrl}</p>
                     </div>
@@ -487,6 +491,9 @@ function App() {
                       <span className="px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded">
                         {parsedSpec.specFormat === 'graphql' ? 'GraphQL' : parsedSpec.specFormat === 'raw-url' ? parsedSpec.title : `OpenAPI ${parsedSpec.rawSpecVersion}`}
                       </span>
+                      {parsedSpec.specFormat === 'graphql' && (
+                        <Badge variant="warning" className="text-[10px] px-1.5 py-0">beta</Badge>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">{parsedSpec.baseUrl}</p>
                   </div>

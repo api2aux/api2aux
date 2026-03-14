@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useAppStore, UrlMode, BodyFormat } from '../store/appStore'
 import { useAPIFetch } from '../hooks/useAPIFetch'
 import { useAuthStore } from '../store/authStore'
+import { Badge } from './ui/badge'
 import { LockIcon } from './auth/LockIcon'
 import { AuthPanel } from './auth/AuthPanel'
 import { ExamplesCarousel } from './ExamplesCarousel'
@@ -26,7 +28,7 @@ const BODY_FORMAT_CONTENT_TYPE: Record<BodyFormat, string> = {
 const URL_MODES = [
   { value: UrlMode.AUTO, label: 'Auto', tooltip: 'Auto-detect format from URL and content' },
   { value: UrlMode.SPEC, label: 'API Spec', tooltip: 'Treat as an OpenAPI or Swagger specification' },
-  { value: UrlMode.GRAPHQL, label: 'GraphQL', tooltip: 'Discover operations via GraphQL introspection' },
+  { value: UrlMode.GRAPHQL, label: 'GraphQL', tooltip: 'Discover operations via GraphQL introspection (beta)', beta: true as const },
   { value: UrlMode.ENDPOINT, label: 'Endpoint', tooltip: 'Treat as a direct API endpoint' },
 ] as const
 
@@ -75,6 +77,17 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
   }, [detectedAuth])
 
   const isMultiEndpoint = urlMode === UrlMode.ENDPOINT && additionalEndpoints.length > 0
+
+  const handleModeChange = (mode: UrlMode) => {
+    setUrlMode(mode)
+    if (mode === UrlMode.GRAPHQL && !sessionStorage.getItem('graphql-beta-toast-shown')) {
+      toast.info('GraphQL support is in beta', {
+        description: 'Some features may be incomplete. Feedback is welcome!',
+        duration: 5000,
+      })
+      sessionStorage.setItem('graphql-beta-toast-shown', '1')
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -307,7 +320,7 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
                   key={mode.value}
                   type="button"
                   title={mode.tooltip}
-                  onClick={() => setUrlMode(mode.value)}
+                  onClick={() => handleModeChange(mode.value)}
                   className={`px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
                     urlMode === mode.value
                       ? 'bg-primary text-primary-foreground'
@@ -315,6 +328,11 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
                   }`}
                 >
                   {mode.label}
+                  {'beta' in mode && mode.beta && (
+                    <Badge variant="warning" className="ml-1 text-[9px] px-1 py-0 rounded">
+                      beta
+                    </Badge>
+                  )}
                 </button>
               ))}
             </div>

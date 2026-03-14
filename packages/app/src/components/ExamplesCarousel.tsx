@@ -1,4 +1,5 @@
 import { FEATURED_EXAMPLES, type Example } from '../data/examples'
+import { Badge } from './ui/badge'
 
 interface ExamplesCarouselProps {
   onExampleClick: (url: string, method?: string, body?: string) => Promise<void>
@@ -37,6 +38,9 @@ function FeatureCard({
         <span className={`text-[10px] font-medium ${type.className}`}>{type.text}</span>
         {example.method && example.method !== 'GET' && (
           <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">{example.method}</span>
+        )}
+        {example.category === 'graphql' && (
+          <Badge variant="warning" className="text-[9px] px-1 py-0 rounded">beta</Badge>
         )}
       </div>
 
