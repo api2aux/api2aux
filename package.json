@@ -2,7 +2,7 @@
   "name": "api2aux-monorepo",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @api2aux/app dev",
+    "dev": "pnpm --parallel --filter @api2aux/app --filter @api2aux/mcp-worker dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",

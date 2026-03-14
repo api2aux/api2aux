@@ -14,7 +14,8 @@ import { buildToolsFromUrl, buildToolsFromSpec, buildSystemPrompt } from '../ser
 import { generateToolName } from '@api2aux/tool-utils'
 import { useParameterStore } from '../store/parameterStore'
 import { fetchWithAuth, credentialToAuth } from '../services/api/fetcher'
-import { executeOperation, corsProxy } from 'api-invoke'
+import { executeOperation } from 'api-invoke'
+import { proxy } from '../services/api/proxy'
 import { useAuthStore } from '../store/authStore'
 import { inferSchema } from '../services/schema/inferrer'
 import type { ChatMessage, UIMessage, Tool, ToolResultEntry } from '../services/llm/types'
@@ -102,7 +103,7 @@ async function executeToolCall(
       const credential = useAuthStore.getState().getActiveCredential(parsedSpec.baseUrl)
       const result = await executeOperation(parsedSpec.baseUrl, operation, execArgs, {
         auth: credential ? credentialToAuth(credential) : undefined,
-        middleware: [corsProxy()],
+        middleware: [proxy],
       })
       return result.data
     }

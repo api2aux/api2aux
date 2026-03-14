@@ -1,15 +1,10 @@
-import { executeRaw, corsProxy, ApiInvokeError, ErrorKind, ParamLocation } from 'api-invoke'
+import { executeRaw, ApiInvokeError, ErrorKind, ParamLocation } from 'api-invoke'
 import type { Auth } from 'api-invoke'
 import { CORSError, NetworkError, APIError, ParseError, AuthError, GraphQLError } from './errors'
+import { proxy } from './proxy'
 import { useAuthStore } from '../../store/authStore'
 import { AuthType } from '../../types/auth'
 import type { Credential } from '../../types/auth'
-
-/**
- * CORS proxy middleware — rewrites absolute URLs through the dev/prod proxy.
- * In dev: handled by Vite plugin. In prod: handled by the combined Node.js server.
- */
-const proxy = corsProxy()
 
 /**
  * Convert app Credential to api-invoke Auth.

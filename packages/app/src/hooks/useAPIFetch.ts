@@ -8,7 +8,6 @@ import {
   executeOperation,
   executeOperationStream,
   buildRequest,
-  corsProxy,
   parseGraphQLSchema,
   parseRawUrls,
   hasGraphQLErrors,
@@ -20,8 +19,7 @@ import {
 import type { BuiltRequest, SSEEvent, RawEndpoint } from 'api-invoke'
 import { useAuthStore } from '../store/authStore'
 import { GraphQLError } from '../services/api/errors'
-
-const proxy = corsProxy()
+import { proxy } from '../services/api/proxy'
 
 /** Build args for executeOperation, handling buildBody-aware operations (GraphQL). */
 function buildArgs(
