@@ -10,6 +10,7 @@
 
 - **Always prefer Playwright** (`mcp__playwright__*`) for browser testing and verification.
 - Only fall back to Chrome (`mcp__claude-in-chrome__*`) if Playwright is unavailable.
+- **Always verify UI changes in Playwright before committing.** Any change that touches components, styling, or user-facing behavior must be visually checked via Playwright MCP.
 
 ## api-invoke Usage
 

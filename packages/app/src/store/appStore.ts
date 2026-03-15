@@ -95,6 +95,11 @@ interface AppState {
   detailPanelOpen: boolean
   setDetailPanelOpen: (open: boolean) => void
 
+  // Auth panel state (lives in store to survive component remounts)
+  authPanelOpen: boolean
+  setAuthPanelOpen: (open: boolean) => void
+  authPanelDismissedForUrl: string | null
+
   // Actions
   startFetch: () => void
   fetchSuccess: (data: unknown, schema: UnifiedSchema) => void
@@ -130,6 +135,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   streaming: false,
   streamEvents: [],
   detailPanelOpen: false,
+  authPanelOpen: false,
+  authPanelDismissedForUrl: null,
 
   setUrl: (url) => set({ url }),
   setUrlMode: (mode) => set({ urlMode: mode }),
@@ -171,6 +178,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
     additionalEndpoints: [],
     analysisCache: new Map(),
     mcpDeployResult: null,
+    authPanelOpen: false,
+    authPanelDismissedForUrl: null,
   }),
 
   // Analysis cache actions
@@ -207,6 +216,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   // Detail panel
   setDetailPanelOpen: (open) => set({ detailPanelOpen: open }),
+  setAuthPanelOpen: (open) => set({ authPanelOpen: open }),
 
   // OpenAPI actions
   clearSpec: () => set({

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useAppStore, UrlMode, BodyFormat } from '../store/appStore'
 import { useAPIFetch } from '../hooks/useAPIFetch'
@@ -42,8 +42,9 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
   const { fetchAndInfer, fetchMultiEndpoints } = useAPIFetch()
   const [validationError, setValidationError] = useState<string | null>(null)
   const [loadingExampleUrl, setLoadingExampleUrl] = useState<string | null>(null)
-  const [authPanelOpen, setAuthPanelOpen] = useState(false)
-  const userClosedAuthPanel = useRef(false)
+  const authPanelOpen = useAppStore((s) => s.authPanelOpen)
+  const setAuthPanelOpen = useAppStore((s) => s.setAuthPanelOpen)
+  const authPanelDismissedForUrl = useAppStore((s) => s.authPanelDismissedForUrl)
 
   // Auth state
   const getAuthStatus = useAuthStore((state) => state.getAuthStatus)
@@ -63,29 +64,29 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
           ? 'failed'
           : 'untested'
 
-  // Reset manual-close flag when URL changes (new spec load)
-  useEffect(() => {
-    userClosedAuthPanel.current = false
-  }, [url])
+  // Derive a stable boolean: does this spec have supported auth schemes?
+  const specHasAuth = !!(detectedAuth && detectedAuth.some(scheme => scheme.authType !== null))
 
-  // Auto-expand panel when auth error occurs — but respect manual close
+  // Auto-expand panel when auth error occurs — but respect manual dismiss
   useEffect(() => {
-    if (authError && !userClosedAuthPanel.current) {
+    if (authError && authPanelDismissedForUrl !== url) {
       setAuthPanelOpen(true)
     }
-  }, [authError])
+  }, [authError, authPanelDismissedForUrl, url, setAuthPanelOpen])
 
-  // Auto-expand panel when spec has supported security schemes
+  // Auto-expand panel when spec has supported security schemes — once per URL
   useEffect(() => {
-    if (detectedAuth && detectedAuth.some(scheme => scheme.authType !== null)) {
+    if (specHasAuth && authPanelDismissedForUrl !== url) {
       setAuthPanelOpen(true)
     }
-  }, [detectedAuth])
+  }, [specHasAuth, authPanelDismissedForUrl, url, setAuthPanelOpen])
 
   const handleAuthPanelToggle = () => {
     const newState = !authPanelOpen
     setAuthPanelOpen(newState)
-    if (!newState) userClosedAuthPanel.current = true
+    if (!newState) {
+      useAppStore.setState({ authPanelDismissedForUrl: url })
+    }
   }
 
   const isMultiEndpoint = urlMode === UrlMode.ENDPOINT && additionalEndpoints.length > 0
