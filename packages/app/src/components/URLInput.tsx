@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useAppStore, UrlMode, BodyFormat } from '../store/appStore'
 import { useAPIFetch } from '../hooks/useAPIFetch'
@@ -43,6 +43,7 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [loadingExampleUrl, setLoadingExampleUrl] = useState<string | null>(null)
   const [authPanelOpen, setAuthPanelOpen] = useState(false)
+  const userClosedAuthPanel = useRef(false)
 
   // Auth state
   const getAuthStatus = useAuthStore((state) => state.getAuthStatus)
@@ -62,9 +63,14 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
           ? 'failed'
           : 'untested'
 
-  // Auto-expand panel when auth error occurs
+  // Reset manual-close flag when URL changes (new spec load)
   useEffect(() => {
-    if (authError) {
+    userClosedAuthPanel.current = false
+  }, [url])
+
+  // Auto-expand panel when auth error occurs — but respect manual close
+  useEffect(() => {
+    if (authError && !userClosedAuthPanel.current) {
       setAuthPanelOpen(true)
     }
   }, [authError])
@@ -75,6 +81,12 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
       setAuthPanelOpen(true)
     }
   }, [detectedAuth])
+
+  const handleAuthPanelToggle = () => {
+    const newState = !authPanelOpen
+    setAuthPanelOpen(newState)
+    if (!newState) userClosedAuthPanel.current = true
+  }
 
   const isMultiEndpoint = urlMode === UrlMode.ENDPOINT && additionalEndpoints.length > 0
 
@@ -208,7 +220,7 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
             <LockIcon
               status={lockStatus}
               activeType={apiCreds?.activeType}
-              onClick={() => setAuthPanelOpen(!authPanelOpen)}
+              onClick={handleAuthPanelToggle}
             />
             <button
               type="submit"
@@ -262,7 +274,7 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
               <LockIcon
                 status={lockStatus}
                 activeType={apiCreds?.activeType}
-                onClick={() => setAuthPanelOpen(!authPanelOpen)}
+                onClick={handleAuthPanelToggle}
               />
             </div>
             {/* Additional endpoint rows */}
@@ -401,7 +413,7 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
         <AuthPanel
           url={url}
           isOpen={authPanelOpen}
-          onToggle={() => setAuthPanelOpen(!authPanelOpen)}
+          onToggle={handleAuthPanelToggle}
           authError={authError}
           detectedAuth={detectedAuth}
           onConfigureClick={() => setAuthPanelOpen(true)}

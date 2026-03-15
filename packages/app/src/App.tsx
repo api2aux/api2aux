@@ -160,7 +160,7 @@ function App() {
     }
   }, [error])
 
-  // Auto-invoke first safe endpoint after spec loads
+  // Auto-invoke first safe endpoint after spec loads (raw URLs only)
   useEffect(() => {
     if (parsedSpec && parsedSpec.operations.length > 0 && !data && !schema && !loading) {
       // Find a GET operation with no required params (safe to call with empty args)
@@ -171,7 +171,10 @@ function App() {
       if (safeOp) {
         const idx = parsedSpec.operations.indexOf(safeOp)
         if (idx !== selectedOperationIndex) setSelectedOperation(idx)
-        fetchOperation(parsedSpec.baseUrl, safeOp, {})
+        // Only auto-invoke for raw URLs — specs are for browsing, not auto-calling
+        if (parsedSpec.specFormat === 'raw-url') {
+          fetchOperation(parsedSpec.baseUrl, safeOp, {})
+        }
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
