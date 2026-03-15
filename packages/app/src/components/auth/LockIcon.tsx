@@ -46,6 +46,7 @@ export function LockIcon({ status, activeType, onClick }: LockIconProps) {
 
   return (
     <Button
+      type="button"
       variant="ghost"
       size="icon"
       onClick={onClick}
