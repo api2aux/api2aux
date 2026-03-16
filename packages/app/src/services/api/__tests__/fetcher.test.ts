@@ -33,11 +33,8 @@ function mockResponse(data: unknown, overrides: { status?: number; statusText?: 
 }
 
 // In dev/test mode, URLs are rewritten through the CORS proxy.
-// api-invoke normalizes base URLs with a trailing slash before the query string.
 function expectedProxyUrl(url: string): string {
-  const u = new URL(url)
-  if (!u.pathname.endsWith('/')) u.pathname += '/'
-  return `/api-proxy/${encodeURIComponent(u.toString())}`
+  return `/api-proxy/${encodeURIComponent(url)}`
 }
 
 describe('fetchWithAuth', () => {
