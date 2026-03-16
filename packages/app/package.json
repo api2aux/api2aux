@@ -21,7 +21,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@headlessui/react": "^2.2.9",
     "@radix-ui/react-toggle-group": "^1.1.11",
-    "api-invoke": "^0.2.0",
+    "api-invoke": "^0.2.1",
     "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

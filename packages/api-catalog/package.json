@@ -20,7 +20,7 @@
     "@hono/zod-openapi": "^1.2.2",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@scalar/hono-api-reference": "^0.10.3",
-    "api-invoke": "^0.2.0",
+    "api-invoke": "^0.2.1",
     "better-auth": "^1.5.5",
     "better-sqlite3": "^12.6.2",
     "csv-parse": "^6.1.0",
