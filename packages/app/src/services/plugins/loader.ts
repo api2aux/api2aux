@@ -157,10 +157,10 @@ export function unloadPlugin(manifestId: string): void {
   if (enrichmentId) {
     try {
       enrichmentRegistry.unregister(enrichmentId)
+      loadedEnrichmentPlugins.delete(manifestId)
     } catch (err) {
       console.error(`[PluginLoader] Failed to unregister enrichment plugin "${enrichmentId}":`, err)
     }
-    loadedEnrichmentPlugins.delete(manifestId)
   }
 }
 

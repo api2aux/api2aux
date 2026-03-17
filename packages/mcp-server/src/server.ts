@@ -106,7 +106,7 @@ export async function createServer(config: ServerConfig): Promise<McpServer> {
         }
       } catch (err) {
         failed.push(pluginName)
-        console.error(`[api2aux-mcp] Failed to load enrichment plugin ${pluginName}:`, err instanceof Error ? err.message : err)
+        console.error(`[api2aux-mcp] Failed to load enrichment plugin ${pluginName}:`, err)
       }
     }
     if (failed.length > 0) {
@@ -422,7 +422,7 @@ async function registerOpenAPITools(
       console.error(`[api2aux-mcp] Inferred ${workflows.length} workflow(s): ${workflows.map(w => w.name).join(', ')}`)
     }
   } catch (err) {
-    console.error('[api2aux-mcp] Workflow inference failed (continuing without workflows):', err instanceof Error ? err.message : err)
+    console.error('[api2aux-mcp] Workflow inference failed (continuing without workflows):', err)
   }
 
   console.error(`[api2aux-mcp] Enriching ${rawTools.length} tools with semantic analysis...`)

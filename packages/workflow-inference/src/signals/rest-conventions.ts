@@ -39,9 +39,10 @@ function inferSourceField(sourceOp: InferenceOperation, targetParam: string): st
   const exact = sourceOp.responseFields.find(f => f.name === targetParam)
   if (exact) return exact.name
 
-  // Match by suffix: target param 'user_id' matches response field 'id'
+  // Match by ID suffix: target param 'user_id' matches response field 'id'
+  // Use regex to avoid false positives like 'valid', 'grid', 'paid'
   const paramLower = targetParam.toLowerCase()
-  if (paramLower === 'id' || paramLower.endsWith('_id') || paramLower.endsWith('id')) {
+  if (paramLower === 'id' || /[_-]id$/.test(paramLower) || /[a-z]Id$/.test(targetParam)) {
     const idField = sourceOp.responseFields.find(f =>
       f.name === 'id' || f.name === '_id' ||
       f.type === 'integer' && (f.name === 'id' || f.name === targetParam)

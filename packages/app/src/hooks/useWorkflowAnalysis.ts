@@ -30,6 +30,8 @@ export interface RelatedOperation {
   method: string
   /** URL path of the related operation (for display) */
   path: string
+  /** Operation summary (for display when paths are ambiguous) */
+  summary?: string
 }
 
 /**
@@ -83,6 +85,7 @@ export function useWorkflowAnalysis(parsedSpec: ParsedAPI | null): WorkflowAnaly
               score: edge.score,
               method: targetOp.method,
               path: targetOp.path,
+              summary: targetOp.summary,
             })
           }
           relatedRaw.set(edge.sourceId, sourceMap)
@@ -101,6 +104,7 @@ export function useWorkflowAnalysis(parsedSpec: ParsedAPI | null): WorkflowAnaly
               score: edge.score,
               method: sourceOp.method,
               path: sourceOp.path,
+              summary: sourceOp.summary,
             })
           }
           relatedRaw.set(edge.targetId, targetMap)

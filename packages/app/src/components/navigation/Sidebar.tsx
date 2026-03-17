@@ -21,17 +21,40 @@ interface SidebarProps {
   onCollapse?: () => void
 }
 
+/**
+ * Get the distinguishing tail of a path — the last segments that differ from the common prefix.
+ * e.g. for '/api/classes/{index}/levels/{level}/features' → '…/features'
+ */
+function getPathTail(path: string): string {
+  const segments = path.split('/').filter(Boolean)
+  // Show last 2 non-param segments + any trailing param
+  const tail: string[] = []
+  for (let i = segments.length - 1; i >= 0 && tail.length < 3; i--) {
+    tail.unshift(segments[i]!)
+    if (!segments[i]!.startsWith('{')) break // stop after a non-param segment
+  }
+  const result = tail.join('/')
+  return result === path.replace(/^\//, '') ? path : `…/${result}`
+}
+
 /** Compact clickable related endpoint item */
 function RelatedItem({ rel, onClick }: { rel: RelatedOperation; onClick: () => void }) {
+  const displayPath = getPathTail(rel.path)
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-2 py-0.5 rounded hover:bg-background/60 transition-colors flex items-baseline gap-1.5 group"
+      className="w-full text-left px-2 py-0.5 rounded hover:bg-background/60 transition-colors group"
+      title={rel.path}
     >
-      <span className={`text-[10px] font-semibold uppercase shrink-0 ${METHOD_COLORS[rel.method] ?? METHOD_COLORS.GET}`}>
-        {rel.method}
-      </span>
-      <span className="text-xs font-mono text-foreground truncate group-hover:underline">{rel.path}</span>
+      <div className="flex items-baseline gap-1.5">
+        <span className={`text-[10px] font-semibold uppercase shrink-0 ${METHOD_COLORS[rel.method] ?? METHOD_COLORS.GET}`}>
+          {rel.method}
+        </span>
+        <span className="text-xs font-mono text-foreground truncate group-hover:underline">{displayPath}</span>
+      </div>
+      {rel.summary && (
+        <p className="text-[10px] text-muted-foreground/70 truncate ml-[calc(0.375rem+1ch)]">{rel.summary}</p>
+      )}
     </button>
   )
 }
