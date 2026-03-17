@@ -130,6 +130,22 @@ export type {
   FieldContext,
 } from './types/plugins'
 
+export type {
+  EnrichmentPlugin,
+  OperationContext,
+  OperationContextParam,
+  OperationSemanticTag,
+  ToolEnrichmentHint,
+  UIComponentHint,
+  WorkflowPatternHint,
+  WorkflowPatternStep,
+  AmbiguousMatch,
+  DisambiguationResult,
+} from './types/enrichment'
+
+// === Enrichment Registry ===
+export { EnrichmentPluginRegistry, enrichmentRegistry } from './enrichment/registry'
+
 // === Orchestrator ===
 export { analyzeApiResponse, analyzeSchema } from './orchestrator'
 export type { PathAnalysis, ApiAnalysisResult } from './orchestrator'
