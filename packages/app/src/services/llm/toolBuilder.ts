@@ -336,7 +336,13 @@ export function buildSystemPrompt(url: string, spec?: ParsedAPI | null): string 
 
     // Enrichment plugin operation tags
     const opContexts = spec.operations.map(toOperationContext)
-    const opTags = enrichmentRegistry.tagOperations(opContexts)
+    let opTags: Map<string, import('@api2aux/semantic-analysis').OperationSemanticTag[]>
+    try {
+      opTags = enrichmentRegistry.tagOperations(opContexts)
+    } catch (err) {
+      console.error('[toolBuilder] Enrichment plugin tagOperations failed:', err instanceof Error ? err.message : err)
+      opTags = new Map()
+    }
     const taggedOps: string[] = []
     for (const [opId, tags] of opTags) {
       const highConf = tags.filter(t => t.confidence >= 0.7)

@@ -57,8 +57,12 @@ export class EnrichmentPluginRegistry {
   getAllFieldCategories(): PluginSemanticCategory[] {
     const categories: PluginSemanticCategory[] = []
     for (const plugin of this.plugins.values()) {
-      if (plugin.fieldCategories) {
-        categories.push(...plugin.fieldCategories)
+      try {
+        if (plugin.fieldCategories) {
+          categories.push(...plugin.fieldCategories)
+        }
+      } catch (err) {
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" fieldCategories access crashed:`, err instanceof Error ? err.message : err)
       }
     }
     return categories

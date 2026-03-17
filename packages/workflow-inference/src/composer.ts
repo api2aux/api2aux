@@ -379,7 +379,9 @@ export function findWorkflowTo(
     const deeperOp = nodes.find(n => n.id === deeperEdge.sourceId)
     if (!deeperOp) break
     visited.add(deeperOp.id)
+    // Add deeper step as new first; update the old first step's bindings from this edge
     steps.unshift(makeStep(deeperOp.id, 'prerequisite'))
+    steps[1]!.inputBindings = deeperEdge.bindings
     currentOpId = deeperOp.id
   }
 

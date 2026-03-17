@@ -307,68 +307,79 @@ export async function enrichTools(
   // Collect enrichment plugin hints for all operations
   const operations = tools.map(t => t.operation)
   const opContexts = operations.map(toOperationContext)
-  const pluginToolHints = enrichmentRegistry.getToolHints(opContexts)
+  let pluginToolHints: Map<string, import('@api2aux/semantic-analysis').ToolEnrichmentHint>
+  try {
+    pluginToolHints = enrichmentRegistry.getToolHints(opContexts)
+  } catch (err) {
+    console.error('[api2aux-mcp] Enrichment plugin getToolHints failed:', err instanceof Error ? err.message : err)
+    pluginToolHints = new Map()
+  }
 
   const enriched: GeneratedTool[] = []
 
   for (const tool of tools) {
-    const op = tool.operation
+    try {
+      const op = tool.operation
 
-    // 1. Enhance parameter schemas with semantic validation
-    const enhancedSchema: Record<string, z.ZodTypeAny> = {}
-    const sortedParams = sortParameters(op.parameters)
+      // 1. Enhance parameter schemas with semantic validation
+      const enhancedSchema: Record<string, z.ZodTypeAny> = {}
+      const sortedParams = sortParameters(op.parameters)
 
-    for (const param of sortedParams) {
-      const original = tool.inputSchema[param.name]
-      if (original) {
-        enhancedSchema[param.name] = enhanceParameterSchema(param, original)
-      }
-    }
-
-    // Keep body param if present
-    if (tool.inputSchema['body']) {
-      enhancedSchema['body'] = tool.inputSchema['body']
-    }
-
-    // 2. Enrich description with response field semantics
-    let description = tool.description
-    if (options?.fetchSamples) {
-      const responseDesc = await describeResponseFields(baseUrl, op)
-      if (responseDesc) {
-        description = `${description}. ${responseDesc}`
-      }
-    }
-
-    // 3. Apply enrichment plugin hints
-    const pluginHint = pluginToolHints.get(op.id)
-    if (pluginHint?.descriptionSuffix) {
-      description = `${description}. ${pluginHint.descriptionSuffix}`
-    }
-
-    // 4. Add workflow context if available
-    if (options?.workflows) {
-      const relevantWorkflows = options.workflows.filter(w =>
-        w.steps.some(s => s.operationId === op.id)
-      )
-      for (const wf of relevantWorkflows.slice(0, 2)) {
-        const stepNames = wf.steps.map(s => s.operationId).join(' → ')
-        const thisStep = wf.steps.find(s => s.operationId === op.id)
-        const bindings = thisStep?.inputBindings
-          .map(b => `${b.targetParam} from ${b.sourceField}`)
-          .join(', ')
-        let hint = `Part of ${wf.name} workflow: ${stepNames}`
-        if (bindings) {
-          hint += `. Use ${bindings}`
+      for (const param of sortedParams) {
+        const original = tool.inputSchema[param.name]
+        if (original) {
+          enhancedSchema[param.name] = enhanceParameterSchema(param, original)
         }
-        description = `${description}. ${hint}`
       }
-    }
 
-    enriched.push({
-      ...tool,
-      description,
-      inputSchema: enhancedSchema,
-    })
+      // Keep body param if present
+      if (tool.inputSchema['body']) {
+        enhancedSchema['body'] = tool.inputSchema['body']
+      }
+
+      // 2. Enrich description with response field semantics
+      let description = tool.description
+      if (options?.fetchSamples) {
+        const responseDesc = await describeResponseFields(baseUrl, op)
+        if (responseDesc) {
+          description = `${description}. ${responseDesc}`
+        }
+      }
+
+      // 3. Apply enrichment plugin hints
+      const pluginHint = pluginToolHints.get(op.id)
+      if (pluginHint?.descriptionSuffix) {
+        description = `${description}. ${pluginHint.descriptionSuffix}`
+      }
+
+      // 4. Add workflow context if available
+      if (options?.workflows) {
+        const relevantWorkflows = options.workflows.filter(w =>
+          w.steps.some(s => s.operationId === op.id)
+        )
+        for (const wf of relevantWorkflows.slice(0, 2)) {
+          const stepNames = wf.steps.map(s => s.operationId).join(' → ')
+          const thisStep = wf.steps.find(s => s.operationId === op.id)
+          const bindings = thisStep?.inputBindings
+            .map(b => `${b.targetParam} from ${b.sourceField}`)
+            .join(', ')
+          let hint = `Part of ${wf.name} workflow: ${stepNames}`
+          if (bindings) {
+            hint += `. Use ${bindings}`
+          }
+          description = `${description}. ${hint}`
+        }
+      }
+
+      enriched.push({
+        ...tool,
+        description,
+        inputSchema: enhancedSchema,
+      })
+    } catch (err) {
+      console.error(`[api2aux-mcp] Per-tool enrichment failed for "${tool.name}":`, err instanceof Error ? err.message : err)
+      enriched.push(tool)
+    }
   }
 
   return enriched

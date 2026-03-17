@@ -27,6 +27,9 @@ export interface PluginLoadResult {
 /** Cache of loaded plugin modules to avoid re-importing */
 const loadedModules = new Map<string, FieldPlugin[]>()
 
+/** Track which manifest IDs have registered enrichment plugins (manifest ID → enrichment plugin ID) */
+const loadedEnrichmentPlugins = new Map<string, string>()
+
 /**
  * Load a single plugin package from its manifest.
  * Returns the loaded FieldPlugin instances, or an error if loading fails.
@@ -113,6 +116,7 @@ export async function loadAndRegisterPlugins(
         // Register enrichment plugin if present
         if (loadResult.enrichmentPlugin) {
           enrichmentRegistry.register(loadResult.enrichmentPlugin)
+          loadedEnrichmentPlugins.set(loadResult.manifest.id, loadResult.enrichmentPlugin.id)
           // Wire enrichment registry categories into the semantic detection pipeline
           setCustomCategoriesProvider(() => enrichmentRegistry.getAllFieldCategories())
         }
@@ -136,6 +140,13 @@ export function unloadPlugin(manifestId: string): void {
     // The current registry doesn't support unregister — this is a known limitation.
     // For now, removing from our cache prevents re-registration on next load.
     loadedModules.delete(manifestId)
+  }
+
+  // Unregister enrichment plugin if this manifest had one
+  const enrichmentId = loadedEnrichmentPlugins.get(manifestId)
+  if (enrichmentId) {
+    enrichmentRegistry.unregister(enrichmentId)
+    loadedEnrichmentPlugins.delete(manifestId)
   }
 }
 
