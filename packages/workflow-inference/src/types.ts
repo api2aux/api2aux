@@ -40,6 +40,10 @@ export interface InferenceParam {
   format?: string
   /** Whether the parameter is required. */
   required: boolean
+  /** Allowed values from the spec (e.g. enum constraint). */
+  enum?: unknown[]
+  /** Example value from the spec. */
+  example?: unknown
 }
 
 /** A field extracted from a response or request body schema. */
@@ -85,7 +89,7 @@ export interface DataBinding {
 /** A single signal that contributed to an edge score. */
 export interface EdgeSignal {
   /** Signal name. */
-  signal: 'id-pattern' | 'schema-compat' | 'rest-convention' | 'tag-proximity' | 'name-similarity' | 'plugin-boost' | 'llm-disambiguation'
+  signal: 'id-pattern' | 'schema-compat' | 'rest-convention' | 'tag-proximity' | 'name-similarity' | 'runtime-value-match' | 'plugin-boost' | 'llm-disambiguation'
   /** Weight contribution (0.0-1.0). */
   weight: number
   /** Whether this signal matched. */
@@ -149,3 +153,25 @@ export interface WorkflowStep {
 
 /** A signal function produces candidate edges from a set of operations. */
 export type SignalFunction = (operations: InferenceOperation[]) => OperationEdge[]
+
+// === Runtime Value Matching ===
+
+/** A value extracted from a live API response for cross-probe matching. */
+export interface RuntimeProbeValue {
+  /** JSON path where the value was found (e.g. 'ability_score.index'). */
+  fieldPath: string
+  /** The extracted value. */
+  value: string | number
+  /** Value type. */
+  type: 'string' | 'number'
+}
+
+/** Result of probing a single endpoint. */
+export interface RuntimeProbeResult {
+  /** Operation that was probed. */
+  operationId: string
+  /** Values extracted from the response. */
+  values: RuntimeProbeValue[]
+  /** Whether the probe succeeded (false = network/auth error, skip). */
+  success: boolean
+}

@@ -7,7 +7,7 @@ import { useMemo } from 'react'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import { enrichmentRegistry } from '@api2aux/semantic-analysis'
 import { analyzeWorkflows } from '@api2aux/workflow-inference'
-import type { OperationGraph, Workflow } from '@api2aux/workflow-inference'
+import type { OperationGraph, Workflow, RuntimeProbeResult } from '@api2aux/workflow-inference'
 
 export interface WorkflowAnalysisResult {
   graph: OperationGraph
@@ -36,9 +36,12 @@ export interface RelatedOperation {
 
 /**
  * Compute workflow analysis for a parsed API spec.
- * Memoized — only recomputes when the spec changes.
+ * Memoized — recomputes when spec or runtime probes change.
  */
-export function useWorkflowAnalysis(parsedSpec: ParsedAPI | null): WorkflowAnalysisResult | null {
+export function useWorkflowAnalysis(
+  parsedSpec: ParsedAPI | null,
+  runtimeProbes?: RuntimeProbeResult[] | null,
+): WorkflowAnalysisResult | null {
   return useMemo(() => {
     if (!parsedSpec || parsedSpec.operations.length === 0) return null
 
@@ -46,6 +49,7 @@ export function useWorkflowAnalysis(parsedSpec: ParsedAPI | null): WorkflowAnaly
       const pluginPatterns = enrichmentRegistry.getWorkflowPatterns()
       const { graph, workflows } = analyzeWorkflows(parsedSpec.operations, {
         pluginPatterns: pluginPatterns.length > 0 ? pluginPatterns : undefined,
+        runtimeProbes: runtimeProbes ?? undefined,
       })
 
       // Build operation → workflows lookup
@@ -143,5 +147,5 @@ export function useWorkflowAnalysis(parsedSpec: ParsedAPI | null): WorkflowAnaly
       console.error('[useWorkflowAnalysis] Workflow analysis failed:', err)
       return null
     }
-  }, [parsedSpec])
+  }, [parsedSpec, runtimeProbes])
 }

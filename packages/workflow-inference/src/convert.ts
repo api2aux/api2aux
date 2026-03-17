@@ -19,7 +19,7 @@ interface SourceOperation {
     name: string
     in: string
     required: boolean
-    schema: { type: string; format?: string }
+    schema: { type: string; format?: string; enum?: unknown[]; example?: unknown }
   }>
   responseSchema?: unknown
   requestBody?: unknown
@@ -94,6 +94,8 @@ function convertOperation(op: SourceOperation): InferenceOperation {
     type: p.schema?.type ?? 'string',
     format: p.schema?.format,
     required: p.required,
+    ...(p.schema?.enum ? { enum: p.schema.enum } : {}),
+    ...(p.schema?.example !== undefined ? { example: p.schema.example } : {}),
   }))
 
   const responseFields = extractFieldsFromSchema(op.responseSchema)

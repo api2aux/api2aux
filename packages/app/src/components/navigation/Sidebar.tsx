@@ -4,7 +4,8 @@ import { TagGroup } from './TagGroup'
 import { OperationItem } from './OperationItem'
 import { useWorkflowAnalysis } from '../../hooks/useWorkflowAnalysis'
 import type { RelatedOperation } from '../../hooks/useWorkflowAnalysis'
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useRuntimeDiscovery } from '../../hooks/useRuntimeDiscovery'
+import { ChevronDown, ChevronLeft, ChevronRight, Radar, Loader2 } from 'lucide-react'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-green-700 dark:text-green-400',
@@ -88,7 +89,8 @@ function RelatedSection({
 }
 
 export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: SidebarProps) {
-  const workflowAnalysis = useWorkflowAnalysis(parsedSpec)
+  const { progress: discoveryProgress, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
+  const workflowAnalysis = useWorkflowAnalysis(parsedSpec, probeResults)
   const listRef = useRef<HTMLUListElement>(null)
   const [relatedExpanded, setRelatedExpanded] = useState(true)
 
@@ -163,17 +165,49 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
           <p className="text-xs text-muted-foreground">
             {parsedSpec.operations.length} endpoint{parsedSpec.operations.length !== 1 ? 's' : ''}
           </p>
-          {/* Toggle for inline related visibility */}
-          {related.length > 0 && (
-            <button
-              onClick={() => setRelatedExpanded(!relatedExpanded)}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
-              title={relatedExpanded ? 'Hide related endpoints' : 'Show related endpoints'}
-            >
-              {relatedExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-              Related
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Runtime discovery button */}
+            {discoveryProgress.status === 'idle' && (
+              <button
+                onClick={discover}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+                title="Probe API endpoints to discover cross-resource links"
+              >
+                <Radar className="w-3 h-3" />
+                Discover
+              </button>
+            )}
+            {discoveryProgress.status === 'running' && (
+              <button
+                onClick={cancel}
+                className="text-[10px] text-blue-500 flex items-center gap-0.5"
+                title={`Probing ${discoveryProgress.currentPath ?? '...'} (${discoveryProgress.completed}/${discoveryProgress.total})`}
+              >
+                <Loader2 className="w-3 h-3 animate-spin" />
+                {discoveryProgress.completed}/{discoveryProgress.total}
+              </button>
+            )}
+            {discoveryProgress.status === 'done' && probeResults && probeResults.length > 0 && (
+              <span
+                className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-0.5"
+                title={`Probed ${probeResults.filter(p => p.success).length} endpoints, found ${runtimeEdges?.length ?? 0} links`}
+              >
+                <Radar className="w-3 h-3" />
+                {runtimeEdges && runtimeEdges.length > 0 ? `${runtimeEdges.length} links` : 'Live'}
+              </span>
+            )}
+            {/* Toggle for inline related visibility */}
+            {related.length > 0 && (
+              <button
+                onClick={() => setRelatedExpanded(!relatedExpanded)}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+                title={relatedExpanded ? 'Hide related endpoints' : 'Show related endpoints'}
+              >
+                {relatedExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                Related
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

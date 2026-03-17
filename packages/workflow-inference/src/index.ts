@@ -22,6 +22,8 @@ export type {
   Workflow,
   WorkflowStep,
   SignalFunction,
+  RuntimeProbeValue,
+  RuntimeProbeResult,
 } from './types'
 export { WorkflowPattern } from './types'
 
@@ -34,6 +36,7 @@ export { detectRestConventions } from './signals/rest-conventions'
 export { detectSchemaCompat } from './signals/schema-compat'
 export { detectTagProximity } from './signals/tag-proximity'
 export { detectNameSimilarity } from './signals/name-similarity'
+export { matchRuntimeValues } from './signals/runtime-value-match'
 
 // === Graph ===
 export { buildOperationGraph } from './graph'
@@ -52,7 +55,7 @@ export type { ArazzoDocument } from './export/arazzo'
 // === One-shot convenience ===
 
 import type { WorkflowPatternHint } from '@api2aux/semantic-analysis'
-import type { OperationGraph, Workflow } from './types'
+import type { OperationGraph, Workflow, RuntimeProbeResult } from './types'
 import { operationsToInference } from './convert'
 import { buildOperationGraph } from './graph'
 import { inferWorkflows } from './composer'
@@ -60,13 +63,17 @@ import { inferWorkflows } from './composer'
 /**
  * One-shot: convert operations, build graph, infer workflows.
  * Accepts api-invoke Operation[] (or any structurally compatible array).
+ * Optional runtimeProbes merge runtime-discovered edges into the graph.
  */
 export function analyzeWorkflows(
   operations: Parameters<typeof operationsToInference>[0],
-  options?: { pluginPatterns?: WorkflowPatternHint[] },
+  options?: {
+    pluginPatterns?: WorkflowPatternHint[]
+    runtimeProbes?: RuntimeProbeResult[]
+  },
 ): { graph: OperationGraph; workflows: Workflow[] } {
   const inferenceOps = operationsToInference(operations)
-  const graph = buildOperationGraph(inferenceOps, options?.pluginPatterns)
+  const graph = buildOperationGraph(inferenceOps, options?.pluginPatterns, options?.runtimeProbes)
   const workflows = inferWorkflows(graph)
   return { graph, workflows }
 }
