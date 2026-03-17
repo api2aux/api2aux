@@ -96,7 +96,7 @@ export class EnrichmentPluginRegistry {
           }
         }
       } catch (err) {
-        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" tagOperations crashed:`, err instanceof Error ? err.message : err)
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" tagOperations crashed:`, err)
       }
     }
 
@@ -139,7 +139,7 @@ export class EnrichmentPluginRegistry {
           }
         }
       } catch (err) {
-        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" enrichTools crashed:`, err instanceof Error ? err.message : err)
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" enrichTools crashed:`, err)
       }
     }
 
@@ -157,7 +157,7 @@ export class EnrichmentPluginRegistry {
       try {
         hints.push(...plugin.uiHints(operations))
       } catch (err) {
-        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" uiHints crashed:`, err instanceof Error ? err.message : err)
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" uiHints crashed:`, err)
       }
     }
     return hints
@@ -173,7 +173,7 @@ export class EnrichmentPluginRegistry {
       try {
         patterns.push(...plugin.workflowPatterns())
       } catch (err) {
-        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" workflowPatterns crashed:`, err instanceof Error ? err.message : err)
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" workflowPatterns crashed:`, err)
       }
     }
     return patterns

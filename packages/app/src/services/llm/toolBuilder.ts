@@ -231,7 +231,7 @@ function detectWorkflows(spec: ParsedAPI): string | null {
     }
     return lines.join('\n')
   } catch (err) {
-    console.error('[toolBuilder] Workflow detection failed:', err instanceof Error ? err.message : err)
+    console.error('[toolBuilder] Workflow detection failed:', err)
     return null
   }
 }

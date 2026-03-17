@@ -122,6 +122,7 @@ export async function loadAndRegisterPlugins(
             setCustomCategoriesProvider(() => enrichmentRegistry.getAllFieldCategories())
           } catch (err) {
             console.error(`[PluginLoader] Failed to register enrichment plugin from "${loadResult.manifest.id}":`, err)
+            loadResult.error = `Field plugins loaded, but enrichment registration failed: ${err instanceof Error ? err.message : String(err)}`
           }
         }
       }
