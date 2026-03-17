@@ -25,8 +25,8 @@ export function OperationItem({ operation, index, isSelected, onSelect, showName
       className={`
         w-full text-left px-3 py-2 transition-colors
         ${isSelected
-          ? 'bg-muted border-l-2 border-foreground text-foreground'
-          : 'hover:bg-muted border-l-2 border-transparent'
+          ? 'bg-primary/10 border-l-[3px] border-primary text-foreground font-medium'
+          : 'hover:bg-muted/50 border-l-[3px] border-transparent'
         }
       `}
     >

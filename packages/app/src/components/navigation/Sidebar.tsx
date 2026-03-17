@@ -128,7 +128,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
         related={related}
         parsedSpec={parsedSpec}
         onSelect={onSelect}
-        className="mx-3 my-1 px-2 py-1.5 rounded-md bg-muted/50 border border-border/50"
+        className="ml-5 mr-3 my-1 pl-3 py-1.5 border-l-2 border-border/60 text-muted-foreground"
       />
     )
   }
