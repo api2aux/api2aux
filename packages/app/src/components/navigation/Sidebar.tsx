@@ -135,9 +135,9 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
   return (
     <nav
       aria-label="API endpoints"
-      className="w-64 border-r border-border bg-card overflow-y-auto shrink-0 h-screen sticky top-0"
+      className="w-64 border-r border-border bg-card flex flex-col shrink-0 h-screen sticky top-0"
     >
-      {/* Sidebar header */}
+      {/* Sidebar header — stays pinned */}
       <div className="p-4 border-b border-border shrink-0">
         <h2 className="font-semibold text-sm text-foreground mb-1">{parsedSpec.title}</h2>
         <div className="flex items-center justify-between">
@@ -159,7 +159,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
       </div>
 
       {/* Operations list — scrollable */}
-      <ul ref={listRef} className="py-2">
+      <ul ref={listRef} className="py-2 overflow-y-auto flex-1 min-h-0">
         {allUncategorized ? (
           parsedSpec.operations.map((operation, index) => (
             <li key={index} data-operation-index={index}>
