@@ -13,11 +13,14 @@
 import type { FieldPlugin } from '../../types/plugins'
 import type { PluginManifest } from '../../types/pluginManifest'
 import { registry } from '../../components/registry/pluginRegistry'
+import { enrichmentRegistry } from '@api2aux/semantic-analysis'
+import type { EnrichmentPlugin } from '@api2aux/semantic-analysis'
 
 /** Result of loading a plugin package */
 export interface PluginLoadResult {
   manifest: PluginManifest
   plugins: FieldPlugin[]
+  enrichmentPlugin?: EnrichmentPlugin
   error?: string
 }
 
@@ -65,15 +68,19 @@ export async function loadPlugin(manifest: PluginManifest): Promise<PluginLoadRe
         return { manifest, plugins: [], error: `Unknown source: ${manifest.source}` }
     }
 
-    // Extract plugins from the module
+    // Extract field plugins from the module
     const plugins = extractPlugins(module)
-    if (plugins.length === 0) {
-      return { manifest, plugins: [], error: 'No valid plugins found in module. Expected a `plugins` export of FieldPlugin[].' }
+
+    // Extract enrichment plugin if present
+    const enrichmentPlugin = extractEnrichmentPlugin(module)
+
+    if (plugins.length === 0 && !enrichmentPlugin) {
+      return { manifest, plugins: [], error: 'No valid plugins found in module. Expected a `plugins` export of FieldPlugin[] or an `enrichmentPlugin` export.' }
     }
 
     // Cache and return
     loadedModules.set(manifest.id, plugins)
-    return { manifest, plugins }
+    return { manifest, plugins, enrichmentPlugin }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[PluginLoader] Failed to load plugin "${manifest.id}":`, err)
@@ -102,6 +109,10 @@ export async function loadAndRegisterPlugins(
       if (!loadResult.error) {
         for (const plugin of loadResult.plugins) {
           registry.register(plugin)
+        }
+        // Register enrichment plugin if present
+        if (loadResult.enrichmentPlugin) {
+          enrichmentRegistry.register(loadResult.enrichmentPlugin)
         }
       }
     } else {
@@ -167,4 +178,34 @@ export function isFieldPlugin(value: unknown): value is FieldPlugin {
     obj.accepts != null &&
     typeof obj.accepts === 'object'
   )
+}
+
+/** Runtime check that a value looks like an EnrichmentPlugin */
+function isEnrichmentPlugin(value: unknown): value is EnrichmentPlugin {
+  if (!value || typeof value !== 'object') return false
+  const obj = value as Record<string, unknown>
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.version === 'string'
+  )
+}
+
+/**
+ * Extract an EnrichmentPlugin from a loaded module.
+ * Looks for: `enrichmentPlugin` (named export) or `enrichmentPlugins` (array).
+ */
+function extractEnrichmentPlugin(module: Record<string, unknown>): EnrichmentPlugin | undefined {
+  // Named export: enrichmentPlugin
+  if (isEnrichmentPlugin(module.enrichmentPlugin)) {
+    return module.enrichmentPlugin
+  }
+
+  // Array export: enrichmentPlugins (take the first one)
+  if (Array.isArray(module.enrichmentPlugins)) {
+    const first = module.enrichmentPlugins.find(isEnrichmentPlugin)
+    if (first) return first
+  }
+
+  return undefined
 }

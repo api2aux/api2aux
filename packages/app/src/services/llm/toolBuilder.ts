@@ -7,7 +7,8 @@
  */
 
 import type { Tool } from './types'
-import type { ParsedAPI } from '@api2aux/semantic-analysis'
+import type { ParsedAPI, OperationContext, OperationContextParam } from '@api2aux/semantic-analysis'
+import { enrichmentRegistry } from '@api2aux/semantic-analysis'
 import { parseUrlParameters } from '../urlParser/parser'
 import {
   sanitizeToolName,
@@ -38,11 +39,42 @@ export function buildToolsFromUrl(url: string): Tool[] {
   return [unifiedToOpenAI(def)]
 }
 
+/** Convert a ParsedAPI operation to an OperationContext for enrichment plugins. */
+function toOperationContext(op: ParsedAPI['operations'][number]): OperationContext {
+  const params: OperationContextParam[] = op.parameters.map(p => ({
+    name: p.name,
+    in: p.in,
+    type: p.schema.type,
+    format: p.schema.format,
+    required: p.required,
+  }))
+  const responseFieldNames: string[] = []
+  if (op.responseSchema && typeof op.responseSchema === 'object') {
+    const schema = op.responseSchema as Record<string, unknown>
+    if (schema.properties && typeof schema.properties === 'object') {
+      responseFieldNames.push(...Object.keys(schema.properties as Record<string, unknown>))
+    }
+  }
+  return {
+    id: op.id,
+    path: op.path,
+    method: op.method,
+    tags: op.tags,
+    parameters: params,
+    responseFieldNames,
+    summary: op.summary,
+    description: op.description,
+  }
+}
+
 /**
  * Build tools from a parsed OpenAPI spec.
+ * Passes enrichment plugin hints through to tool definitions.
  */
 export function buildToolsFromSpec(spec: ParsedAPI): Tool[] {
-  const defs = generateToolDefinitions(spec.operations, { includePath: true })
+  const opContexts = spec.operations.map(toOperationContext)
+  const enrichHints = enrichmentRegistry.getToolHints(opContexts)
+  const defs = generateToolDefinitions(spec.operations, { includePath: true }, enrichHints)
   return defs.map(unifiedToOpenAI)
 }
 
@@ -313,6 +345,20 @@ export function buildSystemPrompt(url: string, spec?: ParsedAPI | null): string 
 
     const searchHint = detectSearchHints(spec)
     if (searchHint) sections.push(searchHint)
+
+    // Enrichment plugin operation tags
+    const opContexts = spec.operations.map(toOperationContext)
+    const opTags = enrichmentRegistry.tagOperations(opContexts)
+    const taggedOps: string[] = []
+    for (const [opId, tags] of opTags) {
+      const highConf = tags.filter(t => t.confidence >= 0.7)
+      if (highConf.length > 0) {
+        taggedOps.push(`- ${opId}: ${highConf.map(t => t.label).join(', ')}`)
+      }
+    }
+    if (taggedOps.length > 0) {
+      sections.push('Operation semantics:\n' + taggedOps.join('\n'))
+    }
 
     // Workflow detection
     const workflowHint = detectWorkflows(spec)
