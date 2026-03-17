@@ -1,5 +1,6 @@
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react'
 import type { Operation } from '@api2aux/semantic-analysis'
+import type { Workflow } from '@api2aux/workflow-inference'
 import { OperationItem } from './OperationItem'
 
 interface TagGroupProps {
@@ -9,9 +10,11 @@ interface TagGroupProps {
   selectedIndex: number
   onSelect: (index: number) => void
   showNameInsteadOfPath?: boolean
+  /** Map of operationId → workflows it participates in */
+  operationWorkflows?: Map<string, Workflow[]>
 }
 
-export function TagGroup({ tag, operations, operationIndices, selectedIndex, onSelect, showNameInsteadOfPath }: TagGroupProps) {
+export function TagGroup({ tag, operations, operationIndices, selectedIndex, onSelect, showNameInsteadOfPath, operationWorkflows }: TagGroupProps) {
   return (
     <Disclosure defaultOpen>
       {({ open }) => (
@@ -42,6 +45,7 @@ export function TagGroup({ tag, operations, operationIndices, selectedIndex, onS
                 isSelected={operationIndices[localIndex] === selectedIndex}
                 onSelect={onSelect}
                 showNameInsteadOfPath={showNameInsteadOfPath}
+                workflows={operationWorkflows?.get(operation.id)}
               />
             ))}
           </DisclosurePanel>
