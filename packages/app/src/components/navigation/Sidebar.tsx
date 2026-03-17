@@ -1,9 +1,10 @@
-import { useMemo, useRef, useEffect } from 'react'
+import { useMemo, useRef, useEffect, useState } from 'react'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import { TagGroup } from './TagGroup'
 import { OperationItem } from './OperationItem'
 import { useWorkflowAnalysis } from '../../hooks/useWorkflowAnalysis'
 import type { RelatedOperation } from '../../hooks/useWorkflowAnalysis'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-green-700 dark:text-green-400',
@@ -19,18 +20,12 @@ interface SidebarProps {
   onSelect: (index: number) => void
 }
 
-/** Compact related endpoint item */
-function RelatedItem({
-  rel,
-  onClick,
-}: {
-  rel: RelatedOperation
-  onClick: () => void
-}) {
+/** Compact clickable related endpoint item */
+function RelatedItem({ rel, onClick }: { rel: RelatedOperation; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-2 py-1 rounded hover:bg-background/60 transition-colors flex items-baseline gap-1.5 group"
+      className="w-full text-left px-2 py-0.5 rounded hover:bg-background/60 transition-colors flex items-baseline gap-1.5 group"
     >
       <span className={`text-[10px] font-semibold uppercase shrink-0 ${METHOD_COLORS[rel.method] ?? METHOD_COLORS.GET}`}>
         {rel.method}
@@ -40,15 +35,17 @@ function RelatedItem({
   )
 }
 
-/** Inline related card shown directly below a selected endpoint */
-function InlineRelatedCard({
+/** Related endpoints section — reused for both inline and bottom */
+function RelatedSection({
   related,
   parsedSpec,
   onSelect,
+  className,
 }: {
   related: RelatedOperation[]
   parsedSpec: ParsedAPI
   onSelect: (index: number) => void
+  className?: string
 }) {
   const prevOps = related.filter(r => r.direction === 'prev').slice(0, 2)
   const nextOps = related.filter(r => r.direction === 'next').slice(0, 3)
@@ -61,7 +58,7 @@ function InlineRelatedCard({
   }
 
   return (
-    <div className="mx-3 my-1 px-2 py-1.5 rounded-md bg-muted/50 border border-border/50">
+    <div className={className}>
       {prevOps.length > 0 && (
         <div className="mb-1">
           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Previous</p>
@@ -85,6 +82,7 @@ function InlineRelatedCard({
 export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
   const workflowAnalysis = useWorkflowAnalysis(parsedSpec)
   const listRef = useRef<HTMLUListElement>(null)
+  const [relatedExpanded, setRelatedExpanded] = useState(true)
 
   // Group operations by tags
   const groupedOperations = useMemo(() => {
@@ -110,7 +108,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
   const allSamePath = parsedSpec.operations.length > 1 &&
     parsedSpec.operations.every(op => op.path === firstPath)
 
-  // Scroll to selected operation when changed via Related click
+  // Scroll to selected operation when changed (e.g., via Related click)
   useEffect(() => {
     if (!listRef.current) return
     const target = listRef.current.querySelector(`[data-operation-index="${selectedIndex}"]`)
@@ -121,48 +119,59 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
     }
   }, [selectedIndex])
 
-  /** Render an operation item + inline related card if selected */
-  const renderOperation = (index: number) => {
-    const operation = parsedSpec.operations[index]!
-    const isSelected = index === selectedIndex
+  /** Render inline related card if this operation is selected */
+  const renderInlineRelated = (index: number) => {
+    if (index !== selectedIndex || related.length === 0 || !relatedExpanded) return null
     return (
-      <div key={index} data-operation-index={index}>
-        <OperationItem
-          operation={operation}
-          index={index}
-          isSelected={isSelected}
-          onSelect={onSelect}
-          showNameInsteadOfPath={allSamePath}
-        />
-        {isSelected && related.length > 0 && (
-          <InlineRelatedCard
-            related={related}
-            parsedSpec={parsedSpec}
-            onSelect={onSelect}
-          />
-        )}
-      </div>
+      <RelatedSection
+        related={related}
+        parsedSpec={parsedSpec}
+        onSelect={onSelect}
+        className="mx-3 my-1 px-2 py-1.5 rounded-md bg-muted/50 border border-border/50"
+      />
     )
   }
 
   return (
     <nav
       aria-label="API endpoints"
-      className="w-64 border-r border-border bg-card overflow-y-auto shrink-0 h-screen sticky top-0"
+      className="w-64 border-r border-border bg-card flex flex-col shrink-0 h-screen sticky top-0"
     >
       {/* Sidebar header */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-border shrink-0">
         <h2 className="font-semibold text-sm text-foreground mb-1">{parsedSpec.title}</h2>
-        <p className="text-xs text-muted-foreground">
-          {parsedSpec.operations.length} endpoint{parsedSpec.operations.length !== 1 ? 's' : ''}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {parsedSpec.operations.length} endpoint{parsedSpec.operations.length !== 1 ? 's' : ''}
+          </p>
+          {/* Toggle for inline related visibility */}
+          {related.length > 0 && (
+            <button
+              onClick={() => setRelatedExpanded(!relatedExpanded)}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+              title={relatedExpanded ? 'Hide related endpoints' : 'Show related endpoints'}
+            >
+              {relatedExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              Related
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Operations list */}
-      <ul ref={listRef} className="py-2">
+      {/* Operations list — scrollable */}
+      <ul ref={listRef} className="py-2 flex-1 overflow-y-auto min-h-0">
         {allUncategorized ? (
-          parsedSpec.operations.map((_, index) => (
-            <li key={index}>{renderOperation(index)}</li>
+          parsedSpec.operations.map((operation, index) => (
+            <li key={index} data-operation-index={index}>
+              <OperationItem
+                operation={operation}
+                index={index}
+                isSelected={index === selectedIndex}
+                onSelect={onSelect}
+                showNameInsteadOfPath={allSamePath}
+              />
+              {renderInlineRelated(index)}
+            </li>
           ))
         ) : (
           Array.from(groupedOperations.entries()).map(([tag, indices]) => (
@@ -174,21 +183,26 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
                 selectedIndex={selectedIndex}
                 onSelect={onSelect}
                 showNameInsteadOfPath={allSamePath}
-                renderRelated={(index) => {
-                  if (index !== selectedIndex || related.length === 0) return null
-                  return (
-                    <InlineRelatedCard
-                      related={related}
-                      parsedSpec={parsedSpec}
-                      onSelect={onSelect}
-                    />
-                  )
-                }}
+                renderRelated={renderInlineRelated}
               />
             </li>
           ))
         )}
       </ul>
+
+      {/* Sticky bottom related panel (for comparison — shows same data) */}
+      {selectedOp && related.length > 0 && (
+        <div className="border-t border-border bg-muted/30 shrink-0 px-3 py-2">
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            Related to <span className="text-foreground">{selectedOp.path}</span>
+          </p>
+          <RelatedSection
+            related={related}
+            parsedSpec={parsedSpec}
+            onSelect={onSelect}
+          />
+        </div>
+      )}
     </nav>
   )
 }
