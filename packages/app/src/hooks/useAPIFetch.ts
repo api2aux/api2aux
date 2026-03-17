@@ -56,12 +56,23 @@ export function useAPIFetch() {
     try {
       startFetch()
       // Fetch spec ourselves to avoid swagger-parser's Node.js HTTP resolver
-      // which uses Buffer (unavailable in browser)
-      const response = await fetch(url)
+      // which uses Buffer (unavailable in browser).
+      // Route through CORS proxy so specs without CORS headers still load.
+      const proxyResult = proxy.onRequest
+        ? await proxy.onRequest(url, { headers: { Accept: 'application/json' } })
+        : { url, init: { headers: { Accept: 'application/json' } } }
+      const response = await fetch(proxyResult.url, proxyResult.init)
       if (!response.ok) {
         throw new Error(`Failed to fetch spec: ${response.status} ${response.statusText}`)
       }
-      const specObject = await response.json()
+      const text = await response.text()
+      let specObject: object
+      try {
+        specObject = JSON.parse(text) as object
+      } catch {
+        // Retry with lenient parsing: strip trailing commas (common in hand-edited specs)
+        specObject = JSON.parse(text.replace(/,\s*([\]}])/g, '$1')) as object
+      }
       const spec = await parseOpenAPISpec(specObject, { specUrl: url })
       specSuccess(spec)
     } catch (error) {
