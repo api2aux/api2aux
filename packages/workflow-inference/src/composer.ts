@@ -309,6 +309,9 @@ function sourceResource(op: InferenceOperation): string {
  * Includes both named patterns (Browse, CRUD, etc.) and edge-based chains.
  */
 export function inferWorkflows(graph: OperationGraph): Workflow[] {
+  // Reset counter for deterministic IDs per analysis run
+  workflowCounter = 0
+
   // First: detect named patterns
   const namedWorkflows: Workflow[] = [
     ...detectBrowseWorkflows(graph),
@@ -366,16 +369,18 @@ export function findWorkflowTo(
     makeStep(goalOp.id, 'goal', bestEdge),
   ]
 
-  // Optionally chain deeper
-  if (maxDepth > 1) {
-    const deeperInEdges = edges.filter(e => e.targetId === sourceOp.id)
-    if (deeperInEdges.length > 0) {
-      const deeperEdge = deeperInEdges.reduce((a, b) => a.score > b.score ? a : b)
-      const deeperOp = nodes.find(n => n.id === deeperEdge.sourceId)
-      if (deeperOp) {
-        steps.unshift(makeStep(deeperOp.id, 'prerequisite'))
-      }
-    }
+  // Iteratively chain deeper up to maxDepth
+  let currentOpId = sourceOp.id
+  const visited = new Set([goalOperationId, sourceOp.id])
+  for (let depth = 2; depth < maxDepth; depth++) {
+    const deeperInEdges = edges.filter(e => e.targetId === currentOpId && !visited.has(e.sourceId))
+    if (deeperInEdges.length === 0) break
+    const deeperEdge = deeperInEdges.reduce((a, b) => a.score > b.score ? a : b)
+    const deeperOp = nodes.find(n => n.id === deeperEdge.sourceId)
+    if (!deeperOp) break
+    visited.add(deeperOp.id)
+    steps.unshift(makeStep(deeperOp.id, 'prerequisite'))
+    currentOpId = deeperOp.id
   }
 
   return {

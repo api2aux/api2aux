@@ -3,15 +3,22 @@
  * flow through to the semantic detection pipeline.
  */
 
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { enrichmentRegistry } from './registry'
-import { detectSemantics, clearSemanticCache } from '../semantic/detector'
+import { detectSemantics, clearSemanticCache, setCustomCategoriesProvider } from '../semantic/detector'
 import type { EnrichmentPlugin } from '../types/enrichment'
 import type { PluginSemanticCategory } from '../types/plugins'
+
+beforeEach(() => {
+  // Wire enrichment registry categories into the detection pipeline (as app/server layers do)
+  setCustomCategoriesProvider(() => enrichmentRegistry.getAllFieldCategories())
+})
 
 afterEach(() => {
   enrichmentRegistry.clear()
   clearSemanticCache()
+  // Reset to default empty provider
+  setCustomCategoriesProvider(() => [])
 })
 
 describe('Enrichment plugin → detector integration', () => {

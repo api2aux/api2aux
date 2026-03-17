@@ -66,20 +66,20 @@ export function detectTagProximity(operations: InferenceOperation[]): OperationE
           detail: `tags: ${tagSim.toFixed(2)}, path: ${aPrefix === bPrefix ? 'match' : 'no match'}`,
         }
 
-        // Create bidirectional edges
+        // Create bidirectional edges (separate signal copies to avoid shared mutation)
         edges.push({
           sourceId: a.id,
           targetId: b.id,
           bindings: [],
           score: score * SIGNAL_WEIGHT,
-          signals: [signal],
+          signals: [{ ...signal }],
         })
         edges.push({
           sourceId: b.id,
           targetId: a.id,
           bindings: [],
           score: score * SIGNAL_WEIGHT,
-          signals: [signal],
+          signals: [{ ...signal }],
         })
       }
     }

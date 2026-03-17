@@ -9,19 +9,14 @@ import { createMemoizedDetector, type MemoizedDetector } from './cache'
 import type { ConfidenceResult, CompositePattern, SemanticPattern } from './types'
 import { DEFAULT_THRESHOLDS } from './types'
 import type { PluginSemanticCategory } from '../types/plugins'
-import { enrichmentRegistry } from '../enrichment/registry'
 
 /**
  * Injectable custom categories provider.
  * Set by the app layer (e.g., from plugin registry) via setCustomCategoriesProvider().
- * Defaults to enrichment registry categories for standalone/CLI usage.
- *
- * The app layer can override this to merge enrichment registry categories
- * with app-specific plugin categories. If not overridden, enrichment plugins'
- * field categories are automatically included via the registry.
+ * Defaults to empty — callers must explicitly opt in to enrichment registry categories
+ * to keep the coupling visible and avoid surprising behavior in isolation.
  */
-let customCategoriesProvider: () => PluginSemanticCategory[] = () =>
-  enrichmentRegistry.getAllFieldCategories()
+let customCategoriesProvider: () => PluginSemanticCategory[] = () => []
 
 /**
  * Set the provider function for custom plugin categories.

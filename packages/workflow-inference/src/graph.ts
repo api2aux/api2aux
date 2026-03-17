@@ -92,10 +92,14 @@ function applyPluginBoosts(
 
 /** Check if an operation ID matches a pattern (string prefix or RegExp). */
 function matchesPattern(opId: string, pattern: string | RegExp): boolean {
-  if (pattern instanceof RegExp) {
-    return pattern.test(opId)
+  try {
+    if (pattern instanceof RegExp) {
+      return pattern.test(opId)
+    }
+    return opId.toLowerCase().includes(pattern.toLowerCase())
+  } catch {
+    return false
   }
-  return opId.toLowerCase().includes(pattern.toLowerCase())
 }
 
 /**
@@ -105,7 +109,6 @@ function normalizeScores(edges: OperationEdge[]): void {
   if (edges.length === 0) return
   const maxScore = Math.max(...edges.map(e => e.score))
   if (maxScore <= 0) return
-  if (maxScore <= 1.0) return // Already in range
 
   for (const edge of edges) {
     edge.score = edge.score / maxScore

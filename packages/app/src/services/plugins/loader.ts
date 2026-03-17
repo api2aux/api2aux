@@ -13,7 +13,7 @@
 import type { FieldPlugin } from '../../types/plugins'
 import type { PluginManifest } from '../../types/pluginManifest'
 import { registry } from '../../components/registry/pluginRegistry'
-import { enrichmentRegistry } from '@api2aux/semantic-analysis'
+import { enrichmentRegistry, setCustomCategoriesProvider } from '@api2aux/semantic-analysis'
 import type { EnrichmentPlugin } from '@api2aux/semantic-analysis'
 
 /** Result of loading a plugin package */
@@ -113,6 +113,8 @@ export async function loadAndRegisterPlugins(
         // Register enrichment plugin if present
         if (loadResult.enrichmentPlugin) {
           enrichmentRegistry.register(loadResult.enrichmentPlugin)
+          // Wire enrichment registry categories into the semantic detection pipeline
+          setCustomCategoriesProvider(() => enrichmentRegistry.getAllFieldCategories())
         }
       }
     } else {

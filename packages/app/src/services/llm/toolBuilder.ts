@@ -74,7 +74,12 @@ function toOperationContext(op: ParsedAPI['operations'][number]): OperationConte
  */
 export function buildToolsFromSpec(spec: ParsedAPI): Tool[] {
   const opContexts = spec.operations.map(toOperationContext)
-  const enrichHints = enrichmentRegistry.getToolHints(opContexts)
+  let enrichHints: Map<string, import('@api2aux/semantic-analysis').ToolEnrichmentHint> | undefined
+  try {
+    enrichHints = enrichmentRegistry.getToolHints(opContexts)
+  } catch (err) {
+    console.error('[toolBuilder] Enrichment plugin hints failed:', err instanceof Error ? err.message : err)
+  }
   const defs = generateToolDefinitions(spec.operations, { includePath: true }, enrichHints)
   return defs.map(unifiedToOpenAI)
 }
@@ -210,19 +215,24 @@ function detectSearchHints(spec: ParsedAPI): string | null {
  * Replaces the hand-written pattern matching with multi-signal analysis.
  */
 function detectWorkflows(spec: ParsedAPI): string | null {
-  const pluginPatterns = enrichmentRegistry.getWorkflowPatterns()
-  const { workflows } = analyzeWorkflows(spec.operations, {
-    pluginPatterns: pluginPatterns.length > 0 ? pluginPatterns : undefined,
-  })
+  try {
+    const pluginPatterns = enrichmentRegistry.getWorkflowPatterns()
+    const { workflows } = analyzeWorkflows(spec.operations, {
+      pluginPatterns: pluginPatterns.length > 0 ? pluginPatterns : undefined,
+    })
 
-  if (workflows.length === 0) return null
+    if (workflows.length === 0) return null
 
-  const lines = ['Common workflows:']
-  for (const wf of workflows.slice(0, 8)) {
-    const steps = wf.steps.map(s => s.operationId).join(' → ')
-    lines.push(`- ${wf.name}: ${steps}`)
+    const lines = ['Common workflows:']
+    for (const wf of workflows.slice(0, 8)) {
+      const steps = wf.steps.map(s => s.operationId).join(' → ')
+      lines.push(`- ${wf.name}: ${steps}`)
+    }
+    return lines.join('\n')
+  } catch (err) {
+    console.error('[toolBuilder] Workflow detection failed:', err instanceof Error ? err.message : err)
+    return null
   }
-  return lines.join('\n')
 }
 
 /** Extract semantic highlights from response schema fields. */

@@ -79,16 +79,20 @@ export class EnrichmentPluginRegistry {
     for (const plugin of this.plugins.values()) {
       if (!plugin.tagOperations) continue
 
-      const pluginTags = plugin.tagOperations(operations)
-      for (let i = 0; i < operations.length; i++) {
-        const op = operations[i]
-        if (!op) continue
-        const opId = op.id
-        const tags = pluginTags[i]
-        if (tags && tags.length > 0) {
-          const existing = result.get(opId)!
-          existing.push(...tags)
+      try {
+        const pluginTags = plugin.tagOperations(operations)
+        for (let i = 0; i < operations.length; i++) {
+          const op = operations[i]
+          if (!op) continue
+          const opId = op.id
+          const tags = pluginTags[i]
+          if (tags && tags.length > 0) {
+            const existing = result.get(opId)!
+            existing.push(...tags)
+          }
         }
+      } catch (err) {
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" tagOperations crashed:`, err instanceof Error ? err.message : err)
       }
     }
 
@@ -106,28 +110,32 @@ export class EnrichmentPluginRegistry {
     for (const plugin of this.plugins.values()) {
       if (!plugin.enrichTools) continue
 
-      const pluginHints = plugin.enrichTools(operations)
-      for (const [opId, hint] of pluginHints) {
-        const existing = result.get(opId)
-        if (!existing) {
-          result.set(opId, { ...hint })
-        } else {
-          // Merge: concatenate descriptions, merge objects, take max priority
-          if (hint.descriptionSuffix) {
-            existing.descriptionSuffix = existing.descriptionSuffix
-              ? `${existing.descriptionSuffix} ${hint.descriptionSuffix}`
-              : hint.descriptionSuffix
-          }
-          if (hint.parameterHints) {
-            existing.parameterHints = { ...existing.parameterHints, ...hint.parameterHints }
-          }
-          if (hint.parameterDefaults) {
-            existing.parameterDefaults = { ...existing.parameterDefaults, ...hint.parameterDefaults }
-          }
-          if (hint.priority !== undefined) {
-            existing.priority = Math.max(existing.priority ?? 0, hint.priority)
+      try {
+        const pluginHints = plugin.enrichTools(operations)
+        for (const [opId, hint] of pluginHints) {
+          const existing = result.get(opId)
+          if (!existing) {
+            result.set(opId, { ...hint })
+          } else {
+            // Merge: concatenate descriptions, merge objects, take max priority
+            if (hint.descriptionSuffix) {
+              existing.descriptionSuffix = existing.descriptionSuffix
+                ? `${existing.descriptionSuffix} ${hint.descriptionSuffix}`
+                : hint.descriptionSuffix
+            }
+            if (hint.parameterHints) {
+              existing.parameterHints = { ...existing.parameterHints, ...hint.parameterHints }
+            }
+            if (hint.parameterDefaults) {
+              existing.parameterDefaults = { ...existing.parameterDefaults, ...hint.parameterDefaults }
+            }
+            if (hint.priority !== undefined) {
+              existing.priority = Math.max(existing.priority ?? 0, hint.priority)
+            }
           }
         }
+      } catch (err) {
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" enrichTools crashed:`, err instanceof Error ? err.message : err)
       }
     }
 
@@ -142,7 +150,11 @@ export class EnrichmentPluginRegistry {
     const hints: UIComponentHint[] = []
     for (const plugin of this.plugins.values()) {
       if (!plugin.uiHints) continue
-      hints.push(...plugin.uiHints(operations))
+      try {
+        hints.push(...plugin.uiHints(operations))
+      } catch (err) {
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" uiHints crashed:`, err instanceof Error ? err.message : err)
+      }
     }
     return hints
   }
@@ -154,7 +166,11 @@ export class EnrichmentPluginRegistry {
     const patterns: WorkflowPatternHint[] = []
     for (const plugin of this.plugins.values()) {
       if (!plugin.workflowPatterns) continue
-      patterns.push(...plugin.workflowPatterns())
+      try {
+        patterns.push(...plugin.workflowPatterns())
+      } catch (err) {
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" workflowPatterns crashed:`, err instanceof Error ? err.message : err)
+      }
     }
     return patterns
   }

@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { parseOpenAPISpec } from '@api2aux/semantic-analysis'
 import type { ParsedAPI, ExecutionResult, Auth } from 'api-invoke'
 import { parseRawUrl, parseGraphQLSchema, buildRequest, hasGraphQLErrors, getGraphQLErrors, ApiInvokeError, ErrorKind } from 'api-invoke'
-import { enrichmentRegistry } from '@api2aux/semantic-analysis'
+import { enrichmentRegistry, setCustomCategoriesProvider } from '@api2aux/semantic-analysis'
 import type { EnrichmentPlugin } from '@api2aux/semantic-analysis'
 import { analyzeWorkflows } from '@api2aux/workflow-inference'
 import { generateTools } from './tool-generator'
@@ -91,20 +91,29 @@ export async function createServer(config: ServerConfig): Promise<McpServer> {
 
   // Load enrichment plugins if specified
   if (config.enrichmentPlugins && config.enrichmentPlugins.length > 0) {
+    const failed: string[] = []
     for (const pluginName of config.enrichmentPlugins) {
       try {
         const mod = await import(pluginName) as Record<string, unknown>
-        const plugin = (mod.enrichmentPlugin ?? mod.default) as EnrichmentPlugin | undefined
-        if (plugin && plugin.id && plugin.name) {
-          enrichmentRegistry.register(plugin)
-          console.error(`[api2aux-mcp] Loaded enrichment plugin: ${plugin.name} (${plugin.id})`)
+        const candidate = (mod.enrichmentPlugin ?? mod.default) as Record<string, unknown> | undefined
+        if (candidate && typeof candidate === 'object' &&
+            typeof candidate.id === 'string' && typeof candidate.name === 'string' && typeof candidate.version === 'string') {
+          enrichmentRegistry.register(candidate as unknown as EnrichmentPlugin)
+          console.error(`[api2aux-mcp] Loaded enrichment plugin: ${candidate.name} (${candidate.id})`)
         } else {
-          console.error(`[api2aux-mcp] Warning: ${pluginName} does not export a valid enrichmentPlugin`)
+          failed.push(pluginName)
+          console.error(`[api2aux-mcp] Warning: ${pluginName} does not export a valid enrichmentPlugin (missing id, name, or version)`)
         }
       } catch (err) {
+        failed.push(pluginName)
         console.error(`[api2aux-mcp] Failed to load enrichment plugin ${pluginName}:`, err instanceof Error ? err.message : err)
       }
     }
+    if (failed.length > 0) {
+      console.error(`[api2aux-mcp] WARNING: ${failed.length}/${config.enrichmentPlugins.length} enrichment plugin(s) failed to load: ${failed.join(', ')}`)
+    }
+    // Wire enrichment registry categories into the semantic detection pipeline
+    setCustomCategoriesProvider(() => enrichmentRegistry.getAllFieldCategories())
   }
 
   if (config.openapiUrl) {
@@ -401,13 +410,19 @@ async function registerOpenAPITools(
 
   console.error(`[api2aux-mcp] Parsed "${spec.title}" v${spec.version} (${spec.specFormat})`)
   console.error(`[api2aux-mcp] Base URL: ${baseUrl}`)
-  // Run workflow inference
-  const pluginPatterns = enrichmentRegistry.getWorkflowPatterns()
-  const { workflows } = analyzeWorkflows(spec.operations, {
-    pluginPatterns: pluginPatterns.length > 0 ? pluginPatterns : undefined,
-  })
-  if (workflows.length > 0) {
-    console.error(`[api2aux-mcp] Inferred ${workflows.length} workflow(s): ${workflows.map(w => w.name).join(', ')}`)
+  // Run workflow inference (optional — failure should not block server startup)
+  let workflows: import('@api2aux/workflow-inference').Workflow[] = []
+  try {
+    const pluginPatterns = enrichmentRegistry.getWorkflowPatterns()
+    const result = analyzeWorkflows(spec.operations, {
+      pluginPatterns: pluginPatterns.length > 0 ? pluginPatterns : undefined,
+    })
+    workflows = result.workflows
+    if (workflows.length > 0) {
+      console.error(`[api2aux-mcp] Inferred ${workflows.length} workflow(s): ${workflows.map(w => w.name).join(', ')}`)
+    }
+  } catch (err) {
+    console.error('[api2aux-mcp] Workflow inference failed (continuing without workflows):', err instanceof Error ? err.message : err)
   }
 
   console.error(`[api2aux-mcp] Enriching ${rawTools.length} tools with semantic analysis...`)

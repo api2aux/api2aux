@@ -123,7 +123,7 @@ export interface AmbiguousMatch {
   sourceField: string
   /** Target parameter name. */
   targetParam: string
-  /** Current confidence score (typically 0.4-0.7). */
+  /** Current confidence score (edges in the ambiguous zone where deterministic signals were inconclusive). */
   currentScore: number
   /** Context string describing the ambiguity. */
   context: string
@@ -209,7 +209,7 @@ export interface EnrichmentPlugin {
 
   /**
    * Refine ambiguous matches using an LLM or other advanced technique.
-   * Called only for edges scoring 0.4-0.7 (the ambiguous zone).
+   * Called only for edges in the ambiguous zone where deterministic signals were inconclusive.
    * Optional — noop by default.
    */
   disambiguate?: (ambiguous: AmbiguousMatch[]) => Promise<DisambiguationResult[]>
