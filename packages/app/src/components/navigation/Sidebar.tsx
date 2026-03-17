@@ -90,7 +90,7 @@ function RelatedSection({
 
 export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: SidebarProps) {
   const { progress: discoveryProgress, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
-  const workflowAnalysis = useWorkflowAnalysis(parsedSpec, probeResults)
+  const workflowAnalysis = useWorkflowAnalysis(parsedSpec, runtimeEdges)
   const listRef = useRef<HTMLUListElement>(null)
   const [relatedExpanded, setRelatedExpanded] = useState(true)
 
@@ -195,6 +195,16 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
                 <Radar className="w-3 h-3" />
                 {runtimeEdges && runtimeEdges.length > 0 ? `${runtimeEdges.length} links` : 'Live'}
               </span>
+            )}
+            {discoveryProgress.status === 'error' && (
+              <button
+                onClick={discover}
+                className="text-[10px] text-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-0.5"
+                title={discoveryProgress.error}
+              >
+                <Radar className="w-3 h-3" />
+                Retry
+              </button>
             )}
             {/* Toggle for inline related visibility */}
             {related.length > 0 && (

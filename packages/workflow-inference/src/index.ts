@@ -55,7 +55,7 @@ export type { ArazzoDocument } from './export/arazzo'
 // === One-shot convenience ===
 
 import type { WorkflowPatternHint } from '@api2aux/semantic-analysis'
-import type { OperationGraph, Workflow, RuntimeProbeResult } from './types'
+import type { OperationGraph, Workflow, OperationEdge } from './types'
 import { operationsToInference } from './convert'
 import { buildOperationGraph } from './graph'
 import { inferWorkflows } from './composer'
@@ -69,11 +69,11 @@ export function analyzeWorkflows(
   operations: Parameters<typeof operationsToInference>[0],
   options?: {
     pluginPatterns?: WorkflowPatternHint[]
-    runtimeProbes?: RuntimeProbeResult[]
+    runtimeEdges?: OperationEdge[]
   },
 ): { graph: OperationGraph; workflows: Workflow[] } {
   const inferenceOps = operationsToInference(operations)
-  const graph = buildOperationGraph(inferenceOps, options?.pluginPatterns, options?.runtimeProbes)
+  const graph = buildOperationGraph(inferenceOps, options?.pluginPatterns, options?.runtimeEdges)
   const workflows = inferWorkflows(graph)
   return { graph, workflows }
 }

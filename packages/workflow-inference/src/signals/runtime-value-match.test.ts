@@ -203,6 +203,142 @@ describe('matchRuntimeValues', () => {
     expect(edges).toEqual([])
   })
 
+  it('suppresses number cross-probe matches when field name does not match param name', () => {
+    // Cross-probe match gives 0.80 confidence (below 0.90 threshold),
+    // so the number false-positive filter checks field name vs param name
+    const operations: InferenceOperation[] = [
+      op({
+        id: 'get_product',
+        path: '/products/{id}',
+        method: 'GET',
+        responseFields: [{ name: 'count', type: 'integer', path: 'count' }],
+      }),
+      op({
+        id: 'list_categories',
+        path: '/categories',
+        method: 'GET',
+        responseFields: [{ name: 'id', type: 'integer', path: 'id' }],
+      }),
+      op({
+        id: 'get_category',
+        path: '/categories/{id}',
+        method: 'GET',
+        parameters: [{
+          name: 'id',
+          in: 'path',
+          type: 'integer',
+          required: true,
+        }],
+      }),
+    ]
+
+    const probeResults: RuntimeProbeResult[] = [
+      {
+        operationId: 'get_product',
+        success: true,
+        values: [{ fieldPath: 'count', value: 3, type: 'number' }],
+      },
+      {
+        operationId: 'list_categories',
+        success: true,
+        values: [{ fieldPath: 'id', value: 3, type: 'number' }],
+      },
+    ]
+
+    const edges = matchRuntimeValues(probeResults, operations)
+    // count=3 from get_product matches via cross-probe (3 appears in list_categories under "id")
+    // but field "count" does not match param "id", so the number filter should suppress this
+    const edge = edges.find(e => e.sourceId === 'get_product' && e.targetId === 'get_category')
+    expect(edge).toBeUndefined()
+  })
+
+  it('allows number enum matches regardless of field name (confidence >= 0.90)', () => {
+    // Enum match gives 0.95 confidence, above the 0.90 threshold,
+    // so the name similarity check is bypassed even for numbers
+    const operations: InferenceOperation[] = [
+      op({
+        id: 'get_product',
+        path: '/products/{id}',
+        method: 'GET',
+        responseFields: [{ name: 'categoryId', type: 'integer', path: 'categoryId' }],
+      }),
+      op({
+        id: 'get_category',
+        path: '/categories/{id}',
+        method: 'GET',
+        parameters: [{
+          name: 'id',
+          in: 'path',
+          type: 'integer',
+          required: true,
+          enum: [42],
+        }],
+      }),
+    ]
+
+    const probeResults: RuntimeProbeResult[] = [
+      {
+        operationId: 'get_product',
+        success: true,
+        values: [{ fieldPath: 'categoryId', value: 42, type: 'number' }],
+      },
+    ]
+
+    const edges = matchRuntimeValues(probeResults, operations)
+    const edge = edges.find(e => e.sourceId === 'get_product' && e.targetId === 'get_category')
+    // Enum match (0.95) is above 0.90 threshold, so name check is bypassed
+    expect(edge).toBeDefined()
+    expect(edge!.bindings[0]!.confidence).toBe(0.95)
+  })
+
+  it('deduplicates bindings per param, keeping highest confidence', () => {
+    const operations: InferenceOperation[] = [
+      op({
+        id: 'get_order',
+        path: '/orders/{id}',
+        method: 'GET',
+        responseFields: [
+          { name: 'userId', type: 'string', path: 'userId' },
+          { name: 'createdBy', type: 'string', path: 'createdBy' },
+        ],
+      }),
+      op({
+        id: 'get_user',
+        path: '/users/{userId}',
+        method: 'GET',
+        parameters: [{
+          name: 'userId',
+          in: 'path',
+          type: 'string',
+          required: true,
+          example: 'user-42',
+          enum: ['user-42', 'user-99'],
+        }],
+      }),
+    ]
+
+    const probeResults: RuntimeProbeResult[] = [
+      {
+        operationId: 'get_order',
+        success: true,
+        values: [
+          // Both values match the same param via different tiers
+          { fieldPath: 'userId', value: 'user-42', type: 'string' },     // matches enum (0.95) AND example (0.85)
+          { fieldPath: 'createdBy', value: 'user-42', type: 'string' },  // also matches enum (0.95)
+        ],
+      },
+    ]
+
+    const edges = matchRuntimeValues(probeResults, operations)
+    const edge = edges.find(e => e.sourceId === 'get_order' && e.targetId === 'get_user')
+    expect(edge).toBeDefined()
+    // Should have only one binding for userId param (deduplicated)
+    const userIdBindings = edge!.bindings.filter(b => b.targetParam === 'userId')
+    expect(userIdBindings).toHaveLength(1)
+    // Should keep the highest confidence (0.95 from enum match)
+    expect(userIdBindings[0]!.confidence).toBe(0.95)
+  })
+
   it('does not create self-edges', () => {
     const operations: InferenceOperation[] = [
       op({

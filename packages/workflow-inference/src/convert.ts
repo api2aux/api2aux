@@ -94,8 +94,8 @@ function convertOperation(op: SourceOperation): InferenceOperation {
     type: p.schema?.type ?? 'string',
     format: p.schema?.format,
     required: p.required,
-    ...(p.schema?.enum ? { enum: p.schema.enum } : {}),
-    ...(p.schema?.example !== undefined ? { example: p.schema.example } : {}),
+    ...(p.schema?.enum ? { enum: p.schema.enum.filter((e): e is string | number => typeof e === 'string' || typeof e === 'number') } : {}),
+    ...(typeof p.schema?.example === 'string' || typeof p.schema?.example === 'number' ? { example: p.schema.example } : {}),
   }))
 
   const responseFields = extractFieldsFromSchema(op.responseSchema)

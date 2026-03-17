@@ -7,7 +7,7 @@ import { useMemo } from 'react'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import { enrichmentRegistry } from '@api2aux/semantic-analysis'
 import { analyzeWorkflows } from '@api2aux/workflow-inference'
-import type { OperationGraph, Workflow, RuntimeProbeResult } from '@api2aux/workflow-inference'
+import type { OperationGraph, Workflow, OperationEdge } from '@api2aux/workflow-inference'
 
 export interface WorkflowAnalysisResult {
   graph: OperationGraph
@@ -40,7 +40,7 @@ export interface RelatedOperation {
  */
 export function useWorkflowAnalysis(
   parsedSpec: ParsedAPI | null,
-  runtimeProbes?: RuntimeProbeResult[] | null,
+  runtimeEdges?: OperationEdge[] | null,
 ): WorkflowAnalysisResult | null {
   return useMemo(() => {
     if (!parsedSpec || parsedSpec.operations.length === 0) return null
@@ -49,7 +49,7 @@ export function useWorkflowAnalysis(
       const pluginPatterns = enrichmentRegistry.getWorkflowPatterns()
       const { graph, workflows } = analyzeWorkflows(parsedSpec.operations, {
         pluginPatterns: pluginPatterns.length > 0 ? pluginPatterns : undefined,
-        runtimeProbes: runtimeProbes ?? undefined,
+        runtimeEdges: runtimeEdges ?? undefined,
       })
 
       // Build operation → workflows lookup
@@ -147,5 +147,5 @@ export function useWorkflowAnalysis(
       console.error('[useWorkflowAnalysis] Workflow analysis failed:', err)
       return null
     }
-  }, [parsedSpec, runtimeProbes])
+  }, [parsedSpec, runtimeEdges])
 }

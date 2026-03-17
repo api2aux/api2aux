@@ -41,9 +41,9 @@ export interface InferenceParam {
   /** Whether the parameter is required. */
   required: boolean
   /** Allowed values from the spec (e.g. enum constraint). */
-  enum?: unknown[]
+  enum?: (string | number)[]
   /** Example value from the spec. */
-  example?: unknown
+  example?: string | number
 }
 
 /** A field extracted from a response or request body schema. */
@@ -157,14 +157,9 @@ export type SignalFunction = (operations: InferenceOperation[]) => OperationEdge
 // === Runtime Value Matching ===
 
 /** A value extracted from a live API response for cross-probe matching. */
-export interface RuntimeProbeValue {
-  /** JSON path where the value was found (e.g. 'ability_score.index'). */
-  fieldPath: string
-  /** The extracted value. */
-  value: string | number
-  /** Value type. */
-  type: 'string' | 'number'
-}
+export type RuntimeProbeValue =
+  | { fieldPath: string; value: string; type: 'string' }
+  | { fieldPath: string; value: number; type: 'number' }
 
 /** Result of probing a single endpoint. */
 export interface RuntimeProbeResult {

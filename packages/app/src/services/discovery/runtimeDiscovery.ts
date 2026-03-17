@@ -49,56 +49,13 @@ export async function discoverRuntimeEdges(
   executeFn: ExecuteFn,
   options?: DiscoveryOptions,
 ): Promise<DiscoveryResult> {
-  const maxProbes = options?.maxProbes ?? 20
-  const signal = options?.signal
-
-  // Convert to inference operations for probe selection and matching
   const inferenceOps = operationsToInference(operations)
-
-  // Select probes
-  const probes = selectProbes(inferenceOps, maxProbes)
-
-  const probeResults: RuntimeProbeResult[] = []
-  let probesSucceeded = 0
-
-  // Execute probes sequentially to respect rate limits
-  for (const probe of probes) {
-    if (signal?.aborted) break
-
-    options?.onProgress?.(probeResults.length, probes.length, probe)
-
-    try {
-      const data = await executeFn(probe.operationId, probe.args)
-      const values = extractProbeValues(data)
-      probeResults.push({
-        operationId: probe.operationId,
-        values,
-        success: true,
-      })
-      probesSucceeded++
-    } catch {
-      probeResults.push({
-        operationId: probe.operationId,
-        values: [],
-        success: false,
-      })
-    }
-  }
-
-  // Match values across probes to discover edges
-  const edges = matchRuntimeValues(probeResults, inferenceOps)
-
-  return {
-    probeResults,
-    edges,
-    probesAttempted: probeResults.length,
-    probesSucceeded,
-  }
+  return discoverRuntimeEdgesFromInference(inferenceOps, executeFn, options)
 }
 
 /**
- * Convenience: discover edges using pre-converted InferenceOperations.
- * Useful when inference operations are already available.
+ * Discover edges using pre-converted InferenceOperations.
+ * Core implementation — discoverRuntimeEdges delegates here after conversion.
  */
 export async function discoverRuntimeEdgesFromInference(
   inferenceOps: InferenceOperation[],
@@ -119,10 +76,17 @@ export async function discoverRuntimeEdgesFromInference(
 
     try {
       const data = await executeFn(probe.operationId, probe.args)
-      const values = extractProbeValues(data)
+      let values: ReturnType<typeof extractProbeValues> = []
+      try {
+        values = extractProbeValues(data)
+      } catch (extractErr) {
+        console.warn(`[runtime-discovery] Value extraction failed for ${probe.operationId}:`, extractErr instanceof Error ? extractErr.message : extractErr)
+        values = []
+      }
       probeResults.push({ operationId: probe.operationId, values, success: true })
       probesSucceeded++
-    } catch {
+    } catch (err) {
+      console.warn(`[runtime-discovery] Probe failed for ${probe.operationId}:`, err instanceof Error ? err.message : err)
       probeResults.push({ operationId: probe.operationId, values: [], success: false })
     }
   }

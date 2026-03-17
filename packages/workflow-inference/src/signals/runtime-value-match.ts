@@ -23,7 +23,7 @@ import type {
   RuntimeProbeResult,
 } from '../types'
 
-const SIGNAL_NAME = 'runtime-value-match'
+const SIGNAL_NAME = 'runtime-value-match' as const
 const SIGNAL_WEIGHT = 0.40
 
 /** Normalize a name for fuzzy comparison: lowercase, strip separators. */

@@ -2,14 +2,13 @@
  * Graph builder — runs all signals, merges edges, applies plugin boosts.
  */
 
-import type { InferenceOperation, OperationEdge, OperationGraph, SignalFunction, RuntimeProbeResult } from './types'
+import type { InferenceOperation, OperationEdge, OperationGraph, SignalFunction } from './types'
 import type { WorkflowPatternHint } from '@api2aux/semantic-analysis'
 import { detectIdPatterns } from './signals/id-pattern'
 import { detectRestConventions } from './signals/rest-conventions'
 import { detectSchemaCompat } from './signals/schema-compat'
 import { detectTagProximity } from './signals/tag-proximity'
 import { detectNameSimilarity } from './signals/name-similarity'
-import { matchRuntimeValues } from './signals/runtime-value-match'
 
 /** Minimum edge score to keep in the graph. */
 const EDGE_THRESHOLD = 0.15
@@ -145,7 +144,7 @@ function normalizeScores(edges: OperationEdge[]): void {
 export function buildOperationGraph(
   operations: InferenceOperation[],
   pluginPatterns?: WorkflowPatternHint[],
-  runtimeProbes?: RuntimeProbeResult[],
+  runtimeEdges?: OperationEdge[],
 ): OperationGraph {
   // Run all signals independently with per-signal isolation
   const allEdges: OperationEdge[] = [
@@ -157,12 +156,8 @@ export function buildOperationGraph(
   ]
 
   // Merge runtime-discovered edges if available
-  if (runtimeProbes && runtimeProbes.length > 0) {
-    try {
-      allEdges.push(...matchRuntimeValues(runtimeProbes, operations))
-    } catch (err) {
-      console.error('[workflow-inference] runtime-value-match signal failed:', err)
-    }
+  if (runtimeEdges && runtimeEdges.length > 0) {
+    allEdges.push(...runtimeEdges)
   }
 
   // Merge edges with same (source, target)

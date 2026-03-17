@@ -11,7 +11,7 @@ import type { RuntimeProbeValue } from '@api2aux/workflow-inference'
 /** Regex patterns for values to skip. */
 const SKIP_PATTERNS = [
   /^https?:\/\//i,           // URLs
-  /^\d{4}-\d{2}-\d{2}/,     // ISO dates
+  /^\d{4}-\d{2}-\d{2}(T|$)/,  // ISO dates (require T or end after date)
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, // UUIDs
   /^(true|false)$/i,         // Booleans as strings
   /^\s*$/,                   // Whitespace
