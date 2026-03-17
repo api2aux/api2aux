@@ -9,6 +9,7 @@ import type { Credential } from '../types/auth'
 import type { Operation } from '@api2aux/semantic-analysis'
 import { generateToolName, generateToolDefinitions } from '@api2aux/tool-utils'
 import type { UnifiedToolDefinition } from '@api2aux/tool-utils'
+import { useWorkflowAnalysis } from '../hooks/useWorkflowAnalysis'
 
 type ExportFormat = 'claude-desktop' | 'claude-code' | 'cli'
 
@@ -239,6 +240,8 @@ export function MCPExportDialog({ open, onClose }: MCPExportDialogProps) {
     })
   }, [open, parsedSpec?.baseUrl])
 
+  const workflowAnalysis = useWorkflowAnalysis(parsedSpec ?? null)
+
   // Pre-compute enriched tool definitions from tool-utils (single source of truth)
   const toolDefs = useMemo<Map<string, UnifiedToolDefinition>>(() => {
     if (!parsedSpec || parsedSpec.operations.length === 0) return new Map()
@@ -396,6 +399,39 @@ export function MCPExportDialog({ open, onClose }: MCPExportDialogProps) {
                     <p className="text-sm text-muted-foreground">
                       {parsedSpec.operations.length} tools generated from {parsedSpec.title}
                     </p>
+
+                    {/* Detected workflows */}
+                    {workflowAnalysis && workflowAnalysis.workflows.length > 0 && (
+                      <Disclosure>
+                        <DisclosureButton className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                          {({ open: isOpen }) => (
+                            <>
+                              Detected Workflows ({workflowAnalysis.workflows.length})
+                              <ChevronIcon open={isOpen} />
+                            </>
+                          )}
+                        </DisclosureButton>
+                        <DisclosurePanel className="mt-2 space-y-1.5">
+                          {workflowAnalysis.workflows.slice(0, 10).map((wf) => (
+                            <div key={wf.id} className="flex items-start gap-2 px-3 py-1.5 rounded-lg bg-muted/30 text-xs">
+                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase text-muted-foreground bg-muted">
+                                {wf.pattern}
+                              </span>
+                              <div className="min-w-0">
+                                <span className="font-medium text-foreground">{wf.name}</span>
+                                <p className="text-muted-foreground truncate">
+                                  {wf.steps.map(s => s.operationId).join(' → ')}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                          <p className="text-[10px] text-muted-foreground italic">
+                            Workflow context is included in each tool&apos;s description for better AI understanding.
+                          </p>
+                        </DisclosurePanel>
+                      </Disclosure>
+                    )}
+
                     {/* Semantic response fields (from live analysis, if available) */}
                     {(() => {
                       const responseFields = getResponseFieldDescriptions(analysisCache as Map<string, { semantics: Map<string, { detectedCategory?: string; level?: string }> }>)

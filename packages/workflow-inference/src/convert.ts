@@ -22,9 +22,7 @@ interface SourceOperation {
     schema: { type: string; format?: string }
   }>
   responseSchema?: unknown
-  requestBody?: {
-    schema: { properties?: Record<string, { type?: string; format?: string }> }
-  }
+  requestBody?: unknown
 }
 
 /**
@@ -101,14 +99,19 @@ function convertOperation(op: SourceOperation): InferenceOperation {
   const responseFields = extractFieldsFromSchema(op.responseSchema)
 
   const requestBodyFields: InferenceField[] = []
-  if (op.requestBody?.schema?.properties) {
-    for (const [name, prop] of Object.entries(op.requestBody.schema.properties)) {
-      requestBodyFields.push({
-        name,
-        type: prop.type || 'string',
-        format: prop.format,
-        path: name,
-      })
+  if (op.requestBody && typeof op.requestBody === 'object') {
+    const rb = op.requestBody as Record<string, unknown>
+    const schema = rb.schema as Record<string, unknown> | undefined
+    const props = schema?.properties as Record<string, Record<string, unknown>> | undefined
+    if (props) {
+      for (const [name, prop] of Object.entries(props)) {
+        requestBodyFields.push({
+          name,
+          type: (prop.type as string) || 'string',
+          format: prop.format as string | undefined,
+          path: name,
+        })
+      }
     }
   }
 
