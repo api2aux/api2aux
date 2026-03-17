@@ -26,4 +26,6 @@ export interface ServerConfig {
   debug?: boolean
   /** Disable response truncation (return full response) */
   fullResponse?: boolean
+  /** Enrichment plugin npm package names to load (e.g. ['@yourco/enrich-commerce']) */
+  enrichmentPlugins?: string[]
 }

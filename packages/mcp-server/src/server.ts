@@ -8,6 +8,8 @@ import { z } from 'zod'
 import { parseOpenAPISpec } from '@api2aux/semantic-analysis'
 import type { ParsedAPI, ExecutionResult, Auth } from 'api-invoke'
 import { parseRawUrl, parseGraphQLSchema, buildRequest, hasGraphQLErrors, getGraphQLErrors, ApiInvokeError, ErrorKind } from 'api-invoke'
+import { enrichmentRegistry } from '@api2aux/semantic-analysis'
+import type { EnrichmentPlugin } from '@api2aux/semantic-analysis'
 import { generateTools } from './tool-generator'
 import type { GeneratedTool } from './tool-generator'
 import { enrichTools } from './semantic-enrichment'
@@ -85,6 +87,24 @@ export async function createServer(config: ServerConfig): Promise<McpServer> {
 
   const debug = config.debug ?? false
   const fullResponse = config.fullResponse ?? false
+
+  // Load enrichment plugins if specified
+  if (config.enrichmentPlugins && config.enrichmentPlugins.length > 0) {
+    for (const pluginName of config.enrichmentPlugins) {
+      try {
+        const mod = await import(pluginName) as Record<string, unknown>
+        const plugin = (mod.enrichmentPlugin ?? mod.default) as EnrichmentPlugin | undefined
+        if (plugin && plugin.id && plugin.name) {
+          enrichmentRegistry.register(plugin)
+          console.error(`[api2aux-mcp] Loaded enrichment plugin: ${plugin.name} (${plugin.id})`)
+        } else {
+          console.error(`[api2aux-mcp] Warning: ${pluginName} does not export a valid enrichmentPlugin`)
+        }
+      } catch (err) {
+        console.error(`[api2aux-mcp] Failed to load enrichment plugin ${pluginName}:`, err instanceof Error ? err.message : err)
+      }
+    }
+  }
 
   if (config.openapiUrl) {
     // OpenAPI mode: parse spec and generate tools for each operation

@@ -279,6 +279,11 @@ export function generateDescription(op: ToolOperation, opts?: DescriptionOptions
     parts.push(opts.crossOpHint)
   }
 
+  // Enrichment plugin hint
+  if (opts?.enrichmentHint?.descriptionSuffix) {
+    parts.push(opts.enrichmentHint.descriptionSuffix)
+  }
+
   // Include full DTO schema summary for LLM context
   const dtoSummary = summarizeResponseSchema(op.responseSchema)
   if (dtoSummary) {
@@ -312,7 +317,10 @@ export function generateDescription(op: ToolOperation, opts?: DescriptionOptions
 /**
  * Convert a ToolParameter into a JSON Schema property.
  */
-export function parameterToJsonSchema(param: ToolParameter): JsonSchemaProperty {
+export function parameterToJsonSchema(
+  param: ToolParameter,
+  enrichmentHint?: string,
+): JsonSchemaProperty {
   const prop: JsonSchemaProperty = {
     type: param.schema.type === 'integer' || param.schema.type === 'number' ? 'number' : 'string',
   }
@@ -329,6 +337,7 @@ export function parameterToJsonSchema(param: ToolParameter): JsonSchemaProperty 
   }
   if (param.schema.default !== undefined) descParts.push(`Default: ${String(param.schema.default)}`)
   if (param.schema.example !== undefined) descParts.push(`Example: ${String(param.schema.example)}`)
+  if (enrichmentHint) descParts.push(enrichmentHint)
   if (descParts.length > 0) prop.description = descParts.join('. ')
 
   if (param.schema.enum && param.schema.enum.length > 0) {
@@ -352,8 +361,9 @@ export function generateToolDefinition(
   const properties: Record<string, JsonSchemaProperty> = {}
   const required: string[] = []
 
+  const paramHints = opts?.enrichmentHint?.parameterHints
   for (const param of op.parameters) {
-    properties[param.name] = parameterToJsonSchema(param)
+    properties[param.name] = parameterToJsonSchema(param, paramHints?.[param.name])
     if (param.required) {
       required.push(param.name)
     }
@@ -425,16 +435,25 @@ function buildCrossOpHints(operations: ToolOperationWithParams[]): Map<string, s
 /**
  * Batch version — generate UnifiedToolDefinitions for multiple operations.
  * Includes cross-operation hints that link detail endpoints to their list operations.
+ *
+ * @param enrichmentHints - Optional map of operationId → enrichment hints from plugins.
+ *   Structural type compatible with ToolEnrichmentHint from @api2aux/semantic-analysis.
  */
 export function generateToolDefinitions(
   operations: ToolOperationWithParams[],
   opts?: DescriptionOptions,
+  enrichmentHints?: Map<string, { descriptionSuffix?: string; parameterHints?: Record<string, string>; priority?: number }>,
 ): UnifiedToolDefinition[] {
   const crossOpHints = buildCrossOpHints(operations)
   return operations.map(op => {
     const toolName = generateToolName(op)
-    const hint = crossOpHints.get(toolName)
-    const opOpts = hint ? { ...opts, crossOpHint: hint } : opts
+    const crossHint = crossOpHints.get(toolName)
+    const enrichHint = enrichmentHints?.get(op.id)
+    const opOpts: DescriptionOptions = {
+      ...opts,
+      ...(crossHint ? { crossOpHint: crossHint } : {}),
+      ...(enrichHint ? { enrichmentHint: enrichHint } : {}),
+    }
     return generateToolDefinition(op, opOpts)
   })
 }

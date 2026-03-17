@@ -21,6 +21,15 @@ export interface DescriptionOptions {
   parameters?: ToolParameter[]
   /** Cross-operation hint appended to the description (e.g. "Use id from list_users results") */
   crossOpHint?: string
+  /** Enrichment plugin hint for this operation (structural type — no import needed). */
+  enrichmentHint?: {
+    /** Additional text appended to the tool description. */
+    descriptionSuffix?: string
+    /** Per-parameter hint text (paramName → hint). Merged into parameter descriptions. */
+    parameterHints?: Record<string, string>
+    /** Usage priority: higher values are suggested first (0.0-1.0). */
+    priority?: number
+  }
 }
 
 // ── Unified Tool Definition types ───────────────────────────────────

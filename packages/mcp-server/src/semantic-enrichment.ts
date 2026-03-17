@@ -9,7 +9,9 @@ import {
   analyzeApiResponse,
   detectSemantics,
   getBestMatch,
+  enrichmentRegistry,
 } from '@api2aux/semantic-analysis'
+import type { OperationContext, OperationContextParam } from '@api2aux/semantic-analysis'
 import type { Operation, Parameter } from 'api-invoke'
 import { HttpMethod, ParamLocation, ContentType, HeaderName } from 'api-invoke'
 import type { GeneratedTool } from './tool-generator'
@@ -251,18 +253,61 @@ function sortParameters(params: Parameter[]): Parameter[] {
 }
 
 // ---------------------------------------------------------------------------
+// Enrichment plugin integration
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert an api-invoke Operation to an OperationContext for enrichment plugins.
+ */
+function toOperationContext(op: Operation): OperationContext {
+  const params: OperationContextParam[] = op.parameters.map(p => ({
+    name: p.name,
+    in: p.in,
+    type: p.schema.type,
+    format: p.schema.format,
+    required: p.required,
+  }))
+
+  // Extract response field names from schema
+  const responseFieldNames: string[] = []
+  if (op.responseSchema && typeof op.responseSchema === 'object') {
+    const schema = op.responseSchema as Record<string, unknown>
+    if (schema.properties && typeof schema.properties === 'object') {
+      responseFieldNames.push(...Object.keys(schema.properties as Record<string, unknown>))
+    }
+  }
+
+  return {
+    id: op.id,
+    path: op.path,
+    method: op.method,
+    tags: op.tags,
+    parameters: params,
+    responseFieldNames,
+    summary: op.summary,
+    description: op.description,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
  * Enrich generated tools with semantic information.
  * Enhances descriptions, parameter schemas, and ordering.
+ * Also applies enrichment plugin hints from the registry.
  */
 export async function enrichTools(
   tools: GeneratedTool[],
   baseUrl: string,
   options?: { fetchSamples?: boolean }
 ): Promise<GeneratedTool[]> {
+  // Collect enrichment plugin hints for all operations
+  const operations = tools.map(t => t.operation)
+  const opContexts = operations.map(toOperationContext)
+  const pluginToolHints = enrichmentRegistry.getToolHints(opContexts)
+
   const enriched: GeneratedTool[] = []
 
   for (const tool of tools) {
@@ -291,6 +336,12 @@ export async function enrichTools(
       if (responseDesc) {
         description = `${description}. ${responseDesc}`
       }
+    }
+
+    // 3. Apply enrichment plugin hints
+    const pluginHint = pluginToolHints.get(op.id)
+    if (pluginHint?.descriptionSuffix) {
+      description = `${description}. ${pluginHint.descriptionSuffix}`
     }
 
     enriched.push({
