@@ -98,7 +98,7 @@ function matchesPattern(opId: string, pattern: string | RegExp): boolean {
     }
     return opId.toLowerCase().includes(pattern.toLowerCase())
   } catch (err) {
-    console.error(`[workflow-inference] matchesPattern failed for pattern ${String(pattern)}:`, err instanceof Error ? err.message : err)
+    console.error(`[workflow-inference] matchesPattern failed for pattern ${String(pattern)} on opId "${opId}":`, err)
     return false
   }
 }

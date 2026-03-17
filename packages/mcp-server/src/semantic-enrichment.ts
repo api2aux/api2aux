@@ -311,48 +311,59 @@ export async function enrichTools(
   try {
     pluginToolHints = enrichmentRegistry.getToolHints(opContexts)
   } catch (err) {
-    console.error('[api2aux-mcp] Enrichment plugin getToolHints failed:', err instanceof Error ? err.message : err)
+    console.error('[api2aux-mcp] enrichmentRegistry.getToolHints() failed:', err)
     pluginToolHints = new Map()
   }
 
   const enriched: GeneratedTool[] = []
 
   for (const tool of tools) {
-    try {
-      const op = tool.operation
+    const op = tool.operation
 
-      // 1. Enhance parameter schemas with semantic validation
-      const enhancedSchema: Record<string, z.ZodTypeAny> = {}
+    // 1. Enhance parameter schemas with semantic validation
+    let enhancedSchema: Record<string, z.ZodTypeAny> = { ...tool.inputSchema }
+    try {
+      const schema: Record<string, z.ZodTypeAny> = {}
       const sortedParams = sortParameters(op.parameters)
 
       for (const param of sortedParams) {
         const original = tool.inputSchema[param.name]
         if (original) {
-          enhancedSchema[param.name] = enhanceParameterSchema(param, original)
+          schema[param.name] = enhanceParameterSchema(param, original)
         }
       }
 
       // Keep body param if present
       if (tool.inputSchema['body']) {
-        enhancedSchema['body'] = tool.inputSchema['body']
+        schema['body'] = tool.inputSchema['body']
       }
 
-      // 2. Enrich description with response field semantics
-      let description = tool.description
-      if (options?.fetchSamples) {
-        const responseDesc = await describeResponseFields(baseUrl, op)
-        if (responseDesc) {
-          description = `${description}. ${responseDesc}`
-        }
-      }
+      enhancedSchema = schema
+    } catch (err) {
+      console.error(`[api2aux-mcp] Schema enhancement failed for "${tool.name}":`, err)
+    }
 
-      // 3. Apply enrichment plugin hints
+    // 2. Enrich description with response field semantics
+    let description = tool.description
+    if (options?.fetchSamples) {
+      const responseDesc = await describeResponseFields(baseUrl, op)
+      if (responseDesc) {
+        description = `${description}. ${responseDesc}`
+      }
+    }
+
+    // 3. Apply enrichment plugin hints
+    try {
       const pluginHint = pluginToolHints.get(op.id)
       if (pluginHint?.descriptionSuffix) {
         description = `${description}. ${pluginHint.descriptionSuffix}`
       }
+    } catch (err) {
+      console.error(`[api2aux-mcp] Plugin hint application failed for "${tool.name}":`, err)
+    }
 
-      // 4. Add workflow context if available
+    // 4. Add workflow context if available
+    try {
       if (options?.workflows) {
         const relevantWorkflows = options.workflows.filter(w =>
           w.steps.some(s => s.operationId === op.id)
@@ -370,16 +381,15 @@ export async function enrichTools(
           description = `${description}. ${hint}`
         }
       }
-
-      enriched.push({
-        ...tool,
-        description,
-        inputSchema: enhancedSchema,
-      })
     } catch (err) {
-      console.error(`[api2aux-mcp] Per-tool enrichment failed for "${tool.name}":`, err instanceof Error ? err.message : err)
-      enriched.push(tool)
+      console.error(`[api2aux-mcp] Workflow context failed for "${tool.name}":`, err)
     }
+
+    enriched.push({
+      ...tool,
+      description,
+      inputSchema: enhancedSchema,
+    })
   }
 
   return enriched

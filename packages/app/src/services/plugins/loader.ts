@@ -115,10 +115,14 @@ export async function loadAndRegisterPlugins(
         }
         // Register enrichment plugin if present
         if (loadResult.enrichmentPlugin) {
-          enrichmentRegistry.register(loadResult.enrichmentPlugin)
-          loadedEnrichmentPlugins.set(loadResult.manifest.id, loadResult.enrichmentPlugin.id)
-          // Wire enrichment registry categories into the semantic detection pipeline
-          setCustomCategoriesProvider(() => enrichmentRegistry.getAllFieldCategories())
+          try {
+            enrichmentRegistry.register(loadResult.enrichmentPlugin)
+            loadedEnrichmentPlugins.set(loadResult.manifest.id, loadResult.enrichmentPlugin.id)
+            // Wire enrichment registry categories into the semantic detection pipeline
+            setCustomCategoriesProvider(() => enrichmentRegistry.getAllFieldCategories())
+          } catch (err) {
+            console.error(`[PluginLoader] Failed to register enrichment plugin from "${loadResult.manifest.id}":`, err)
+          }
         }
       }
     } else {
@@ -145,7 +149,11 @@ export function unloadPlugin(manifestId: string): void {
   // Unregister enrichment plugin if this manifest had one
   const enrichmentId = loadedEnrichmentPlugins.get(manifestId)
   if (enrichmentId) {
-    enrichmentRegistry.unregister(enrichmentId)
+    try {
+      enrichmentRegistry.unregister(enrichmentId)
+    } catch (err) {
+      console.error(`[PluginLoader] Failed to unregister enrichment plugin "${enrichmentId}":`, err)
+    }
     loadedEnrichmentPlugins.delete(manifestId)
   }
 }

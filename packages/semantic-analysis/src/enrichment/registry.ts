@@ -62,7 +62,7 @@ export class EnrichmentPluginRegistry {
           categories.push(...plugin.fieldCategories)
         }
       } catch (err) {
-        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" fieldCategories access crashed:`, err instanceof Error ? err.message : err)
+        console.error(`[EnrichmentRegistry] Plugin "${plugin.id}" fieldCategories access crashed:`, err)
       }
     }
     return categories

@@ -74,11 +74,12 @@ function toOperationContext(op: ParsedAPI['operations'][number]): OperationConte
  */
 export function buildToolsFromSpec(spec: ParsedAPI): Tool[] {
   const opContexts = spec.operations.map(toOperationContext)
-  let enrichHints: Map<string, import('@api2aux/semantic-analysis').ToolEnrichmentHint> | undefined
+  let enrichHints: Map<string, import('@api2aux/semantic-analysis').ToolEnrichmentHint>
   try {
     enrichHints = enrichmentRegistry.getToolHints(opContexts)
   } catch (err) {
-    console.error('[toolBuilder] Enrichment plugin hints failed:', err instanceof Error ? err.message : err)
+    console.error('[toolBuilder] enrichmentRegistry.getToolHints() failed:', err)
+    enrichHints = new Map()
   }
   const defs = generateToolDefinitions(spec.operations, { includePath: true }, enrichHints)
   return defs.map(unifiedToOpenAI)
@@ -340,7 +341,7 @@ export function buildSystemPrompt(url: string, spec?: ParsedAPI | null): string 
     try {
       opTags = enrichmentRegistry.tagOperations(opContexts)
     } catch (err) {
-      console.error('[toolBuilder] Enrichment plugin tagOperations failed:', err instanceof Error ? err.message : err)
+      console.error('[toolBuilder] enrichmentRegistry.tagOperations() failed:', err)
       opTags = new Map()
     }
     const taggedOps: string[] = []
