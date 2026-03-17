@@ -85,6 +85,10 @@ export class EnrichmentPluginRegistry {
 
       try {
         const pluginTags = plugin.tagOperations(operations)
+        if (pluginTags.length !== operations.length) {
+          console.warn(`[EnrichmentRegistry] Plugin "${plugin.id}" tagOperations returned ${pluginTags.length} results for ${operations.length} operations — skipping`)
+          continue
+        }
         for (let i = 0; i < operations.length; i++) {
           const op = operations[i]
           if (!op) continue

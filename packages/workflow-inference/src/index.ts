@@ -14,6 +14,7 @@ export type {
   InferenceOperation,
   InferenceParam,
   InferenceField,
+  ParamIn,
   OperationEdge,
   DataBinding,
   EdgeSignal,

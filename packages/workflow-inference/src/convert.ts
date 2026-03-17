@@ -3,7 +3,7 @@
  * Extracts response and request body fields from JSON schemas.
  */
 
-import type { InferenceOperation, InferenceParam, InferenceField } from './types'
+import type { InferenceOperation, InferenceParam, InferenceField, ParamIn } from './types'
 
 /**
  * Minimal operation interface satisfied by api-invoke's Operation.
@@ -90,7 +90,7 @@ function extractFieldsFromSchema(schema: unknown, prefix = ''): InferenceField[]
 function convertOperation(op: SourceOperation): InferenceOperation {
   const parameters: InferenceParam[] = op.parameters.map(p => ({
     name: p.name,
-    in: p.in,
+    in: p.in as ParamIn,
     type: p.schema?.type ?? 'string',
     format: p.schema?.format,
     required: p.required,
@@ -118,7 +118,7 @@ function convertOperation(op: SourceOperation): InferenceOperation {
   return {
     id: op.id,
     path: op.path,
-    method: op.method.toUpperCase(),
+    method: op.method.toUpperCase() as InferenceOperation['method'],
     tags: op.tags,
     summary: op.summary,
     parameters,

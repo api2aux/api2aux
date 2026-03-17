@@ -2,7 +2,7 @@
  * Graph builder — runs all signals, merges edges, applies plugin boosts.
  */
 
-import type { InferenceOperation, OperationEdge, OperationGraph } from './types'
+import type { InferenceOperation, OperationEdge, OperationGraph, SignalFunction } from './types'
 import type { WorkflowPatternHint } from '@api2aux/semantic-analysis'
 import { detectIdPatterns } from './signals/id-pattern'
 import { detectRestConventions } from './signals/rest-conventions'
@@ -12,6 +12,19 @@ import { detectNameSimilarity } from './signals/name-similarity'
 
 /** Minimum edge score to keep in the graph. */
 const EDGE_THRESHOLD = 0.15
+
+/** Maximum accumulated score before normalization (prevents one pair from dominating). */
+const MAX_RAW_SCORE = 1.5
+
+/** Run a signal function safely, returning empty array on failure. */
+function safeRunSignal(fn: SignalFunction, operations: InferenceOperation[], label: string): OperationEdge[] {
+  try {
+    return fn(operations)
+  } catch (err) {
+    console.error(`[workflow-inference] ${label} signal failed:`, err)
+    return []
+  }
+}
 
 /** Edge key for merging. */
 function edgeKey(sourceId: string, targetId: string): string {
@@ -32,7 +45,7 @@ function mergeEdges(allEdges: OperationEdge[]): OperationEdge[] {
     if (!existing) {
       merged.set(key, { ...edge, signals: [...edge.signals], bindings: [...edge.bindings] })
     } else {
-      existing.score += edge.score
+      existing.score = Math.min(existing.score + edge.score, MAX_RAW_SCORE)
       existing.signals.push(...edge.signals)
 
       // Merge bindings (deduplicate by sourceField+targetParam)
@@ -53,6 +66,9 @@ function mergeEdges(allEdges: OperationEdge[]): OperationEdge[] {
 /**
  * Apply plugin workflow pattern boosts to matching edges.
  */
+/** Maximum total plugin boost per edge. */
+const MAX_PLUGIN_BOOST = 0.5
+
 function applyPluginBoosts(
   edges: OperationEdge[],
   operations: InferenceOperation[],
@@ -61,9 +77,9 @@ function applyPluginBoosts(
   if (patterns.length === 0) return
 
   const opById = new Map(operations.map(o => [o.id, o]))
+  const boostAccum = new Map<string, number>()
 
   for (const pattern of patterns) {
-    // For each pair of adjacent steps in the pattern, boost matching edges
     for (let i = 0; i < pattern.steps.length - 1; i++) {
       const stepA = pattern.steps[i]!
       const stepB = pattern.steps[i + 1]!
@@ -77,10 +93,15 @@ function applyPluginBoosts(
         const targetMatches = matchesPattern(targetOp.id, stepB.operationPattern)
 
         if (sourceMatches && targetMatches) {
-          edge.score += pattern.edgeWeightBoost
+          const key = `${edge.sourceId}→${edge.targetId}`
+          const accumulated = boostAccum.get(key) ?? 0
+          if (accumulated >= MAX_PLUGIN_BOOST) continue
+          const boost = Math.min(pattern.edgeWeightBoost, MAX_PLUGIN_BOOST - accumulated)
+          edge.score += boost
+          boostAccum.set(key, accumulated + boost)
           edge.signals.push({
             signal: 'plugin-boost',
-            weight: pattern.edgeWeightBoost,
+            weight: boost,
             matched: true,
             detail: `Plugin pattern: ${pattern.name} (${stepA.role} → ${stepB.role})`,
           })
@@ -124,13 +145,13 @@ export function buildOperationGraph(
   operations: InferenceOperation[],
   pluginPatterns?: WorkflowPatternHint[],
 ): OperationGraph {
-  // Run all signals independently
+  // Run all signals independently with per-signal isolation
   const allEdges: OperationEdge[] = [
-    ...detectIdPatterns(operations),
-    ...detectRestConventions(operations),
-    ...detectSchemaCompat(operations),
-    ...detectTagProximity(operations),
-    ...detectNameSimilarity(operations),
+    ...safeRunSignal(detectIdPatterns, operations, 'id-pattern'),
+    ...safeRunSignal(detectRestConventions, operations, 'rest-conventions'),
+    ...safeRunSignal(detectSchemaCompat, operations, 'schema-compat'),
+    ...safeRunSignal(detectTagProximity, operations, 'tag-proximity'),
+    ...safeRunSignal(detectNameSimilarity, operations, 'name-similarity'),
   ]
 
   // Merge edges with same (source, target)

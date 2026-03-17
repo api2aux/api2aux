@@ -12,14 +12,10 @@ import type {
 } from './types'
 import { WorkflowPattern } from './types'
 
-let workflowCounter = 0
-function nextId(): string {
-  return `wf-${++workflowCounter}`
-}
-
-/** Reset counter (for testing). */
-export function resetWorkflowCounter(): void {
-  workflowCounter = 0
+/** Creates a scoped ID generator for deterministic workflow IDs within a single call. */
+function createIdGenerator(): () => string {
+  let counter = 0
+  return () => `wf-${++counter}`
 }
 
 /** Get base path by stripping the trailing {param} segment. */
@@ -43,7 +39,7 @@ function findEdge(edges: OperationEdge[], sourceId: string, targetId: string): O
 }
 
 /** Create a workflow step with bindings from the edge. */
-function makeStep(opId: string, role: string, edge?: OperationEdge): WorkflowStep {
+function makeStep(opId: string, role: WorkflowStep['role'], edge?: OperationEdge): WorkflowStep {
   return {
     operationId: opId,
     role,
@@ -54,7 +50,7 @@ function makeStep(opId: string, role: string, edge?: OperationEdge): WorkflowSte
 /**
  * Detect Browse workflows: GET /resources → GET /resources/{id}
  */
-function detectBrowseWorkflows(graph: OperationGraph): Workflow[] {
+function detectBrowseWorkflows(graph: OperationGraph, nextId: () => string): Workflow[] {
   const workflows: Workflow[] = []
   const { nodes, edges } = graph
 
@@ -96,7 +92,7 @@ function detectBrowseWorkflows(graph: OperationGraph): Workflow[] {
 /**
  * Detect CRUD workflows: same base path with POST + GET-detail + PUT/PATCH + DELETE.
  */
-function detectCRUDWorkflows(graph: OperationGraph): Workflow[] {
+function detectCRUDWorkflows(graph: OperationGraph, nextId: () => string): Workflow[] {
   const workflows: Workflow[] = []
   const { nodes, edges } = graph
 
@@ -151,7 +147,7 @@ function detectCRUDWorkflows(graph: OperationGraph): Workflow[] {
 /**
  * Detect Search→Detail workflows: operation with search params → detail endpoint.
  */
-function detectSearchDetailWorkflows(graph: OperationGraph): Workflow[] {
+function detectSearchDetailWorkflows(graph: OperationGraph, nextId: () => string): Workflow[] {
   const workflows: Workflow[] = []
   const { nodes, edges } = graph
 
@@ -193,7 +189,7 @@ function detectSearchDetailWorkflows(graph: OperationGraph): Workflow[] {
 /**
  * Detect Create→Get workflows: POST creates, GET retrieves with returned ID.
  */
-function detectCreateThenGetWorkflows(graph: OperationGraph): Workflow[] {
+function detectCreateThenGetWorkflows(graph: OperationGraph, nextId: () => string): Workflow[] {
   const workflows: Workflow[] = []
   const { nodes, edges } = graph
 
@@ -250,7 +246,7 @@ function deduplicateWorkflows(workflows: Workflow[]): Workflow[] {
  * These complement the named patterns by surfacing all data flow connections
  * that the graph found, regardless of whether they match Browse/CRUD/etc.
  */
-function detectEdgeWorkflows(graph: OperationGraph, existingOpPairs: Set<string>): Workflow[] {
+function detectEdgeWorkflows(graph: OperationGraph, existingOpPairs: Set<string>, nextId: () => string): Workflow[] {
   const workflows: Workflow[] = []
   const { nodes, edges } = graph
 
@@ -309,15 +305,14 @@ function sourceResource(op: InferenceOperation): string {
  * Includes both named patterns (Browse, CRUD, etc.) and edge-based chains.
  */
 export function inferWorkflows(graph: OperationGraph): Workflow[] {
-  // Reset counter for deterministic IDs per analysis run
-  workflowCounter = 0
+  const nextId = createIdGenerator()
 
   // First: detect named patterns
   const namedWorkflows: Workflow[] = [
-    ...detectBrowseWorkflows(graph),
-    ...detectCRUDWorkflows(graph),
-    ...detectSearchDetailWorkflows(graph),
-    ...detectCreateThenGetWorkflows(graph),
+    ...detectBrowseWorkflows(graph, nextId),
+    ...detectCRUDWorkflows(graph, nextId),
+    ...detectSearchDetailWorkflows(graph, nextId),
+    ...detectCreateThenGetWorkflows(graph, nextId),
   ]
 
   // Track which operation pairs are already covered by named patterns
@@ -330,7 +325,7 @@ export function inferWorkflows(graph: OperationGraph): Workflow[] {
   }
 
   // Then: detect edge-based workflows for uncovered connections
-  const edgeWorkflows = detectEdgeWorkflows(graph, coveredPairs)
+  const edgeWorkflows = detectEdgeWorkflows(graph, coveredPairs, nextId)
 
   const all = [...namedWorkflows, ...edgeWorkflows]
 
@@ -351,6 +346,7 @@ export function findWorkflowTo(
   goalOperationId: string,
   maxDepth = 3,
 ): Workflow | null {
+  const nextId = createIdGenerator()
   const { nodes, edges } = graph
   const goalOp = nodes.find(n => n.id === goalOperationId)
   if (!goalOp) return null

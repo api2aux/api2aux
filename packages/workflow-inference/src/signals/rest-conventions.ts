@@ -12,7 +12,7 @@
  * - Create→Get: 0.85
  */
 
-import type { InferenceOperation, OperationEdge, EdgeSignal } from '../types'
+import type { InferenceOperation, OperationEdge, EdgeSignal, DataBinding } from '../types'
 
 const SIGNAL_NAME = 'rest-convention'
 const SIGNAL_WEIGHT = 0.25
@@ -25,6 +25,48 @@ function getBasePath(path: string): string {
 /** Count path parameter segments in a path. */
 function countPathParams(path: string): number {
   return (path.match(/\{[^}]+\}/g) || []).length
+}
+
+/**
+ * Infer the best sourceField for a binding from source → target.
+ * Tries to match a target path param name against response fields of the source.
+ * Falls back to 'id' if no match found (common REST convention).
+ */
+function inferSourceField(sourceOp: InferenceOperation, targetParam: string): string {
+  if (sourceOp.responseFields.length === 0) return 'id'
+
+  // Exact match (e.g., target param 'userId' matches response field 'userId')
+  const exact = sourceOp.responseFields.find(f => f.name === targetParam)
+  if (exact) return exact.name
+
+  // Match by suffix: target param 'user_id' matches response field 'id'
+  const paramLower = targetParam.toLowerCase()
+  if (paramLower === 'id' || paramLower.endsWith('_id') || paramLower.endsWith('id')) {
+    const idField = sourceOp.responseFields.find(f =>
+      f.name === 'id' || f.name === '_id' ||
+      f.type === 'integer' && (f.name === 'id' || f.name === targetParam)
+    )
+    if (idField) return idField.name
+  }
+
+  return 'id'
+}
+
+/**
+ * Build path param bindings from source to target, inferring source fields.
+ */
+function buildPathBindings(
+  sourceOp: InferenceOperation,
+  targetOp: InferenceOperation,
+  confidence: number,
+): DataBinding[] {
+  const detailPathParams = targetOp.parameters.filter(p => p.in === 'path')
+  return detailPathParams.map(p => ({
+    sourceField: inferSourceField(sourceOp, p.name),
+    targetParam: p.name,
+    targetParamIn: 'path' as const,
+    confidence,
+  }))
 }
 
 /**
@@ -67,14 +109,7 @@ export function detectRestConventions(operations: InferenceOperation[]): Operati
         detail: `List→Detail: ${listOp.path} → ${detailOp.path}`,
       }
 
-      // Find the path param in detail that could come from list response
-      const detailPathParams = detailOp.parameters.filter(p => p.in === 'path')
-      const bindings = detailPathParams.map(p => ({
-        sourceField: 'id',
-        targetParam: p.name,
-        targetParamIn: 'path' as const,
-        confidence: 0.95,
-      }))
+      const bindings = buildPathBindings(listOp, detailOp, 0.95)
 
       edges.push({
         sourceId: listOp.id,
@@ -94,13 +129,7 @@ export function detectRestConventions(operations: InferenceOperation[]): Operati
         detail: `Create→Get: ${createOp.path} → ${detailOp.path}`,
       }
 
-      const detailPathParams = detailOp.parameters.filter(p => p.in === 'path')
-      const bindings = detailPathParams.map(p => ({
-        sourceField: 'id',
-        targetParam: p.name,
-        targetParamIn: 'path' as const,
-        confidence: 0.85,
-      }))
+      const bindings = buildPathBindings(createOp, detailOp, 0.85)
 
       edges.push({
         sourceId: createOp.id,
@@ -120,13 +149,7 @@ export function detectRestConventions(operations: InferenceOperation[]): Operati
         detail: `Create→Update: ${createOp.path} → ${updateOp.path}`,
       }
 
-      const updatePathParams = updateOp.parameters.filter(p => p.in === 'path')
-      const bindings = updatePathParams.map(p => ({
-        sourceField: 'id',
-        targetParam: p.name,
-        targetParamIn: 'path' as const,
-        confidence: 0.85,
-      }))
+      const bindings = buildPathBindings(createOp, updateOp, 0.85)
 
       edges.push({
         sourceId: createOp.id,

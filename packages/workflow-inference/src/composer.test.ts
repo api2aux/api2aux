@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { inferWorkflows, resetWorkflowCounter } from './composer'
+import { inferWorkflows } from './composer'
 import { buildOperationGraph } from './graph'
 import { WorkflowPattern } from './types'
 import type { InferenceOperation } from './types'
@@ -16,9 +16,7 @@ function op(overrides: Partial<InferenceOperation> & { id: string }): InferenceO
   }
 }
 
-beforeEach(() => {
-  resetWorkflowCounter()
-})
+// Counter is now scoped per inferWorkflows call — no global reset needed
 
 describe('inferWorkflows', () => {
   it('detects a Browse workflow (list → detail)', () => {

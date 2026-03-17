@@ -195,7 +195,10 @@ async function describeResponseFields(
       signal: AbortSignal.timeout(5000),
     })
 
-    if (!response.ok) return null
+    if (!response.ok) {
+      console.debug(`[api2aux-mcp] Sample fetch returned ${response.status} for ${url}, skipping enrichment`)
+      return null
+    }
 
     const data = await response.json()
     return describeFieldsFromData(data, url)

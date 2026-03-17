@@ -115,7 +115,7 @@ export function useWorkflowAnalysis(parsedSpec: ParsedAPI | null): WorkflowAnaly
 
       return { graph, workflows, operationWorkflows, relatedOperations }
     } catch (err) {
-      console.error('[useWorkflowAnalysis] Workflow analysis failed:', err instanceof Error ? err.message : err)
+      console.error('[useWorkflowAnalysis] Workflow analysis failed:', err)
       return null
     }
   }, [parsedSpec])

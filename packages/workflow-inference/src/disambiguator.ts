@@ -73,7 +73,7 @@ export function applyDisambiguation(
     const key = `${edge.sourceId}→${edge.targetId}`
     const result = resultMap.get(key)
     if (result) {
-      edge.score = result.refinedScore
+      edge.score = Math.max(0, Math.min(1, result.refinedScore))
       edge.signals.push({
         signal: 'llm-disambiguation',
         weight: 0,

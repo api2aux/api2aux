@@ -11,8 +11,8 @@ export interface InferenceOperation {
   id: string
   /** URL path template (e.g. '/users/{userId}'). */
   path: string
-  /** HTTP method (e.g. 'GET', 'POST'). */
-  method: string
+  /** HTTP method. */
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
   /** Grouping tags from the spec. */
   tags: string[]
   /** Short summary from the spec. */
@@ -25,12 +25,15 @@ export interface InferenceOperation {
   requestBodyFields: InferenceField[]
 }
 
+/** Valid parameter locations. */
+export type ParamIn = 'path' | 'query' | 'header' | 'cookie' | 'body'
+
 /** A parameter of an inference operation. */
 export interface InferenceParam {
   /** Parameter name. */
   name: string
-  /** Where the parameter appears: 'path', 'query', 'header', 'cookie', 'body'. */
-  in: string
+  /** Where the parameter appears. */
+  in: ParamIn
   /** Data type (e.g. 'string', 'integer'). */
   type: string
   /** Format hint (e.g. 'uuid', 'date-time'). */
@@ -74,15 +77,15 @@ export interface DataBinding {
   /** Parameter name in target operation. */
   targetParam: string
   /** Where the target param goes. */
-  targetParamIn: string
+  targetParamIn: ParamIn
   /** Binding confidence. */
   confidence: number
 }
 
 /** A single signal that contributed to an edge score. */
 export interface EdgeSignal {
-  /** Signal name: 'id-pattern', 'schema-compat', 'rest-convention', 'tag-proximity', 'name-similarity', 'plugin-boost'. */
-  signal: string
+  /** Signal name. */
+  signal: 'id-pattern' | 'schema-compat' | 'rest-convention' | 'tag-proximity' | 'name-similarity' | 'plugin-boost' | 'llm-disambiguation'
   /** Weight contribution (0.0-1.0). */
   weight: number
   /** Whether this signal matched. */
@@ -136,8 +139,8 @@ export interface Workflow {
 export interface WorkflowStep {
   /** Operation ID. */
   operationId: string
-  /** Human-readable role: 'list', 'search', 'detail', 'create', 'update', 'delete'. */
-  role: string
+  /** Human-readable role in the workflow. */
+  role: 'list' | 'detail' | 'create' | 'read' | 'update' | 'delete' | 'search' | 'source' | 'target' | 'prerequisite' | 'goal'
   /** Data bindings from previous step's output to this step's input. */
   inputBindings: DataBinding[]
 }

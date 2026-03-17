@@ -129,6 +129,11 @@ export async function loadAndRegisterPlugins(
     } else {
       // Promise rejection — shouldn't happen since loadPlugin catches errors
       console.error('[PluginLoader] Unexpected rejection:', result.reason)
+      const idx = results.indexOf(result)
+      const manifest = enabledManifests[idx]
+      if (manifest) {
+        loadResults.push({ manifest, plugins: [], error: `Unexpected load failure: ${result.reason}` })
+      }
     }
   }
 
