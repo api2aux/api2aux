@@ -10,8 +10,7 @@ export function URLPreview({ url }: URLPreviewProps) {
   const [showPreview, setShowPreview] = useLocalStorage('url-preview-visible', false)
   const { copy, isCopied } = useCopyToClipboard()
 
-  // Truncate URL for display (CONTEXT.md: long URLs truncated with ellipsis)
-  const truncatedUrl = url.length > 80 ? url.slice(0, 77) + '...' : url
+  // Show the full URL — wrapping handles overflow
 
   return (
     <div className="border-t border-border pt-3 mt-4">
@@ -37,9 +36,9 @@ export function URLPreview({ url }: URLPreviewProps) {
       </button>
 
       {showPreview && (
-        <div className="mt-2 p-3 bg-muted rounded-md flex items-center gap-2">
-          <code className="text-xs flex-1 overflow-hidden text-foreground font-mono">
-            {truncatedUrl}
+        <div className="mt-2 p-3 bg-muted rounded-md flex items-start gap-2">
+          <code className="text-xs flex-1 text-foreground font-mono break-all">
+            {url}
           </code>
           <Button
             size="sm"

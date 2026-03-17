@@ -4,7 +4,7 @@ import { TagGroup } from './TagGroup'
 import { OperationItem } from './OperationItem'
 import { useWorkflowAnalysis } from '../../hooks/useWorkflowAnalysis'
 import type { RelatedOperation } from '../../hooks/useWorkflowAnalysis'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-green-700 dark:text-green-400',
@@ -18,6 +18,7 @@ interface SidebarProps {
   parsedSpec: ParsedAPI
   selectedIndex: number
   onSelect: (index: number) => void
+  onCollapse?: () => void
 }
 
 /** Compact clickable related endpoint item */
@@ -79,7 +80,7 @@ function RelatedSection({
   )
 }
 
-export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
+export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: SidebarProps) {
   const workflowAnalysis = useWorkflowAnalysis(parsedSpec)
   const listRef = useRef<HTMLUListElement>(null)
   const [relatedExpanded, setRelatedExpanded] = useState(true)
@@ -139,7 +140,18 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
     >
       {/* Sidebar header — stays pinned */}
       <div className="p-4 border-b border-border shrink-0">
-        <h2 className="font-semibold text-sm text-foreground mb-1">{parsedSpec.title}</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-semibold text-sm text-foreground">{parsedSpec.title}</h2>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="text-muted-foreground hover:text-foreground transition-colors p-0.5 -mr-1"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+        </div>
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
             {parsedSpec.operations.length} endpoint{parsedSpec.operations.length !== 1 ? 's' : ''}

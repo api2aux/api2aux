@@ -275,6 +275,9 @@ function App() {
     setSelectedOperation(index)
   }
 
+  // Sidebar collapse state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
   // Determine if we should show the sidebar
   const showSidebar = parsedSpec !== null && parsedSpec.operations.length >= 2
 
@@ -325,11 +328,26 @@ function App() {
       {showSidebar ? (
         // Sidebar layout for multi-endpoint specs
         <div className="flex min-h-screen bg-background text-foreground">
-          <Sidebar
-            parsedSpec={parsedSpec}
-            selectedIndex={selectedOperationIndex}
-            onSelect={handleSelectOperation}
-          />
+          {sidebarCollapsed ? (
+            <div className="w-10 border-r border-border bg-card shrink-0 h-screen sticky top-0 flex items-start justify-center pt-3">
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-muted transition-colors"
+                title="Expand sidebar"
+              >
+                <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <Sidebar
+              parsedSpec={parsedSpec}
+              selectedIndex={selectedOperationIndex}
+              onSelect={handleSelectOperation}
+              onCollapse={() => setSidebarCollapsed(true)}
+            />
+          )}
           <main
             id="main-content"
             className={`flex-1 overflow-y-auto py-8 px-6 transition-[padding] duration-300 ${detailPanelOpen && !chatOpen ? 'pr-[42rem]' : ''}`}
