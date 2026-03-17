@@ -159,7 +159,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
   return (
     <nav
       aria-label="API endpoints"
-      className="w-64 border-r border-border bg-card flex flex-col shrink-0 h-screen sticky top-0"
+      className="w-full border-r border-border bg-card flex flex-col h-screen sticky top-0"
     >
       {/* Sidebar header — stays pinned */}
       <div className="p-4 border-b border-border shrink-0">

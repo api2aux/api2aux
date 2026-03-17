@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAppStore } from './store/appStore'
 import { useConfigStore } from './store/configStore'
 import { useParameterStore } from './store/parameterStore'
@@ -278,6 +278,37 @@ function App() {
   // Sidebar collapse state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('api2aux-sidebar-width')
+    return saved ? Number(saved) : 256
+  })
+
+  useEffect(() => {
+    localStorage.setItem('api2aux-sidebar-width', String(sidebarWidth))
+  }, [sidebarWidth])
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarWidth
+
+    const onMove = (ev: MouseEvent) => {
+      setSidebarWidth(Math.min(480, Math.max(200, startW + ev.clientX - startX)))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [sidebarWidth])
+
   // Determine if we should show the sidebar
   const showSidebar = parsedSpec !== null && parsedSpec.operations.length >= 2
 
@@ -341,12 +372,19 @@ function App() {
               </button>
             </div>
           ) : (
-            <Sidebar
-              parsedSpec={parsedSpec}
-              selectedIndex={selectedOperationIndex}
-              onSelect={handleSelectOperation}
-              onCollapse={() => setSidebarCollapsed(true)}
-            />
+            <div className="relative shrink-0" style={{ width: sidebarWidth }}>
+              <Sidebar
+                parsedSpec={parsedSpec}
+                selectedIndex={selectedOperationIndex}
+                onSelect={handleSelectOperation}
+                onCollapse={() => setSidebarCollapsed(true)}
+              />
+              {/* Resize handle */}
+              <div
+                onMouseDown={handleResizeStart}
+                className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10"
+              />
+            </div>
           )}
           <main
             id="main-content"
