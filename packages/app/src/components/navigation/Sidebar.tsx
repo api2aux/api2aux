@@ -135,7 +135,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
   return (
     <nav
       aria-label="API endpoints"
-      className="w-64 border-r border-border bg-card flex flex-col shrink-0 h-screen sticky top-0"
+      className="w-64 border-r border-border bg-card overflow-y-auto shrink-0 h-screen sticky top-0"
     >
       {/* Sidebar header */}
       <div className="p-4 border-b border-border shrink-0">
@@ -159,7 +159,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
       </div>
 
       {/* Operations list — scrollable */}
-      <ul ref={listRef} className="py-2 flex-1 overflow-y-auto min-h-0">
+      <ul ref={listRef} className="py-2">
         {allUncategorized ? (
           parsedSpec.operations.map((operation, index) => (
             <li key={index} data-operation-index={index}>
@@ -184,25 +184,13 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect }: SidebarProps) {
                 onSelect={onSelect}
                 showNameInsteadOfPath={allSamePath}
                 renderRelated={renderInlineRelated}
+                forceOpen={indices.includes(selectedIndex)}
               />
             </li>
           ))
         )}
       </ul>
 
-      {/* Sticky bottom related panel (for comparison — shows same data) */}
-      {selectedOp && related.length > 0 && (
-        <div className="border-t border-border bg-muted/30 shrink-0 px-3 py-2">
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            Related to <span className="text-foreground">{selectedOp.path}</span>
-          </p>
-          <RelatedSection
-            related={related}
-            parsedSpec={parsedSpec}
-            onSelect={onSelect}
-          />
-        </div>
-      )}
     </nav>
   )
 }

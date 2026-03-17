@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useEffect } from 'react'
+import { type ReactNode, useState } from 'react'
 import type { Operation } from '@api2aux/semantic-analysis'
 import { OperationItem } from './OperationItem'
 
@@ -11,23 +11,24 @@ interface TagGroupProps {
   showNameInsteadOfPath?: boolean
   /** Render related endpoints card below a given operation index. */
   renderRelated?: (index: number) => ReactNode
+  /** Force this group open (e.g., when a related click targets an endpoint inside). */
+  forceOpen?: boolean
 }
 
-export function TagGroup({ tag, operations, operationIndices, selectedIndex, onSelect, showNameInsteadOfPath, renderRelated }: TagGroupProps) {
-  const [open, setOpen] = useState(true)
+export function TagGroup({ tag, operations, operationIndices, selectedIndex, onSelect, showNameInsteadOfPath, renderRelated, forceOpen }: TagGroupProps) {
+  const [userOpen, setUserOpen] = useState(true)
 
-  // Auto-expand when a selected operation is inside this group
-  const containsSelected = operationIndices.includes(selectedIndex)
-  useEffect(() => {
-    if (containsSelected && !open) {
-      setOpen(true)
-    }
-  }, [containsSelected, selectedIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Group is open if: user hasn't collapsed it, OR it's forced open
+  const open = userOpen || (forceOpen ?? false)
+
+  const handleToggle = () => {
+    setUserOpen(!open)
+  }
 
   return (
     <div>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={handleToggle}
         className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-muted transition-colors"
       >
         <div className="flex items-center gap-2">
