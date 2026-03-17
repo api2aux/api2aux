@@ -61,13 +61,34 @@ export function useWorkflowAnalysis(parsedSpec: ParsedAPI | null): WorkflowAnaly
       // Build operation lookup for method/path display
       const opById = new Map(parsedSpec.operations.map(o => [o.id, o]))
 
+      // Build score index for symmetric edge filtering.
+      // When A→B and B→A both exist:
+      //  - Dominant direction (score ≥ 1.5× reverse) → keep
+      //  - Equal scores ≥ 0.55 → keep one direction (same-group relationships)
+      //  - Equal scores < 0.55 → drop both (cross-group noise like {index} siblings)
+      //  - Otherwise → drop (weak reverse)
+      const edgeScoreByKey = new Map<string, number>()
+      for (const edge of graph.edges) {
+        if (edge.bindings.length === 0) continue
+        edgeScoreByKey.set(`${edge.sourceId}→${edge.targetId}`, edge.score)
+      }
+
       // Build operation → related operations lookup (deduplicated by operationId+direction)
       const relatedRaw = new Map<string, Map<string, RelatedOperation>>()
 
       for (const edge of graph.edges) {
-        const bindingDesc = edge.bindings.length > 0
-          ? edge.bindings.map(b => `passes ${b.sourceField}`).join(', ')
-          : 'related'
+        if (edge.bindings.length === 0) continue
+        const reverseScore = edgeScoreByKey.get(`${edge.targetId}→${edge.sourceId}`)
+        if (reverseScore !== undefined && edge.score < reverseScore * 1.5) {
+          // Equal-score pairs above threshold: keep one direction (lexicographically first)
+          // Below threshold (e.g. cross-group {index} siblings at ~0.5): drop both
+          if (Math.abs(edge.score - reverseScore) < 0.001 && edge.score >= 0.55 && edge.sourceId < edge.targetId) {
+            // keep — chosen forward direction
+          } else {
+            continue
+          }
+        }
+        const bindingDesc = edge.bindings.map(b => `passes ${b.sourceField}`).join(', ')
 
         const targetOp = opById.get(edge.targetId)
         const sourceOp = opById.get(edge.sourceId)

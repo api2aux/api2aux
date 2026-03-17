@@ -21,24 +21,9 @@ interface SidebarProps {
   onCollapse?: () => void
 }
 
-/**
- * Get the distinguishing tail of a path — the last segments that differ from the common prefix.
- * e.g. for '/api/classes/{index}/levels/{level}/features' → '…/features'
- */
-function getPathTail(path: string): string {
-  const segments = path.split('/').filter(Boolean)
-  if (segments.length <= 3) return path
-  const tail: string[] = []
-  for (let i = segments.length - 1; i >= 0 && tail.length < 3; i--) {
-    tail.unshift(segments[i]!)
-    if (!segments[i]!.startsWith('{')) break
-  }
-  return `…/${tail.join('/')}`
-}
-
 /** Compact clickable related endpoint item */
 function RelatedItem({ rel, onClick }: { rel: RelatedOperation; onClick: () => void }) {
-  const displayPath = getPathTail(rel.path)
+  const displayPath = rel.path
   return (
     <button
       onClick={onClick}
@@ -51,9 +36,9 @@ function RelatedItem({ rel, onClick }: { rel: RelatedOperation; onClick: () => v
         </span>
         <span className="text-xs font-mono text-foreground truncate group-hover:underline">{displayPath}</span>
       </div>
-      {rel.summary && (
-        <p className="text-[10px] text-muted-foreground/70 truncate ml-[calc(0.375rem+1ch)]">{rel.summary}</p>
-      )}
+      <p className="text-[10px] text-muted-foreground/70 truncate ml-[calc(0.375rem+1ch)]">
+        {rel.binding}{rel.summary ? ` — ${rel.summary}` : ''}
+      </p>
     </button>
   )
 }
@@ -84,7 +69,7 @@ function RelatedSection({
     <div className={className}>
       {prevOps.length > 0 && (
         <div className="mb-1">
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Previous</p>
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Depends on</p>
           {prevOps.map(rel => (
             <RelatedItem key={rel.operationId} rel={rel} onClick={() => handleClick(rel.operationId)} />
           ))}
@@ -92,7 +77,7 @@ function RelatedSection({
       )}
       {nextOps.length > 0 && (
         <div>
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Next</p>
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Feeds into</p>
           {nextOps.map(rel => (
             <RelatedItem key={rel.operationId} rel={rel} onClick={() => handleClick(rel.operationId)} />
           ))}

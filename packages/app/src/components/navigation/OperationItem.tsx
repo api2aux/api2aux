@@ -9,16 +9,9 @@ const METHOD_BADGE: Record<string, string> = {
 }
 const methodBadgeClass = (method: string) => METHOD_BADGE[method] ?? METHOD_BADGE.GET
 
-/** Show the distinguishing tail of long paths (4+ segments) to avoid identical truncation. */
+/** Display path for an operation — always show the full path for clarity. */
 function compactPath(path: string): string {
-  const segments = path.split('/').filter(Boolean)
-  if (segments.length <= 3) return path
-  const tail: string[] = []
-  for (let i = segments.length - 1; i >= 0 && tail.length < 3; i--) {
-    tail.unshift(segments[i]!)
-    if (!segments[i]!.startsWith('{')) break
-  }
-  return `…/${tail.join('/')}`
+  return path
 }
 
 interface OperationItemProps {
