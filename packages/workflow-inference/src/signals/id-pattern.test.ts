@@ -72,21 +72,45 @@ describe('detectIdPatterns', () => {
     expect(edges[0]!.bindings[0]!.confidence).toBe(0.7)
   })
 
-  it('matches generic "id" field to path params', () => {
+  it('matches generic "id" field to specific param when ops share tags', () => {
     const ops: InferenceOperation[] = [
       op({
         id: 'list_products',
+        path: '/products',
+        tags: ['products'],
         responseFields: [{ name: 'id', type: 'string', path: 'id' }],
       }),
       op({
         id: 'get_product',
+        path: '/products/{productId}',
+        tags: ['products'],
         parameters: [{ name: 'productId', in: 'path', type: 'string', required: true }],
       }),
     ]
 
     const edges = detectIdPatterns(ops)
     expect(edges).toHaveLength(1)
-    expect(edges[0]!.bindings[0]!.confidence).toBe(0.75)
+    expect(edges[0]!.bindings[0]!.confidence).toBe(0.6)
+  })
+
+  it('does NOT match generic "id" across unrelated operations', () => {
+    const ops: InferenceOperation[] = [
+      op({
+        id: 'list_monsters',
+        path: '/api/monsters',
+        tags: ['monsters'],
+        responseFields: [{ name: 'index', type: 'string', path: 'index' }],
+      }),
+      op({
+        id: 'get_skill',
+        path: '/api/skills/{index}',
+        tags: ['character-data'],
+        parameters: [{ name: 'index', in: 'path', type: 'string', required: true }],
+      }),
+    ]
+
+    const edges = detectIdPatterns(ops)
+    expect(edges).toHaveLength(0)
   })
 
   it('does not match operations to themselves', () => {
@@ -106,10 +130,14 @@ describe('detectIdPatterns', () => {
     const ops: InferenceOperation[] = [
       op({
         id: 'list_users',
+        path: '/users',
+        tags: ['users'],
         responseFields: [{ name: 'email', type: 'string', path: 'email' }],
       }),
       op({
-        id: 'get_user',
+        id: 'get_order',
+        path: '/orders/{userId}',
+        tags: ['orders'],
         parameters: [{ name: 'userId', in: 'path', type: 'string', required: true }],
       }),
     ]

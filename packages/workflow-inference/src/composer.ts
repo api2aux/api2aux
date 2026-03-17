@@ -246,18 +246,93 @@ function deduplicateWorkflows(workflows: Workflow[]): Workflow[] {
 }
 
 /**
- * Extract named workflows from the operation graph.
+ * Detect edge-based workflows — every strong edge is a chain worth exposing.
+ * These complement the named patterns by surfacing all data flow connections
+ * that the graph found, regardless of whether they match Browse/CRUD/etc.
+ */
+function detectEdgeWorkflows(graph: OperationGraph, existingOpPairs: Set<string>): Workflow[] {
+  const workflows: Workflow[] = []
+  const { nodes, edges } = graph
+
+  const opById = new Map(nodes.map(o => [o.id, o]))
+
+  for (const edge of edges) {
+    // Skip edges already covered by named patterns
+    const pairKey = [edge.sourceId, edge.targetId].sort().join(',')
+    if (existingOpPairs.has(pairKey)) continue
+
+    // Only emit for edges above a meaningful threshold
+    if (edge.score < 0.2) continue
+
+    const sourceOp = opById.get(edge.sourceId)
+    const targetOp = opById.get(edge.targetId)
+    if (!sourceOp || !targetOp) continue
+
+    // Derive a human-readable name from the target path
+    const targetResource = targetOp.path
+      .split('/')
+      .filter(s => s && !s.startsWith('{'))
+      .pop() || 'endpoint'
+
+    const bindingDesc = edge.bindings.length > 0
+      ? edge.bindings.map(b => b.sourceField).join(', ')
+      : undefined
+
+    workflows.push({
+      id: nextId(),
+      name: `${sourceOp.method} ${sourceResource(sourceOp)} → ${targetOp.method} ${targetResource}`,
+      description: bindingDesc
+        ? `Passes ${bindingDesc} from ${sourceOp.id} to ${targetOp.id}.`
+        : `${sourceOp.id} connects to ${targetOp.id}.`,
+      pattern: WorkflowPattern.Custom,
+      steps: [
+        makeStep(sourceOp.id, 'source'),
+        makeStep(targetOp.id, 'target', edge),
+      ],
+      confidence: edge.score,
+    })
+  }
+
+  return workflows
+}
+
+/** Get a short resource name from an operation's path. */
+function sourceResource(op: InferenceOperation): string {
+  return op.path
+    .split('/')
+    .filter(s => s && !s.startsWith('{'))
+    .pop() || 'endpoint'
+}
+
+/**
+ * Extract all workflows from the operation graph.
+ * Includes both named patterns (Browse, CRUD, etc.) and edge-based chains.
  */
 export function inferWorkflows(graph: OperationGraph): Workflow[] {
-  const workflows: Workflow[] = [
+  // First: detect named patterns
+  const namedWorkflows: Workflow[] = [
     ...detectBrowseWorkflows(graph),
     ...detectCRUDWorkflows(graph),
     ...detectSearchDetailWorkflows(graph),
     ...detectCreateThenGetWorkflows(graph),
   ]
 
+  // Track which operation pairs are already covered by named patterns
+  const coveredPairs = new Set<string>()
+  for (const wf of namedWorkflows) {
+    for (let i = 0; i < wf.steps.length - 1; i++) {
+      const pair = [wf.steps[i]!.operationId, wf.steps[i + 1]!.operationId].sort().join(',')
+      coveredPairs.add(pair)
+    }
+  }
+
+  // Then: detect edge-based workflows for uncovered connections
+  const edgeWorkflows = detectEdgeWorkflows(graph, coveredPairs)
+
+  const all = [...namedWorkflows, ...edgeWorkflows]
+
   // Deduplicate and sort by confidence
-  const deduped = deduplicateWorkflows(workflows)
+  const deduped = deduplicateWorkflows(all)
   deduped.sort((a, b) => b.confidence - a.confidence)
 
   return deduped
