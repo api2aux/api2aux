@@ -159,7 +159,7 @@ function detectSearchDetailWorkflows(graph: OperationGraph): Workflow[] {
 
   for (const op of nodes) {
     if (op.method !== 'GET') continue
-    const hasSearch = op.parameters.some(p => SEARCH_PARAMS.has(p.name.toLowerCase()))
+    const hasSearch = op.parameters.some(p => p.name && SEARCH_PARAMS.has(p.name.toLowerCase()))
     if (!hasSearch) continue
 
     // Find detail operations this search connects to

@@ -1,0 +1,918 @@
+swagger: '2.0'
+info:
+  title: TVmaze user API
+  description: |
+    Access to the user API is only possible for users with a [premium](http://www.tvmaze.com/premium) account. A user can only access their own user data.
+    
+    Authentication uses HTTP Basic. Use the TVmaze username as authentication username, and the TVmaze API key as authentication password. Your API key can be found on your [dashboard](http://www.tvmaze.com/dashboard). To try out these API calls from this page, click the "Authorize" button on top and input your credentials.
+  version: "1.0"
+  contact:
+    url: http://www.tvmaze.com
+host: api.tvmaze.com
+basePath: /v1
+schemes:
+  - https
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  usertoken:
+    type: basic
+security:
+  - usertoken: []
+paths:
+  /user/episodes:
+    get:
+      tags: [marked episodes]
+      summary: List the marked episodes
+      parameters:
+        - name: show_id
+          in: query
+          required: false
+          type: integer
+          description: Only return episodes from this specific show
+      responses:
+        200:
+          description: An array of marked episodes
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/MarkedEpisode'
+  /user/episodes/{episode_id}:
+    parameters:
+      - name: episode_id
+        in: path
+        required: true
+        type: integer
+    get:
+      tags: [marked episodes]
+      summary: Check if an episode is marked
+      responses:
+        200:
+          description: The marked episode
+          schema:
+            $ref: '#/definitions/MarkedEpisode'
+        404:
+          description: This episode is not marked
+    put:
+      tags: [marked episodes]
+      summary: Mark an episode
+      description: Set `marked_at` to `NULL` or leave it out to use the current time.
+      parameters:
+        - name: body
+          in: body
+          schema:
+            $ref: '#/definitions/MarkedEpisode'
+      responses:
+        200:
+          description: this episode is now marked
+          schema:
+            $ref: '#/definitions/MarkedEpisode'
+        404:
+          description: this episode does not exist
+        422:
+          description: invalid input data
+    delete:
+      tags: [marked episodes]
+      summary: Unmark an episode
+      responses:
+        200:
+          description: the episode is now unmarked
+        404:
+          description: this episode was not marked
+  /user/follows/shows:
+    get:
+      tags: [followed shows]
+      summary: List the followed shows
+      parameters:
+        - name: embed
+          description: Embed full show info
+          in: query
+          required: false
+          type: string
+          enum: [ show ]
+      responses:
+        200:
+          description: An array of followed shows
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ShowFollow'
+  /user/follows/shows/{show_id}:
+    parameters:
+      - name: show_id
+        in: path
+        required: true
+        type: integer
+    get:
+      tags: [followed shows]
+      summary: Check if a show is followed
+      responses:
+        200:
+          description: The followed show
+          schema:
+            $ref: '#/definitions/ShowFollow'
+        404:
+          description: This show is not followed
+    put:
+      tags: [followed shows]
+      summary: Follow a show
+      responses:
+        200:
+          description: This show is now followed
+          schema:
+            $ref: '#/definitions/ShowFollow'
+        404:
+          description: This show does not exist
+    delete:
+      tags: [followed shows]
+      summary: Unfollow a show
+      responses:
+        200:
+          description: The show is now unfollowed
+        404:
+          description: This show was not followed
+  /user/follows/people:
+    get:
+      tags: [followed people]
+      summary: List the followed people
+      parameters:
+        - name: embed
+          description: Embed full person info
+          in: query
+          required: false
+          type: string
+          enum: [ person ]
+      responses:
+        200:
+          description: An array of followed people
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/PersonFollow'
+  /user/follows/people/{person_id}:
+    parameters:
+      - name: person_id
+        in: path
+        required: true
+        type: integer
+    get:
+      tags: [followed people]
+      summary: Check if a person is followed
+      responses:
+        200:
+          description: The followed person
+          schema:
+            $ref: '#/definitions/PersonFollow'
+        404:
+          description: this person is not followed
+    put:
+      tags: [followed people]
+      summary: Follow a person
+      responses:
+        200:
+          description: this person is now followed
+          schema:
+            $ref: '#/definitions/PersonFollow'
+        404:
+          description: this person does not exist
+    delete:
+      tags: [followed people]
+      summary: Unfollow a person
+      responses:
+        200:
+          description: the person is now unfollowed
+        404:
+          description: this person was not followed
+  /user/follows/networks:
+    get:
+      tags: [followed networks]
+      summary: List the followed networks
+      parameters:
+        - name: embed
+          description: Embed full network info
+          in: query
+          required: false
+          type: string
+          enum: [ network ]
+      responses:
+        200:
+          description: An array of followed networks
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/NetworkFollow'
+  /user/follows/networks/{network_id}:
+    parameters:
+      - name: network_id
+        in: path
+        required: true
+        type: integer
+    get:
+      tags: [followed networks]
+      summary: Check if a network is followed
+      responses:
+        200:
+          description: The followed network
+          schema:
+            $ref: '#/definitions/NetworkFollow'
+        404:
+          description: this network is not followed
+    put:
+      tags: [followed networks]
+      summary: Follow a network
+      responses:
+        200:
+          description: this network is now followed
+          schema:
+            $ref: '#/definitions/NetworkFollow'
+        404:
+          description: this network does not exist
+    delete:
+      tags: [followed networks]
+      summary: Unfollow a network
+      responses:
+        200:
+          description: the network is now unfollowed
+        404:
+          description: this network was not followed
+  /user/follows/webchannels:
+    get:
+      tags: [followed webchannels]
+      summary: List the followed webchannels
+      parameters:
+        - name: embed
+          description: Embed full webchannel info
+          in: query
+          required: false
+          type: string
+          enum: [ webchannel ]
+      responses:
+        200:
+          description: An array of followed webchannels
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/WebchannelFollow'
+  /user/follows/webchannels/{webchannel_id}:
+    parameters:
+      - name: webchannel_id
+        in: path
+        required: true
+        type: integer
+    get:
+      tags: [followed webchannels]
+      summary: Check if a webchannel is followed
+      responses:
+        200:
+          description: The followed webchannel
+          schema:
+            $ref: '#/definitions/WebchannelFollow'
+        404:
+          description: this webchannel is not followed
+    put:
+      tags: [followed webchannels]
+      summary: Follow a webchannel
+      responses:
+        200:
+          description: this webchannel is now followed
+          schema:
+            $ref: '#/definitions/WebchannelFollow'
+        404:
+          description: this webchannel does not exist
+    delete:
+      tags: [followed webchannels]
+      summary: Unfollow a webchannel
+      responses:
+        200:
+          description: the webchannel is now unfollowed
+        404:
+          description: this webchannel was not followed
+  /user/tags:
+    get:
+      tags: [tagged shows]
+      summary: List all tags
+      responses:
+        200:
+          description: An array of tags
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Tag'
+    post:
+      tags: [tagged shows]
+      summary: Create a new tag
+      parameters:
+        - name: body
+          in: body
+          schema:
+            $ref: '#/definitions/Tag'
+      responses:
+        200:
+          description: The newly created tag
+          schema:
+            $ref: '#/definitions/Tag'
+        422:
+          description: invalid input data
+  /user/tags/{tag_id}:
+    delete:
+      tags: [tagged shows]
+      summary: Delete a specific tag
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          type: integer
+      responses:
+        200:
+          description: The tag was deleted
+        404:
+          description: The tag does not exist
+    patch:
+      tags: [tagged shows]
+      summary: Update a specific tag
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          type: integer
+        - name: body
+          in: body
+          schema:
+            $ref: '#/definitions/Tag'
+      responses:
+        200:
+          description: The tag was updated
+          schema:
+            $ref: '#/definitions/Tag'
+        404:
+          description: The tag does not exist
+        422:
+          description: The tag could not be updated
+  /user/tags/{tag_id}/shows:
+    get:
+      tags: [tagged shows]
+      summary: List all shows under this tag
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          type: integer
+        - name: embed
+          description: Embed full show info
+          in: query
+          required: false
+          type: string
+          enum: [ show ]
+      responses:
+        200:
+          description: A list of tagged shows
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/TagInstance'
+        404:
+          description: The tag does not exist
+  /user/tags/{tag_id}/shows/{show_id}:
+    put:
+      tags: [tagged shows]
+      summary: Tag a show
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          type: integer
+        - name: show_id
+          in: path
+          required: true
+          type: integer
+      responses:
+        200:
+          description: The show was tagged
+          schema:
+            $ref: '#/definitions/TagInstance'
+        404:
+          description: The show or tag does not exist
+    delete:
+      tags: [tagged shows]
+      summary: Untag a show
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          type: integer
+        - name: show_id
+          in: path
+          required: true
+          type: integer
+      responses:
+        200:
+          description: The show was untagged
+        404:
+          description: The show was not tagged
+  /user/votes/shows:
+    get:
+      tags: [voted shows]
+      summary: List the shows voted for
+      parameters:
+        - name: embed
+          description: Embed full show info
+          in: query
+          required: false
+          type: string
+          enum: [ show ]
+      responses:
+        200:
+          description: An array of show votes
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ShowVote'
+  /user/votes/shows/{show_id}:
+    parameters:
+      - name: show_id
+        in: path
+        required: true
+        type: integer
+    get:
+      tags: [voted shows]
+      summary: Check if a show is voted for
+      responses:
+        200:
+          description: The show vote
+          schema:
+            $ref: '#/definitions/ShowVote'
+        404:
+          description: This show is not voted for
+    put:
+      tags: [voted shows]
+      summary: Vote for a show
+      description: Set `voted_at` to `NULL` or leave it out to use the current time.
+      parameters:
+        - name: body
+          in: body
+          schema:
+            $ref: '#/definitions/ShowVote'
+      responses:
+        200:
+          description: This show is now voted for
+          schema:
+            $ref: '#/definitions/ShowVote'
+        404:
+          description: This show does not exist
+        422:
+          description: Invalid vote
+    delete:
+      tags: [voted shows]
+      summary: Remove a show vote
+      responses:
+        200:
+          description: The show vote is now removed
+        404:
+          description: This show was not voted for
+  /user/votes/episodes:
+    get:
+      tags: [voted episodes]
+      summary: List the episodes voted for
+      responses:
+        200:
+          description: An array of episode votes
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/EpisodeVote'
+  /user/votes/episodes/{episode_id}:
+    parameters:
+      - name: episode_id
+        in: path
+        required: true
+        type: integer
+    get:
+      tags: [voted episodes]
+      summary: Check if an episode is voted for
+      responses:
+        200:
+          description: The episode vote
+          schema:
+            $ref: '#/definitions/EpisodeVote'
+        404:
+          description: This episode is not voted for
+    put:
+      tags: [voted episodes]
+      summary: Vote for an episode
+      parameters:
+        - name: body
+          in: body
+          schema:
+            $ref: '#/definitions/EpisodeVote'
+      responses:
+        200:
+          description: This episode is now voted for
+          schema:
+            $ref: '#/definitions/EpisodeVote'
+        404:
+          description: This episode does not exist
+        422:
+          description: Invalid vote
+    delete:
+      tags: [voted episodes]
+      summary: Remove an episode vote
+      responses:
+        200:
+          description: The episode vote is now removed
+        404:
+          description: This episode was not voted for
+  /scrobble/shows/{show_id}:
+    parameters:
+      - name: show_id
+        in: path
+        required: true
+        type: integer
+        description: ID of the target show
+      - name: type
+        in: query
+        required: false
+        $ref: '#/definitions/MarkType'
+      - name: embed
+        description: Embed full episode info
+        in: query
+        required: false
+        type: string
+        enum: [ episode ]
+    get:
+      tags: [scrobbling]
+      summary: List watched and acquired episodes for a show
+      description: This endpoint can be used by all users, even without premium
+      responses:
+        200:
+          description: An array of marked episodes
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/MarkedEpisode'
+  /scrobble/episodes/{episode_id}:
+    parameters:
+      - name: episode_id
+        in: path
+        required: true
+        type: integer
+    put:
+      tags: [scrobbling]
+      summary: Mark an episode as acquired or watched based on its ID
+      description: This endpoint can be used by all users, even without premium
+      parameters:
+        - name: body
+          in: body
+          schema:
+            $ref: '#/definitions/MarkedEpisode'
+      responses:
+        200:
+          description: this episode is now marked
+          schema:
+            $ref: '#/definitions/MarkedEpisode'
+        404:
+          description: this episode does not exist
+        422:
+          description: invalid input data
+  /scrobble/shows:
+    post:
+      tags: [scrobbling]
+      summary: Mark episodes within a show as acquired or watched based on their attributes
+      description: >
+        To specify a show, supply either `tvmaze_id`, `thetvdb_id` or `imdb_id`. To specify an episode,
+        supply either both `season` and `episode`, or `airdate`.
+
+
+        This endpoint can be used by all users, even without premium.
+      parameters:
+        - name: tvmaze_id
+          in: query
+          type: integer
+          description: The show's TVmaze ID
+        - name: thetvdb_id
+          in: query
+          type: integer
+          description: The show's TheTVDB ID
+        - name: imdb_id
+          in: query
+          type: integer
+          description: The show's IMDB ID
+        - name: episodes
+          in: body
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                season:
+                  type: integer
+                  description: The season number
+                episode:
+                  type: integer
+                  description: The episode number
+                airdate:
+                  type: string
+                  format: date
+                  description: The episode airdate
+                marked_at:
+                  type: integer
+                  description: Epoch timestamp for when the user watched the episode, or 0 for unknown.
+                type:
+                  $ref: '#/definitions/MarkType'
+      responses:
+        200:
+          description: All episodes were succesfully marked
+          schema:
+            $ref: '#/definitions/BulkResponse'
+        207:
+          description: Some episodes were succesfully marked, but there are errors
+          schema:
+            $ref: '#/definitions/BulkResponse'
+        422:
+          description: None of the episodes were succesfully marked
+          schema:
+            $ref: '#/definitions/BulkResponse'
+  /scrobble/episodes:
+    post:
+      tags: [scrobbling]
+      summary: Mark episodes as acquired or watched based on their IDs
+      description: This endpoint can be used by all users, even without premium
+      parameters:
+        - name: episodes
+          in: body
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                episode_id:
+                  type: integer
+                  description: The TVmaze episode ID
+                marked_at:
+                  type: integer
+                  description: Epoch timestamp for when the user watched the episode, or 0 for unknown.
+                type:
+                  $ref: '#/definitions/MarkType'
+      responses:
+        200:
+          description: All episodes were succesfully marked
+          schema:
+            $ref: '#/definitions/BulkResponse'
+        207:
+          description: Some episodes were succesfully marked, but there are errors
+          schema:
+            $ref: '#/definitions/BulkResponse'
+        422:
+          description: None of the episodes were succesfully marked
+          schema:
+            $ref: '#/definitions/BulkResponse'
+  /auth/start:
+    post:
+      tags: [auth]
+      summary: Start an authentication request
+      description: >
+        If you want to access the TVmaze API on behalf of a user without querying them for their password, use this endpoint.
+
+
+        To get started, send a POST request containing the user's email address. The response will contain a `token`, which
+        you can use as input to the `poll` endpoint. The user will receive an email prompting them to confirm the authentication
+        request.
+
+
+        Alternatively, if you expect the user to be logged in to TVmaze on the device they are currently interacting with,
+        you can set `email_confirmation` to false and redirect them to the `confirm_url` URL. If they are logged in to TVmaze,
+        they will be able to confirm the authentication request instantly.
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            properties:
+              email:
+                required: true
+                type: string
+                description: The user's email address
+              email_confirmation:
+                required: true
+                type: boolean
+                description: Whether to email the user a confirmation link
+                default: true
+      responses:
+        200:
+          description: The authentication request was succesfully started
+          schema:
+            type: object
+            properties:
+              token:
+                type: string
+                description: Authentication token to use in the `poll` endpoint
+              confirm_url:
+                type: string
+                description: URL where the user can confirm the authentication request
+        401:
+          description: The email address was found, but not confirmed
+        404:
+          description: The email address was not found
+        429:
+          description: You are starting authentication requests too quickly, please back off
+  /auth/poll:
+    post:
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            properties:
+              token:
+                required: true
+                type: string
+      tags: [auth]
+      summary: Poll whether an authentication request was confirmed
+      description: >
+        Using the token acquired in the `start` endpoint, you can start polling this endpoint once every 10 seconds.
+
+
+        When the user has confirmed the authentication request on their end, this endpoint will return the user's
+        API key that you can use in subsequent authenticated endpoints. Note that it'll do so only once, subsequent
+        requests after the initial 200 response will return a 404.
+
+
+        For as long as the user did not yet confirm their authentication request, this endpoint will return a 403.
+      responses:
+        200:
+          description: The user confirmed the authentication request
+          schema:
+            type: object
+            properties:
+              apikey:
+                type: string
+                description: The user's API key
+              username:
+                type: string
+                description: The user's username
+        404:
+          description: The authentication request was not found
+        403:
+          description: The authentication request was not confirmed yet
+        429:
+          description: You are polling too quickly, please back off
+  /auth/validate:
+    get:
+      tags: [auth]
+      summary: Validate your authentication credentials
+      description: If the credentials supplied as HTTP basic are valid, the user's level of premium - if any - is returned.
+      responses:
+        200:
+          description: The supplied credentials are valid
+          schema:
+            type: object
+            properties:
+              premium:
+                type: integer
+                description: The user's premium level; 1 for Bronze, 2 for Silver, 3 for Gold; or 0 for none
+        401:
+          description: The supplied credentials are not valid
+definitions:
+  Show:
+    type: object
+  Person:
+    type: object
+  Network:
+    type: object
+  Webchannel:
+    type: object
+  Episode:
+    type: object
+  MarkType:
+    type: integer
+    description: 0 for watched, 1 for acquired, 2 for skipped
+    enum: [0, 1, 2]
+  MarkedEpisode:
+    type: object
+    properties:
+      episode_id:
+        type: integer
+        readOnly: true
+      marked_at:
+        type: integer
+        description: Epoch timestamp for when the user watched the episode, or 0 for unknown.
+      type:
+        $ref: '#/definitions/MarkType'
+      _embedded:
+        type: object
+        properties:
+          episode:
+            $ref: '#/definitions/Episode'
+  ShowFollow:
+    type: object
+    properties:
+      show_id:
+        type: integer
+      _embedded:
+        type: object
+        properties:
+          show:
+            $ref: '#/definitions/Show'
+  PersonFollow:
+    type: object
+    properties:
+      person_id:
+        type: integer
+      _embedded:
+        type: object
+        properties:
+          person:
+            $ref: '#/definitions/Person'
+  NetworkFollow:
+    type: object
+    properties:
+      network_id:
+        type: integer
+      _embedded:
+        type: object
+        properties:
+          network:
+            $ref: '#/definitions/Network'
+  WebchannelFollow:
+    type: object
+    properties:
+      webchannel_id:
+        type: integer
+      _embedded:
+        type: object
+        properties:
+          webchannel:
+            $ref: '#/definitions/Webchannel'
+  Tag:
+    type: object
+    properties:
+      id:
+        type: integer
+        readOnly: true
+      name:
+        type: string
+  TagInstance:
+    type: object
+    properties:
+      show_id:
+        type: integer
+      _embedded:
+        type: object
+        properties:
+          show:
+            $ref: '#/definitions/Show'
+  ShowVote:
+    type: object
+    properties:
+      show_id:
+        type: integer
+        readOnly: true
+      voted_at:
+        type: integer
+        readOnly: true
+        description: Epoch timestamp for when the user voted for the episode
+      vote:
+        type: integer
+        description: The vote number
+        minimum: 1
+        maximum: 10
+  EpisodeVote:
+    type: object
+    properties:
+      episode_id:
+        type: integer
+        readOnly: true
+      voted_at:
+        type: integer
+        readOnly: true
+        description: Epoch timestamp for when the user voted for the episode
+      vote:
+        type: integer
+        description: The vote number
+        minimum: 1
+        maximum: 10
+  BulkResponse:
+    type: array
+    description: A list of responses to your bulk input, ordered the same as your input
+    items:
+      properties:
+        code:
+          type: integer
+          required: true
+          description: The HTTP code that corresponds to this item
+        message:
+          type: string
+          description: A human-readable error message (in case of error)
+        errors:
+          type: object
+          description: A list of validation errors for this item (in case of error)
+        input:
+          type: object
+          description: The request data that belonged to this response (in case of error)
+        result:
+          type: object
+          description: The resulting created/updated object (in case of success)
