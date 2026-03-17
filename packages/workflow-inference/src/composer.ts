@@ -22,11 +22,17 @@ export function resetWorkflowCounter(): void {
   workflowCounter = 0
 }
 
-/** Get base path by stripping {param} segments. */
+/** Get base path by stripping the trailing {param} segment. */
 function getBasePath(path: string): string {
-  return path.replace(/\/\{[^}]+\}(\/.*)?$/, '') || '/'
+  return path.replace(/\/\{[^}]+\}$/, '') || '/'
 }
 
+/** Count path parameter segments in a path. */
+function countPathParams(path: string): number {
+  return (path.match(/\{[^}]+\}/g) || []).length
+}
+
+/** Check if a path has any path parameters. */
 function hasPathParams(path: string): boolean {
   return path.includes('{')
 }
@@ -62,12 +68,13 @@ function detectBrowseWorkflows(graph: OperationGraph): Workflow[] {
   }
 
   for (const [basePath, ops] of groups) {
-    const listOp = ops.find(o => o.method === 'GET' && !hasPathParams(o.path))
-    const detailOp = ops.find(o => o.method === 'GET' && hasPathParams(o.path))
+    const baseParamCount = countPathParams(basePath)
+    const listOp = ops.find(o => o.method === 'GET' && countPathParams(o.path) === baseParamCount)
+    const detailOp = ops.find(o => o.method === 'GET' && countPathParams(o.path) > baseParamCount)
 
     if (listOp && detailOp) {
       const edge = findEdge(edges, listOp.id, detailOp.id)
-      const resourceName = basePath.split('/').filter(Boolean).pop() || 'resource'
+      const resourceName = basePath.split('/').filter(s => Boolean(s) && !s.startsWith('{')).pop() || 'resource'
 
       workflows.push({
         id: nextId(),
@@ -102,15 +109,16 @@ function detectCRUDWorkflows(graph: OperationGraph): Workflow[] {
   }
 
   for (const [basePath, ops] of groups) {
-    const createOp = ops.find(o => o.method === 'POST' && !hasPathParams(o.path))
-    const detailOp = ops.find(o => o.method === 'GET' && hasPathParams(o.path))
-    const updateOp = ops.find(o => (o.method === 'PUT' || o.method === 'PATCH') && hasPathParams(o.path))
-    const deleteOp = ops.find(o => o.method === 'DELETE' && hasPathParams(o.path))
+    const baseParamCount = countPathParams(basePath)
+    const createOp = ops.find(o => o.method === 'POST' && countPathParams(o.path) === baseParamCount)
+    const detailOp = ops.find(o => o.method === 'GET' && countPathParams(o.path) > baseParamCount)
+    const updateOp = ops.find(o => (o.method === 'PUT' || o.method === 'PATCH') && countPathParams(o.path) > baseParamCount)
+    const deleteOp = ops.find(o => o.method === 'DELETE' && countPathParams(o.path) > baseParamCount)
 
     const crudOps = [createOp, detailOp, updateOp, deleteOp].filter(Boolean)
     if (crudOps.length < 3) continue // Need at least 3 CRUD operations
 
-    const resourceName = basePath.split('/').filter(Boolean).pop() || 'resource'
+    const resourceName = basePath.split('/').filter(s => Boolean(s) && !s.startsWith('{')).pop() || 'resource'
     const steps: WorkflowStep[] = []
 
     if (createOp) steps.push(makeStep(createOp.id, 'create'))

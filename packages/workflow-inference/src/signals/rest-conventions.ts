@@ -17,23 +17,25 @@ import type { InferenceOperation, OperationEdge, EdgeSignal } from '../types'
 const SIGNAL_NAME = 'rest-convention'
 const SIGNAL_WEIGHT = 0.25
 
-/** Extract the base path by stripping {param} segments from the end. */
+/** Extract the base path by stripping the trailing {param} segment. */
 function getBasePath(path: string): string {
-  return path.replace(/\/\{[^}]+\}(\/.*)?$/, '') || '/'
+  return path.replace(/\/\{[^}]+\}$/, '') || '/'
 }
 
-/** Check if a path has path parameters. */
-function hasPathParams(path: string): boolean {
-  return path.includes('{')
+/** Count path parameter segments in a path. */
+function countPathParams(path: string): number {
+  return (path.match(/\{[^}]+\}/g) || []).length
 }
 
 /**
  * REST Convention signal: detect list/detail, CRUD, and create-then-get patterns.
+ * Groups operations by base path and detects method combinations.
+ * Handles nested resources (e.g., /repos/{owner}/{repo}/issues/{issue_number}).
  */
 export function detectRestConventions(operations: InferenceOperation[]): OperationEdge[] {
   const edges: OperationEdge[] = []
 
-  // Group operations by base path
+  // Group operations by base path (path with trailing {param} stripped)
   const groups = new Map<string, InferenceOperation[]>()
   for (const op of operations) {
     const base = getBasePath(op.path)
@@ -42,12 +44,19 @@ export function detectRestConventions(operations: InferenceOperation[]): Operati
     groups.set(base, list)
   }
 
-  for (const [, ops] of groups) {
-    const listOp = ops.find(o => o.method === 'GET' && !hasPathParams(o.path))
-    const detailOp = ops.find(o => o.method === 'GET' && hasPathParams(o.path))
-    const createOp = ops.find(o => o.method === 'POST' && !hasPathParams(o.path))
-    const updateOp = ops.find(o => (o.method === 'PUT' || o.method === 'PATCH') && hasPathParams(o.path))
-    const deleteOp = ops.find(o => o.method === 'DELETE' && hasPathParams(o.path))
+  for (const [basePath, ops] of groups) {
+    const baseParamCount = countPathParams(basePath)
+
+    // List: GET at the base path (same number of params as base)
+    const listOp = ops.find(o => o.method === 'GET' && countPathParams(o.path) === baseParamCount)
+    // Detail: GET with one more param than base
+    const detailOp = ops.find(o => o.method === 'GET' && countPathParams(o.path) > baseParamCount)
+    // Create: POST at the base path
+    const createOp = ops.find(o => o.method === 'POST' && countPathParams(o.path) === baseParamCount)
+    // Update: PUT/PATCH with more params
+    const updateOp = ops.find(o => (o.method === 'PUT' || o.method === 'PATCH') && countPathParams(o.path) > baseParamCount)
+    // Delete: DELETE with more params
+    const deleteOp = ops.find(o => o.method === 'DELETE' && countPathParams(o.path) > baseParamCount)
 
     // List → Detail
     if (listOp && detailOp) {

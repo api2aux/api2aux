@@ -93,8 +93,8 @@ function convertOperation(op: SourceOperation): InferenceOperation {
   const parameters: InferenceParam[] = op.parameters.map(p => ({
     name: p.name,
     in: p.in,
-    type: p.schema.type,
-    format: p.schema.format,
+    type: p.schema?.type ?? 'string',
+    format: p.schema?.format,
     required: p.required,
   }))
 
