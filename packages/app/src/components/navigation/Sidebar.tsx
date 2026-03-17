@@ -27,14 +27,13 @@ interface SidebarProps {
  */
 function getPathTail(path: string): string {
   const segments = path.split('/').filter(Boolean)
-  // Show last 2 non-param segments + any trailing param
+  if (segments.length <= 3) return path
   const tail: string[] = []
   for (let i = segments.length - 1; i >= 0 && tail.length < 3; i--) {
     tail.unshift(segments[i]!)
-    if (!segments[i]!.startsWith('{')) break // stop after a non-param segment
+    if (!segments[i]!.startsWith('{')) break
   }
-  const result = tail.join('/')
-  return result === path.replace(/^\//, '') ? path : `…/${result}`
+  return `…/${tail.join('/')}`
 }
 
 /** Compact clickable related endpoint item */
