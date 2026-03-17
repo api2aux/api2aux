@@ -27,6 +27,7 @@
   "dependencies": {
     "@api2aux/semantic-analysis": "workspace:*",
     "@api2aux/tool-utils": "workspace:*",
+    "@api2aux/workflow-inference": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "api-invoke": "^0.2.1",
     "zod": "^3.25.0"

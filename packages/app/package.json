@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.78.0",
     "@api2aux/semantic-analysis": "workspace:*",
     "@api2aux/tool-utils": "workspace:*",
+    "@api2aux/workflow-inference": "workspace:*",
     "@apidevtools/swagger-parser": "^12.1.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

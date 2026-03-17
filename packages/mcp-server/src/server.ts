@@ -10,6 +10,7 @@ import type { ParsedAPI, ExecutionResult, Auth } from 'api-invoke'
 import { parseRawUrl, parseGraphQLSchema, buildRequest, hasGraphQLErrors, getGraphQLErrors, ApiInvokeError, ErrorKind } from 'api-invoke'
 import { enrichmentRegistry } from '@api2aux/semantic-analysis'
 import type { EnrichmentPlugin } from '@api2aux/semantic-analysis'
+import { analyzeWorkflows } from '@api2aux/workflow-inference'
 import { generateTools } from './tool-generator'
 import type { GeneratedTool } from './tool-generator'
 import { enrichTools } from './semantic-enrichment'
@@ -400,9 +401,18 @@ async function registerOpenAPITools(
 
   console.error(`[api2aux-mcp] Parsed "${spec.title}" v${spec.version} (${spec.specFormat})`)
   console.error(`[api2aux-mcp] Base URL: ${baseUrl}`)
+  // Run workflow inference
+  const pluginPatterns = enrichmentRegistry.getWorkflowPatterns()
+  const { workflows } = analyzeWorkflows(spec.operations, {
+    pluginPatterns: pluginPatterns.length > 0 ? pluginPatterns : undefined,
+  })
+  if (workflows.length > 0) {
+    console.error(`[api2aux-mcp] Inferred ${workflows.length} workflow(s): ${workflows.map(w => w.name).join(', ')}`)
+  }
+
   console.error(`[api2aux-mcp] Enriching ${rawTools.length} tools with semantic analysis...`)
 
-  const tools = await enrichTools(rawTools, baseUrl, { fetchSamples: true })
+  const tools = await enrichTools(rawTools, baseUrl, { fetchSamples: true, workflows })
 
   console.error(`[api2aux-mcp] Registering ${tools.length} tools...`)
 

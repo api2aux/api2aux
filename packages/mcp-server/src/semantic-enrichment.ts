@@ -15,6 +15,7 @@ import type { OperationContext, OperationContextParam } from '@api2aux/semantic-
 import type { Operation, Parameter } from 'api-invoke'
 import { HttpMethod, ParamLocation, ContentType, HeaderName } from 'api-invoke'
 import type { GeneratedTool } from './tool-generator'
+import type { Workflow } from '@api2aux/workflow-inference'
 
 // ---------------------------------------------------------------------------
 // Semantic Zod validation — stricter schemas based on detected category
@@ -296,12 +297,12 @@ function toOperationContext(op: Operation): OperationContext {
 /**
  * Enrich generated tools with semantic information.
  * Enhances descriptions, parameter schemas, and ordering.
- * Also applies enrichment plugin hints from the registry.
+ * Also applies enrichment plugin hints and workflow context from the registry.
  */
 export async function enrichTools(
   tools: GeneratedTool[],
   baseUrl: string,
-  options?: { fetchSamples?: boolean }
+  options?: { fetchSamples?: boolean; workflows?: Workflow[] }
 ): Promise<GeneratedTool[]> {
   // Collect enrichment plugin hints for all operations
   const operations = tools.map(t => t.operation)
@@ -342,6 +343,25 @@ export async function enrichTools(
     const pluginHint = pluginToolHints.get(op.id)
     if (pluginHint?.descriptionSuffix) {
       description = `${description}. ${pluginHint.descriptionSuffix}`
+    }
+
+    // 4. Add workflow context if available
+    if (options?.workflows) {
+      const relevantWorkflows = options.workflows.filter(w =>
+        w.steps.some(s => s.operationId === op.id)
+      )
+      for (const wf of relevantWorkflows.slice(0, 2)) {
+        const stepNames = wf.steps.map(s => s.operationId).join(' → ')
+        const thisStep = wf.steps.find(s => s.operationId === op.id)
+        const bindings = thisStep?.inputBindings
+          .map(b => `${b.targetParam} from ${b.sourceField}`)
+          .join(', ')
+        let hint = `Part of ${wf.name} workflow: ${stepNames}`
+        if (bindings) {
+          hint += `. Use ${bindings}`
+        }
+        description = `${description}. ${hint}`
+      }
     }
 
     enriched.push({

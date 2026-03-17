@@ -9,6 +9,7 @@
 import type { Tool } from './types'
 import type { ParsedAPI, OperationContext, OperationContextParam } from '@api2aux/semantic-analysis'
 import { enrichmentRegistry } from '@api2aux/semantic-analysis'
+import { analyzeWorkflows } from '@api2aux/workflow-inference'
 import { parseUrlParameters } from '../urlParser/parser'
 import {
   sanitizeToolName,
@@ -204,47 +205,24 @@ function detectSearchHints(spec: ParsedAPI): string | null {
 
 // ── Option 3: Full Semantic Layer helpers ────────────────────────────
 
-/** Detect CRUD and list→detail workflows from operation structure. */
+/**
+ * Detect workflows using the deterministic inference engine.
+ * Replaces the hand-written pattern matching with multi-signal analysis.
+ */
 function detectWorkflows(spec: ParsedAPI): string | null {
-  // Group operations by base path (path without {param} segments)
-  const groups = new Map<string, { method: string; toolName: string; hasPathParam: boolean }[]>()
-
-  for (const op of spec.operations) {
-    const basePath = op.path.replace(/\/\{[^}]+\}.*$/, '') || '/'
-    const entry = {
-      method: op.method.toUpperCase(),
-      toolName: generateToolName(op),
-      hasPathParam: op.path.includes('{'),
-    }
-    const list = groups.get(basePath) || []
-    list.push(entry)
-    groups.set(basePath, list)
-  }
-
-  const workflows: string[] = []
-
-  for (const [, ops] of groups) {
-    const listOp = ops.find(o => o.method === 'GET' && !o.hasPathParam)
-    const detailOp = ops.find(o => o.method === 'GET' && o.hasPathParam)
-    const createOp = ops.find(o => o.method === 'POST' && !o.hasPathParam)
-    const updateOp = ops.find(o => (o.method === 'PUT' || o.method === 'PATCH') && o.hasPathParam)
-    const deleteOp = ops.find(o => o.method === 'DELETE' && o.hasPathParam)
-
-    // List → Detail pattern
-    if (listOp && detailOp) {
-      workflows.push(`Browse: ${listOp.toolName} → ${detailOp.toolName}`)
-    }
-
-    // Full or partial CRUD
-    const crudOps = [createOp, updateOp, deleteOp].filter(Boolean)
-    if (crudOps.length >= 2) {
-      const names = crudOps.map(o => o!.toolName).join(' → ')
-      workflows.push(`Mutate: ${names} (may require auth)`)
-    }
-  }
+  const pluginPatterns = enrichmentRegistry.getWorkflowPatterns()
+  const { workflows } = analyzeWorkflows(spec.operations, {
+    pluginPatterns: pluginPatterns.length > 0 ? pluginPatterns : undefined,
+  })
 
   if (workflows.length === 0) return null
-  return 'Common workflows:\n' + workflows.map(w => `- ${w}`).join('\n')
+
+  const lines = ['Common workflows:']
+  for (const wf of workflows.slice(0, 8)) {
+    const steps = wf.steps.map(s => s.operationId).join(' → ')
+    lines.push(`- ${wf.name}: ${steps}`)
+  }
+  return lines.join('\n')
 }
 
 /** Extract semantic highlights from response schema fields. */
