@@ -59,9 +59,10 @@ export function useAPIFetch() {
       // Fetch spec ourselves to avoid swagger-parser's Node.js HTTP resolver
       // which uses Buffer (unavailable in browser).
       // Route through CORS proxy so specs without CORS headers still load.
+      const specAccept = 'application/json, application/x-yaml, text/yaml, */*'
       const proxyResult = proxy.onRequest
-        ? await proxy.onRequest(url, { headers: { Accept: 'application/json, application/x-yaml, text/yaml, */*' } })
-        : { url, init: { headers: { Accept: 'application/json, application/x-yaml, text/yaml, */*' } } }
+        ? await proxy.onRequest(url, { headers: { Accept: specAccept } })
+        : { url, init: { headers: { Accept: specAccept } } }
       const response = await fetch(proxyResult.url, proxyResult.init)
       if (!response.ok) {
         throw new Error(`Failed to fetch spec: ${response.status} ${response.statusText}`)
@@ -69,7 +70,11 @@ export function useAPIFetch() {
       const text = await response.text()
       let specObject: object
       try {
-        specObject = JSON.parse(text) as object
+        const parsed = JSON.parse(text)
+        if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('JSON content is not an object')
+        }
+        specObject = parsed
       } catch (jsonErr) {
         console.warn('[useAPIFetch] JSON parse failed, attempting YAML:', jsonErr instanceof Error ? jsonErr.message : jsonErr)
         try {
