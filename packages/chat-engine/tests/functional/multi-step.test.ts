@@ -384,8 +384,7 @@ describe('Conversation continuity', () => {
       return { content: text, tool_calls: [], finish_reason: 'stop' }
     }
 
-    // Swap LLM on the engine (accessing private field for test purposes)
-    ;(engine as unknown as { llm: unknown }).llm = secondLlm
+    engine.setLlm(secondLlm)
     const { handler: handler2 } = collectEvents()
 
     const result2 = await engine.sendMessage('What spells can it cast at level 3?', handler2)

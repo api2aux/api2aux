@@ -65,7 +65,7 @@ export interface StreamResult {
   finish_reason: string
 }
 
-/** A cached tool result that can be viewed in the main panel. */
+/** A collected tool result from a single API call within a turn. */
 export interface ToolResultEntry {
   toolName: string
   toolArgs: Record<string, unknown>

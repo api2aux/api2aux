@@ -340,6 +340,99 @@ describe('ChatEngine', () => {
 
       expect(result.text).toBe('[REDACTED] Patient data')
     })
+
+    it('throws on duplicate plugin IDs', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+      const plugin: ChatEnginePlugin = { id: 'dupe' }
+
+      expect(() => new ChatEngine(llm, executor, testContext, undefined, [plugin, plugin]))
+        .toThrow('Duplicate plugin id: dupe')
+    })
+
+    it('does not crash when modifySystemPrompt throws', async () => {
+      const plugin: ChatEnginePlugin = {
+        id: 'bad-prompt',
+        modifySystemPrompt: () => { throw new Error('prompt boom') },
+      }
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+
+      const engine = new ChatEngine(llm, executor, testContext, undefined, [plugin])
+      const result = await engine.sendMessage('test', onEvent)
+
+      // Engine should complete successfully despite the plugin throwing
+      expect(result.text).toBe('ok')
+    })
+
+    it('does not crash when modifyTools throws', async () => {
+      const plugin: ChatEnginePlugin = {
+        id: 'bad-tools',
+        modifyTools: () => { throw new Error('tools boom') },
+      }
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+
+      const engine = new ChatEngine(llm, executor, testContext, undefined, [plugin])
+      const result = await engine.sendMessage('test', onEvent)
+
+      expect(result.text).toBe('ok')
+    })
+
+    it('does not crash when processToolResult throws', async () => {
+      const plugin: ChatEnginePlugin = {
+        id: 'bad-result',
+        processToolResult: () => { throw new Error('result boom') },
+      }
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue({ users: [] })
+
+      const engine = new ChatEngine(llm, executor, testContext, undefined, [plugin])
+      const result = await engine.sendMessage('test', onEvent)
+
+      // Engine completes; the original data is preserved (plugin threw before returning)
+      expect(result.text).toBe('ok')
+      expect(result.toolResults).toHaveLength(1)
+    })
+
+    it('does not crash when processResponse throws', async () => {
+      const plugin: ChatEnginePlugin = {
+        id: 'bad-response',
+        processResponse: () => { throw new Error('response boom') },
+      }
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('Patient data')
+          return textResponse('Patient data')
+        })
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+
+      const engine = new ChatEngine(llm, executor, testContext, undefined, [plugin])
+      const result = await engine.sendMessage('test', onEvent)
+
+      // Engine completes with the unmodified response text
+      expect(result.text).toBe('Patient data')
+    })
   })
 
   describe('history management', () => {

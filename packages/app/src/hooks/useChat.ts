@@ -112,28 +112,35 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
     if (parsedSpec) {
       const operation = parsedSpec.operations.find(op => generateToolName(op) === toolName)
 
-      if (operation) {
-        const execArgs: Record<string, unknown> = {}
-        for (const [k, v] of Object.entries(args)) {
-          if (k === 'body') continue
-          execArgs[k] = v
-        }
-        if (args.body) {
-          const parsed = typeof args.body === 'string' ? JSON.parse(args.body as string) : args.body
-          if (operation.buildBody && typeof parsed === 'object' && parsed !== null) {
-            Object.assign(execArgs, parsed)
-          } else {
-            execArgs.body = parsed
-          }
-        }
-
-        const credential = useAuthStore.getState().getActiveCredential(parsedSpec.baseUrl)
-        const result = await executeOperation(parsedSpec.baseUrl, operation, execArgs, {
-          auth: credential ? credentialToAuth(credential) : undefined,
-          middleware: [proxy],
-        })
-        return result.data
+      if (!operation) {
+        throw new Error(`Operation "${toolName}" not found in the API spec`)
       }
+
+      const execArgs: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(args)) {
+        if (k === 'body') continue
+        execArgs[k] = v
+      }
+      if (args.body) {
+        let parsed: unknown
+        try {
+          parsed = typeof args.body === 'string' ? JSON.parse(args.body as string) : args.body
+        } catch (err) {
+          throw new Error(`Invalid JSON in request body: ${err instanceof Error ? err.message : String(err)}`)
+        }
+        if (operation.buildBody && typeof parsed === 'object' && parsed !== null) {
+          Object.assign(execArgs, parsed)
+        } else {
+          execArgs.body = parsed
+        }
+      }
+
+      const credential = useAuthStore.getState().getActiveCredential(parsedSpec.baseUrl)
+      const result = await executeOperation(parsedSpec.baseUrl, operation, execArgs, {
+        auth: credential ? credentialToAuth(credential) : undefined,
+        middleware: [proxy],
+      })
+      return result.data
     }
 
     return fetchWithAuth(apiUrl)
@@ -174,6 +181,7 @@ export function useChat() {
     } else {
       engineRef.current.setContext(context)
       engineRef.current.setLlm(llmFn)
+      engineRef.current.setExecutor(createToolExecutor(url))
     }
     return engineRef.current
   }, [url, context, llmFn])

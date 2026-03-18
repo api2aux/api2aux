@@ -72,6 +72,11 @@ export class ChatEngine {
     this.llm = llm
   }
 
+  /** Update the tool executor (e.g., when user changes API URL). */
+  setExecutor(executor: ToolExecutorFn): void {
+    this.executor = executor
+  }
+
   /** Clear conversation history. */
   clearHistory(): void {
     this.history = []
@@ -96,7 +101,7 @@ export class ChatEngine {
     text: string,
     onEvent: ChatEngineEventHandler,
   ): Promise<ChatEngineResponse> {
-    // 1. Push user message to history
+    // Push user message to history
     this.history.push({ role: MessageRole.User, content: text.trim() })
 
     // Apply plugin hooks
@@ -123,7 +128,7 @@ export class ChatEngine {
       }
     }
 
-    // 3. Tool-calling loop
+    // Tool-calling loop
     let roundCount = 0
     const collectedResults: ToolResultEntry[] = []
 
@@ -177,11 +182,18 @@ export class ChatEngine {
 
         this.history.push({ role: MessageRole.Assistant, content: responseText })
 
-        // 5. Format structured response
-        const structured = await this.buildStructuredResponse(
-          collectedResults,
-          text,
-        )
+        // Format structured response
+        let structured: StructuredResponse
+        try {
+          structured = await this.buildStructuredResponse(collectedResults, text)
+        } catch (err) {
+          console.error('[chat-engine] buildStructuredResponse failed:', err instanceof Error ? err.message : String(err))
+          structured = {
+            strategy: MergeStrategy.Array,
+            sources: collectedResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+            data: collectedResults.map(r => r.data),
+          }
+        }
 
         onEvent({
           type: ChatEventType.TurnComplete,

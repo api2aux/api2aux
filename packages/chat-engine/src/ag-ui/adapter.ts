@@ -87,7 +87,7 @@ export function mapEvent(
         type: AgUiEventType.ToolCallResult,
         messageId: nextId(),
         toolCallId,
-        content: JSON.stringify(event.data).slice(0, 8000),
+        content: (() => { const s = JSON.stringify(event.data); return s.length <= 8000 ? s : s.slice(0, 8000) + '... [truncated]' })(),
         role: AgUiRole.Tool,
         timestamp: now(),
       })
