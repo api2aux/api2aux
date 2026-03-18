@@ -232,7 +232,8 @@ export function DiscoveryDialog({
                                       <p className="font-medium mb-0.5">Bindings:</p>
                                       {edge.bindings.map((b, j) => (
                                         <p key={j} className="font-mono pl-2">
-                                          {b.sourceField} → {b.targetParam} ({b.targetParamIn})
+                                          {b.sourceField} → {b.targetParam} ({b.targetParamIn}){' '}
+                                          <span className="text-muted-foreground/60">{Math.round(b.confidence * 100)}%</span>
                                         </p>
                                       ))}
                                     </div>
