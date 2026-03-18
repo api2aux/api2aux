@@ -83,7 +83,7 @@ function RelatedSection({
 }
 
 export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: SidebarProps) {
-  const { progress: discoveryProgress, result: discoveryResult, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
+  const { progress: discoveryProgress, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
   const workflowAnalysis = useWorkflowAnalysis(parsedSpec, runtimeEdges)
   const listRef = useRef<HTMLUListElement>(null)
   const [discoveryDialogOpen, setDiscoveryDialogOpen] = useState(false)
@@ -212,7 +212,6 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
         onClose={() => setDiscoveryDialogOpen(false)}
         parsedSpec={parsedSpec}
         progress={discoveryProgress}
-        result={discoveryResult}
         probeResults={probeResults}
         edges={runtimeEdges}
         allEdges={workflowAnalysis?.graph.edges ?? []}

@@ -1,11 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Dialog, DialogPanel, DialogTitle, Disclosure, DisclosureButton, DisclosurePanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import { Radar, Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { Progress } from './ui/progress'
 import { METHOD_COLORS } from '../lib/method-colors'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import type { DiscoveryProgress } from '../hooks/useRuntimeDiscovery'
-import type { DiscoveryResult } from '../services/discovery/runtimeDiscovery'
 import type { RuntimeProbeResult, OperationEdge } from '@api2aux/workflow-inference'
 
 type OpMap = Map<string, { path: string; method: string }>
@@ -97,7 +96,6 @@ interface DiscoveryDialogProps {
   onClose: () => void
   parsedSpec: ParsedAPI
   progress: DiscoveryProgress
-  result: DiscoveryResult | null
   probeResults: RuntimeProbeResult[] | null
   edges: OperationEdge[] | null
   allEdges: OperationEdge[]
@@ -110,7 +108,6 @@ export function DiscoveryDialog({
   onClose,
   parsedSpec,
   progress,
-  result,
   probeResults,
   edges,
   allEdges,
