@@ -2,7 +2,7 @@ import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
 import { X, Copy, Check, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
-import { METHOD_BADGE } from '@/lib/method-colors'
+import { methodBadgeClass } from '@/lib/method-colors'
 import type { BuiltRequest } from 'api-invoke'
 
 interface RequestPreviewProps {
@@ -36,7 +36,7 @@ export function RequestPreview({ request, open, onClose }: RequestPreviewProps) 
 
   if (!request) return null
 
-  const methodColor = METHOD_BADGE[request.method] ?? METHOD_BADGE.GET
+  const methodColor = methodBadgeClass(request.method)
 
   const headerEntries = Object.entries(request.headers)
   const curlCommand = buildCurlCommand(request)

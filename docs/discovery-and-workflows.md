@@ -30,7 +30,7 @@ Each signal has a weight (0.0–1.0) that contributes to the edge's aggregate sc
 
 ### Edge Scoring
 
-An edge's `score` is computed as: `bestBindingConfidence × signalWeight`. When multiple signals match the same edge, their contributions are combined. Currently, runtime edges are **not merged** with static edges — they're returned as standalone edges with only the `runtime-value-match` signal. This means runtime edge scores are capped at `0.95 × 0.40 = 0.38` (38%). Merging signals across sources would produce higher scores for edges confirmed by both static and runtime evidence.
+An edge's raw score is computed as: `bestBindingConfidence × signalWeight`. When multiple signals match the same source→target pair (including both static and runtime signals), their raw scores are summed and the edges' bindings and signals are merged. After all edges are merged, scores are **normalized** to the 0.0–1.0 range (divided by the maximum raw score across all edges), then filtered by `EDGE_THRESHOLD` (0.15). This means an edge confirmed by both static analysis (e.g., `id-pattern`) and runtime discovery (`runtime-value-match`) will score higher than either signal alone.
 
 ### Workflow Composition
 
@@ -79,7 +79,7 @@ After probing an endpoint, the value extractor (`valueExtractor.ts`) walks the J
 - **Skips:** URLs, ISO dates, UUIDs, booleans, whitespace, floats, 0, 1 (too common)
 - **Limit:** max 200 values per probe
 
-The "X values" shown in the Probes section of the Discovery Dialog is this count — how many identifier-like values were extracted from that endpoint's response.
+Each probe can extract up to this many values, which are then cross-matched against other operations' parameters.
 
 ### Cross-Matching
 
@@ -97,10 +97,12 @@ For each probed value V from operation A, the matcher checks every other operati
 
 **Number safety:** For numeric matches below 0.90 confidence, the field name must be similar to the param name to avoid false positives (e.g., a random `3` matching an integer param).
 
-**Edge score:** `bestBindingConfidence × SIGNAL_WEIGHT(0.40)`
-- 0.95 × 0.40 = **38%** (enum match)
-- 0.85 × 0.40 = **34%** (example match)
-- 0.80 × 0.40 = **32%** (cross-probe match)
+**Raw edge score:** `bestBindingConfidence × SIGNAL_WEIGHT(0.40)`
+- 0.95 × 0.40 = **0.38** (enum match)
+- 0.85 × 0.40 = **0.34** (example match)
+- 0.80 × 0.40 = **0.32** (cross-probe match)
+
+These raw scores are then merged with any static signals for the same edge pair and normalized (see Edge Scoring above).
 
 ### Known Limitation: Optional Query Params
 
@@ -114,20 +116,23 @@ Discovery results are cached in `sessionStorage` keyed by a hash of the spec's i
 
 ## Discovery Dialog UI
 
-The Discovery Dialog (`DiscoveryDialog.tsx`) presents four states:
+The Discovery Dialog (`DiscoveryDialog.tsx`) uses a tabbed layout:
+
+- **Runtime tab** — runtime discovery controls and results, with four states:
 
 | State | What's shown |
 |---|---|
 | **Idle** | Explanation text, GET endpoint count, "Start Discovery" button |
 | **Running** | Progress bar, "Probing X/Y", current path being probed, Cancel button |
-| **Done** | Summary line, expandable Probes section (per-probe success/fail + value count), expandable Discovered Links section (per-edge source→target with confidence %, expandable binding + signal detail), Re-run button |
-| **Error** | Error message, Retry button |
+| **Done** | Summary line, runtime edges list (expandable with binding + signal detail), expandable Probes section (per-probe success/fail), Re-run button |
+| **Error** | Error message with last progress, Retry button |
 
-The sidebar shows a condensed single button: "Discover" (idle), "X/Y" with spinner (running), "X links" in green (done), "Error" in red (error). Clicking always opens the dialog.
+- **Static tab** — all statically-inferred edges, sorted by score descending. Each edge is expandable to show bindings and signals, using the same `EdgeRow` component as the Runtime tab.
+
+The sidebar shows a "Discover more relations" link that opens the dialog. During active discovery, the text changes to "Discovering..." with a spinner.
 
 ## Future Improvements
 
-- **Signal merging:** Combine runtime edges with static edges so an edge confirmed by both `id-pattern` and `runtime-value-match` scores higher than either alone.
 - **Optional query param matching:** Explore heuristics to safely match values against optional query params (e.g., require field name similarity AND type compatibility).
 - **Probe chaining:** Use values from probe A to fill params for probe B (e.g., list endpoint returns IDs, then probe detail endpoint with those IDs). Currently each probe is independent.
 - **POST/mutation discovery:** Detect create→read patterns by analyzing request body schemas against response schemas without actually calling POST endpoints.

@@ -136,17 +136,18 @@ export function useRuntimeDiscovery(parsedSpec: ParsedAPI | null) {
       setCache(key, discoveryResult)
     } catch (err) {
       if (controller.signal.aborted) return
-      setProgress({
+      setProgress(prev => ({
         status: 'error',
-        completed: 0,
-        total: 0,
+        completed: prev.status === 'running' ? prev.completed : 0,
+        total: prev.status === 'running' ? prev.total : 0,
         error: err instanceof Error ? err.message : 'Discovery failed',
-      })
+      }))
     }
   }, [parsedSpec])
 
   const cancel = useCallback(() => {
     abortRef.current?.abort()
+    setResult(null)
     setProgress({ status: 'idle' })
   }, [])
 

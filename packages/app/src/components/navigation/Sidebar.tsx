@@ -7,7 +7,7 @@ import type { RelatedOperation } from '../../hooks/useWorkflowAnalysis'
 import { useRuntimeDiscovery } from '../../hooks/useRuntimeDiscovery'
 import { DiscoveryDialog } from '../DiscoveryDialog'
 import { ChevronLeft, Radar, Loader2 } from 'lucide-react'
-import { METHOD_COLORS } from '../../lib/method-colors'
+import { methodColorClass } from '../../lib/method-colors'
 
 interface SidebarProps {
   parsedSpec: ParsedAPI
@@ -26,7 +26,7 @@ function RelatedItem({ rel, onClick }: { rel: RelatedOperation; onClick: () => v
       title={rel.path}
     >
       <div className="flex items-baseline gap-1.5">
-        <span className={`text-[10px] font-semibold uppercase shrink-0 ${METHOD_COLORS[rel.method] ?? METHOD_COLORS.GET}`}>
+        <span className={`text-[10px] font-semibold uppercase shrink-0 ${methodColorClass(rel.method)}`}>
           {rel.method}
         </span>
         <span className="text-xs font-mono text-foreground truncate group-hover:underline">{displayPath}</span>

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { Dialog, DialogPanel, DialogTitle, Disclosure, DisclosureButton, DisclosurePanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import { Radar, Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { Progress } from './ui/progress'
-import { METHOD_COLORS } from '../lib/method-colors'
+import { methodColorClass } from '../lib/method-colors'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import type { DiscoveryProgress } from '../hooks/useRuntimeDiscovery'
 import type { RuntimeProbeResult, OperationEdge } from '@api2aux/workflow-inference'
@@ -24,6 +24,7 @@ function EdgeRow({ edge, opMap }: { edge: OperationEdge; opMap: OpMap }) {
   const source = opMap.get(edge.sourceId)
   const target = opMap.get(edge.targetId)
   const pct = Math.round(edge.score * 100)
+  const matchedSignals = edge.signals.filter(s => s.matched)
 
   return (
     <Disclosure>
@@ -31,7 +32,7 @@ function EdgeRow({ edge, opMap }: { edge: OperationEdge; opMap: OpMap }) {
         <>
           <DisclosureButton className="flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full px-3 py-1.5 rounded-lg hover:bg-muted/30 text-xs text-left">
             <span className="flex items-center gap-1.5 shrink-0">
-              <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[source?.method ?? 'GET'] ?? METHOD_COLORS.GET}`}>
+              <span className={`font-mono font-bold shrink-0 ${methodColorClass(source?.method ?? '')}`}>
                 {source?.method ?? '?'}
               </span>
               <span className="font-mono text-foreground">
@@ -40,7 +41,7 @@ function EdgeRow({ edge, opMap }: { edge: OperationEdge; opMap: OpMap }) {
             </span>
             <span className="flex items-center gap-1.5 grow shrink-0">
               <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
-              <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[target?.method ?? 'GET'] ?? METHOD_COLORS.GET}`}>
+              <span className={`font-mono font-bold shrink-0 ${methodColorClass(target?.method ?? '')}`}>
                 {target?.method ?? '?'}
               </span>
               <span className="font-mono text-foreground">
@@ -64,10 +65,10 @@ function EdgeRow({ edge, opMap }: { edge: OperationEdge; opMap: OpMap }) {
                 ))}
               </div>
             )}
-            {edge.signals.filter(s => s.matched).length > 0 && (
+            {matchedSignals.length > 0 && (
               <div className="text-xs text-muted-foreground">
                 <p className="font-medium mb-0.5">Signals:</p>
-                {edge.signals.filter(s => s.matched).map((s, j) => (
+                {matchedSignals.map((s, j) => (
                   <p key={j} className="pl-2">
                     <span className="font-mono">{s.signal}</span>
                     <span className="text-muted-foreground/60 ml-1">w={s.weight.toFixed(2)}</span>
@@ -90,6 +91,8 @@ function hasStaticSignal(edge: OperationEdge): boolean {
 function hasRuntimeSignal(edge: OperationEdge): boolean {
   return edge.signals.some(s => s.signal === 'runtime-value-match' && s.matched)
 }
+
+const TAB_CLASS = 'px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none cursor-pointer data-[selected]:bg-muted data-[selected]:text-foreground text-muted-foreground hover:text-foreground'
 
 interface DiscoveryDialogProps {
   open: boolean
@@ -165,12 +168,12 @@ export function DiscoveryDialog({
           </div>
 
           {/* Tabs */}
-          <TabGroup defaultIndex={0} className="flex flex-col flex-1 min-h-0">
+          <TabGroup className="flex flex-col flex-1 min-h-0">
             <TabList className="flex gap-1 px-6 pb-2 border-b border-border shrink-0">
-              <Tab className="px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none cursor-pointer data-[selected]:bg-muted data-[selected]:text-foreground text-muted-foreground hover:text-foreground">
+              <Tab className={TAB_CLASS}>
                 Runtime
               </Tab>
-              <Tab className="px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none cursor-pointer data-[selected]:bg-muted data-[selected]:text-foreground text-muted-foreground hover:text-foreground">
+              <Tab className={TAB_CLASS}>
                 Static ({staticEdges.length})
               </Tab>
             </TabList>
@@ -288,7 +291,7 @@ export function DiscoveryDialog({
                                   <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
                                 )}
                                 {op && (
-                                  <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[op.method] ?? METHOD_COLORS.GET}`}>
+                                  <span className={`font-mono font-bold shrink-0 ${methodColorClass(op.method)}`}>
                                     {op.method}
                                   </span>
                                 )}

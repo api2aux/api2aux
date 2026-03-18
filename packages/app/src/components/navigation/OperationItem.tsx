@@ -1,8 +1,6 @@
 import type { Operation } from '@api2aux/semantic-analysis'
 import { Lock } from 'lucide-react'
-import { METHOD_BADGE } from '../../lib/method-colors'
-
-const methodBadgeClass = (method: string) => METHOD_BADGE[method] ?? METHOD_BADGE.GET
+import { methodBadgeClass } from '../../lib/method-colors'
 
 /** Display path for an operation — always show the full path for clarity. */
 function compactPath(path: string): string {

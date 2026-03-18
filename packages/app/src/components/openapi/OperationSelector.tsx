@@ -1,7 +1,5 @@
 import type { Operation } from '@api2aux/semantic-analysis'
-import { METHOD_BADGE } from '../../lib/method-colors'
-
-const methodBadgeClass = (method: string) => METHOD_BADGE[method] ?? METHOD_BADGE.GET
+import { methodBadgeClass } from '../../lib/method-colors'
 
 interface OperationSelectorProps {
   operations: Operation[]
