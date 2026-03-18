@@ -7,6 +7,7 @@
  */
 
 import type { InferenceOperation, OperationEdge, DataBinding, EdgeSignal } from '../types'
+import { isPaginationParam } from './param-filter'
 
 const SIGNAL_NAME = 'schema-compat'
 const SIGNAL_WEIGHT = 0.25
@@ -23,7 +24,9 @@ export function detectSchemaCompat(operations: InferenceOperation[]): OperationE
     for (const target of operations) {
       if (source.id === target.id) continue
 
-      const targetParams = target.parameters.filter(p => p.in === 'path' || p.in === 'query')
+      const targetParams = target.parameters.filter(
+        p => (p.in === 'path' || p.in === 'query') && !isPaginationParam(p.name)
+      )
       if (targetParams.length === 0) continue
 
       const bindings: DataBinding[] = []
