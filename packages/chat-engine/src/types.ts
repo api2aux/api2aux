@@ -1,0 +1,237 @@
+/**
+ * @api2aux/chat-engine
+ *
+ * Core types for the chat engine package.
+ * Defines messages, tools, engine context, events, responses, and plugin interfaces.
+ */
+
+// ── LLM Message Types (moved from app, OpenAI-compatible format) ──
+
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string | null
+  tool_calls?: ToolCall[]
+  tool_call_id?: string
+}
+
+export interface ToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
+export interface Tool {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: {
+      type: 'object'
+      properties: Record<string, ToolParameter>
+      required?: string[]
+    }
+  }
+}
+
+export interface ToolParameter {
+  type: string
+  description?: string
+  enum?: string[]
+  default?: unknown
+}
+
+/** The result of a streaming completion: either streamed text or accumulated tool calls. */
+export interface StreamResult {
+  content: string
+  tool_calls: ToolCall[]
+  finish_reason: string
+}
+
+/** A cached tool result that can be viewed in the main panel. */
+export interface ToolResultEntry {
+  toolName: string
+  toolArgs: Record<string, unknown>
+  data: unknown
+  summary: string
+}
+
+// ── Injected Dependencies ──
+
+/** The engine's view of an LLM — a single streaming function. */
+export type LLMCompletionFn = (
+  messages: ChatMessage[],
+  tools: Tool[],
+  onToken: (token: string) => void,
+) => Promise<StreamResult>
+
+/** Executes a tool call and returns raw API response data. */
+export type ToolExecutorFn = (
+  toolName: string,
+  args: Record<string, unknown>,
+) => Promise<unknown>
+
+// ── API Context (structural typing, no ParsedAPI import) ──
+
+/** The engine's structural view of a parsed API spec. */
+export interface ApiSpec {
+  title: string
+  baseUrl: string
+  operations: ApiOperation[]
+  authSchemes?: Array<{ authType?: string }>
+}
+
+/** Minimal operation shape needed by the engine. */
+export interface ApiOperation {
+  id: string
+  path: string
+  method: string
+  summary?: string
+  description?: string
+  tags: string[]
+  parameters: Array<{
+    name: string
+    in: string
+    required: boolean
+    description?: string
+    schema: {
+      type: string
+      format?: string
+      default?: unknown
+      example?: unknown
+      enum?: unknown[]
+      minimum?: number
+      maximum?: number
+      maxLength?: number
+    }
+  }>
+  responseSchema?: unknown
+  requestBody?: { description?: string; required?: boolean }
+  buildBody?: unknown
+  errorHints?: Record<string, string>
+}
+
+// ── Merge Strategy ──
+
+export const MergeStrategy = {
+  /** Return each tool result separately with source metadata. */
+  Array: 'array',
+  /** Use an extra LLM call to merge results into a single document. */
+  LlmGuided: 'llm-guided',
+  /** Merge results deterministically by detecting shared entity IDs. */
+  SchemaBased: 'schema-based',
+} as const
+export type MergeStrategy = typeof MergeStrategy[keyof typeof MergeStrategy]
+
+// ── Engine Context & Config ──
+
+/** Full context the engine needs to operate. */
+export interface ChatEngineContext {
+  /** Raw API URL (used for raw-URL mode and fallbacks). */
+  url: string
+  /** Parsed OpenAPI spec, if available. Null for raw URL mode. */
+  spec: ApiSpec | null
+  /** Pre-built tools (from buildToolsFromSpec/Url). */
+  tools: Tool[]
+  /** Pre-built system prompt (from buildSystemPrompt). */
+  systemPrompt: string
+}
+
+/** Engine configuration. */
+export interface ChatEngineConfig {
+  /** Maximum tool-calling rounds before forcing a text response. Default: 3. */
+  maxRounds?: number
+  /** Maximum characters of tool result to feed back to LLM. Default: 8000. */
+  truncationLimit?: number
+  /** Strategy for merging multiple tool results. Default: MergeStrategy.LlmGuided. */
+  mergeStrategy?: MergeStrategy
+}
+
+// ── Events ──
+
+export const ChatEventType = {
+  /** A streamed text token from the LLM. */
+  Token: 'token',
+  /** A tool call is about to start. */
+  ToolCallStart: 'tool_call_start',
+  /** A tool call completed successfully. */
+  ToolCallResult: 'tool_call_result',
+  /** A tool call failed. */
+  ToolCallError: 'tool_call_error',
+  /** The full turn is complete. */
+  TurnComplete: 'turn_complete',
+  /** An unrecoverable error occurred. */
+  Error: 'error',
+} as const
+export type ChatEventType = typeof ChatEventType[keyof typeof ChatEventType]
+
+export type ChatEngineEvent =
+  | { type: typeof ChatEventType.Token; token: string }
+  | { type: typeof ChatEventType.ToolCallStart; toolName: string; toolArgs: Record<string, unknown>; parallelCount: number }
+  | { type: typeof ChatEventType.ToolCallResult; toolName: string; toolArgs: Record<string, unknown>; data: unknown; summary: string }
+  | { type: typeof ChatEventType.ToolCallError; toolName: string; toolArgs: Record<string, unknown>; error: string }
+  | { type: typeof ChatEventType.TurnComplete; text: string; toolResults: ToolResultEntry[]; structured: StructuredResponse }
+  | { type: typeof ChatEventType.Error; error: string }
+
+export type ChatEngineEventHandler = (event: ChatEngineEvent) => void
+
+// ── Structured Response ──
+
+export interface StructuredResponse {
+  /** Which merge strategy was used. */
+  strategy: MergeStrategy
+  /** Source API calls that produced the data. */
+  sources: Array<{ toolName: string; args: Record<string, unknown> }>
+  /** Merged/selected data (shape depends on strategy). */
+  data: unknown
+  /** Field metadata for UI rendering hints. */
+  fields?: Array<{ name: string; type: string; semantic?: string }>
+}
+
+// ── Engine Response ──
+
+/** The final result of a sendMessage call. */
+export interface ChatEngineResponse {
+  /** The assistant's text response. */
+  text: string
+  /** Structured tool results from this turn (JSON data from APIs). */
+  toolResults: ToolResultEntry[]
+  /** Structured response with merged data for UI rendering. */
+  structured: StructuredResponse
+  /** Updated conversation history. */
+  history: ChatMessage[]
+}
+
+// ── Plugin Interface ──
+
+/** Plugin that can customize engine behavior for a domain. */
+export interface ChatEnginePlugin {
+  /** Unique plugin ID. */
+  readonly id: string
+
+  /**
+   * Modify the system prompt before it is sent to the LLM.
+   * Return the modified prompt, or null to use the base unchanged.
+   */
+  modifySystemPrompt?: (basePrompt: string, context: ChatEngineContext) => string | null
+
+  /**
+   * Filter or reorder tools before they are sent to the LLM.
+   * Can remove tools irrelevant to the domain, or add synthetic tools.
+   */
+  modifyTools?: (tools: Tool[], context: ChatEngineContext) => Tool[]
+
+  /**
+   * Post-process a tool result before it is fed back to the LLM.
+   * Can extract/reshape data for domain-specific summarization.
+   */
+  processToolResult?: (toolName: string, data: unknown) => unknown
+
+  /**
+   * Post-process the final text response.
+   * Can enforce domain-specific response formatting or safety checks.
+   */
+  processResponse?: (text: string, toolResults: ToolResultEntry[]) => string
+}

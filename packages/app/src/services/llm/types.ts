@@ -1,48 +1,21 @@
-/** Types for LLM chat integration (OpenAI-compatible format used by OpenRouter) */
+/**
+ * Types for LLM chat integration.
+ *
+ * Core message/tool types are re-exported from @api2aux/chat-engine.
+ * UI-specific types (UIMessage, ProviderId, ChatConfig) remain here.
+ */
 
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool'
-  content: string | null
-  tool_calls?: ToolCall[]
-  tool_call_id?: string
-}
+// Re-export core types from the engine package
+export type {
+  ChatMessage,
+  ToolCall,
+  Tool,
+  ToolParameter,
+  StreamResult,
+  ToolResultEntry,
+} from '@api2aux/chat-engine'
 
-export interface ToolCall {
-  id: string
-  type: 'function'
-  function: {
-    name: string
-    arguments: string
-  }
-}
-
-export interface Tool {
-  type: 'function'
-  function: {
-    name: string
-    description: string
-    parameters: {
-      type: 'object'
-      properties: Record<string, ToolParameter>
-      required?: string[]
-    }
-  }
-}
-
-export interface ToolParameter {
-  type: string
-  description?: string
-  enum?: string[]
-  default?: unknown
-}
-
-/** A cached tool result that can be viewed in the main panel */
-export interface ToolResultEntry {
-  toolName: string
-  toolArgs: Record<string, unknown>
-  data: unknown
-  summary: string
-}
+import type { ToolResultEntry } from '@api2aux/chat-engine'
 
 /** A message in the chat UI (extends LLM message with UI-specific fields) */
 export interface UIMessage {
@@ -70,11 +43,4 @@ export interface ChatConfig {
   apiKey: string
   model: string
   provider: ProviderId
-}
-
-/** The result of a streaming completion: either streamed text or accumulated tool calls */
-export interface StreamResult {
-  content: string
-  tool_calls: ToolCall[]
-  finish_reason: string
 }
