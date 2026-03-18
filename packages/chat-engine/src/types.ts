@@ -7,8 +7,23 @@
 
 // ── LLM Message Types (moved from app, OpenAI-compatible format) ──
 
+/** Chat message roles. */
+export const MessageRole = {
+  System: 'system',
+  User: 'user',
+  Assistant: 'assistant',
+  Tool: 'tool',
+} as const
+export type MessageRole = typeof MessageRole[keyof typeof MessageRole]
+
+/** Tool call/definition type (OpenAI function-calling format). */
+export const ToolType = {
+  Function: 'function',
+} as const
+export type ToolType = typeof ToolType[keyof typeof ToolType]
+
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool'
+  role: MessageRole
   content: string | null
   tool_calls?: ToolCall[]
   tool_call_id?: string
@@ -16,7 +31,7 @@ export interface ChatMessage {
 
 export interface ToolCall {
   id: string
-  type: 'function'
+  type: typeof ToolType.Function
   function: {
     name: string
     arguments: string
@@ -24,7 +39,7 @@ export interface ToolCall {
 }
 
 export interface Tool {
-  type: 'function'
+  type: typeof ToolType.Function
   function: {
     name: string
     description: string
@@ -80,8 +95,18 @@ export interface ApiSpec {
   title: string
   baseUrl: string
   operations: ApiOperation[]
-  authSchemes?: Array<{ authType?: string }>
+  authSchemes?: Array<{ authType?: string | null }>
 }
+
+/** Valid parameter locations (compatible with @api2aux/tool-utils ParameterIn). */
+export const ApiParamIn = {
+  Query: 'query',
+  Path: 'path',
+  Header: 'header',
+  Cookie: 'cookie',
+  Body: 'body',
+} as const
+export type ApiParamIn = typeof ApiParamIn[keyof typeof ApiParamIn]
 
 /** Minimal operation shape needed by the engine. */
 export interface ApiOperation {
@@ -93,9 +118,9 @@ export interface ApiOperation {
   tags: string[]
   parameters: Array<{
     name: string
-    in: string
+    in: ApiParamIn
     required: boolean
-    description?: string
+    description: string
     schema: {
       type: string
       format?: string
@@ -108,7 +133,7 @@ export interface ApiOperation {
     }
   }>
   responseSchema?: unknown
-  requestBody?: { description?: string; required?: boolean }
+  requestBody?: { description?: string; required: boolean }
   buildBody?: unknown
   errorHints?: Record<string, string>
 }

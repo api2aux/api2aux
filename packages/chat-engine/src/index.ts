@@ -27,7 +27,16 @@ export type {
   StructuredResponse,
 } from './types'
 
-export { MergeStrategy, ChatEventType } from './types'
+export { MessageRole, ToolType, ApiParamIn, MergeStrategy, ChatEventType } from './types'
 
 // === Defaults ===
 export { MAX_ROUNDS, TRUNCATION_LIMIT, NO_DATA_MESSAGE } from './defaults'
+
+// === Truncation ===
+export { truncateToolResult, summarizeToolResult } from './truncation'
+
+// === Context Building ===
+export { buildToolsFromSpec, buildToolsFromUrl, buildSystemPrompt, buildChatContext } from './context'
+
+// === Response Formatting ===
+export { formatStructuredResponse } from './response'
