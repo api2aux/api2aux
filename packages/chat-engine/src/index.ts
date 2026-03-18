@@ -40,3 +40,6 @@ export { buildToolsFromSpec, buildToolsFromUrl, buildSystemPrompt, buildChatCont
 
 // === Response Formatting ===
 export { formatStructuredResponse } from './response'
+
+// === Engine ===
+export { ChatEngine } from './engine'
