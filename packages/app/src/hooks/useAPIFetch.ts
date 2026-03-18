@@ -69,8 +69,8 @@ export function useAPIFetch() {
       let specObject: object
       try {
         specObject = JSON.parse(text) as object
-      } catch {
-        // Retry with lenient parsing: strip trailing commas (common in hand-edited specs)
+      } catch (parseErr) {
+        console.warn('[useAPIFetch] Standard JSON parse failed, retrying with lenient parsing:', parseErr instanceof Error ? parseErr.message : parseErr)
         specObject = JSON.parse(text.replace(/,\s*([\]}])/g, '$1')) as object
       }
       const spec = await parseOpenAPISpec(specObject, { specUrl: url })

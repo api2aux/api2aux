@@ -53,7 +53,10 @@ function setCache(key: string, result: DiscoveryResult): void {
   try {
     sessionStorage.setItem(CACHE_PREFIX + key, JSON.stringify(result))
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'QuotaExceededError') return
+    if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+      console.debug('[runtime-discovery] Cache write skipped: sessionStorage quota exceeded')
+      return
+    }
     console.warn('[runtime-discovery] Cache write failed:', err)
   }
 }
@@ -65,8 +68,9 @@ export function useRuntimeDiscovery(parsedSpec: ParsedAPI | null) {
 
   const cachedKey = parsedSpec ? specKey(parsedSpec) : null
 
-  // Restore from cache or reset when spec changes
+  // Restore from cache or reset when spec changes; cancel any in-flight discovery
   useEffect(() => {
+    abortRef.current?.abort()
     startTransition(() => {
       if (!cachedKey) {
         setResult(null)

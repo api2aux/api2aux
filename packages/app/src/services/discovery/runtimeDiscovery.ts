@@ -81,7 +81,8 @@ export async function discoverRuntimeEdgesFromInference(
         values = extractProbeValues(data)
       } catch (extractErr) {
         console.warn(`[runtime-discovery] Value extraction failed for ${probe.operationId}:`, extractErr instanceof Error ? extractErr.message : extractErr)
-        values = []
+        probeResults.push({ operationId: probe.operationId, values: [], success: false })
+        continue
       }
       probeResults.push({ operationId: probe.operationId, values, success: true })
       probesSucceeded++

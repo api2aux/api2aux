@@ -50,6 +50,14 @@ describe('extractProbeValues', () => {
     expect(values.find(v => v.value === 'active')).toBeDefined()
   })
 
+  it('keeps date-like slugs that are not ISO dates', () => {
+    const data = { version: '2024-03-01-rc2', releaseId: '1234-56-78-beta' }
+    const values = extractProbeValues(data)
+
+    expect(values.find(v => v.value === '2024-03-01-rc2')).toBeDefined()
+    expect(values.find(v => v.value === '1234-56-78-beta')).toBeDefined()
+  })
+
   it('skips long strings (> 50 chars)', () => {
     const data = {
       description: 'This is a very long description that exceeds fifty characters in length for sure',

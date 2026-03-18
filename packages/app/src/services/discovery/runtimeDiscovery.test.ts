@@ -82,8 +82,8 @@ describe('discoverRuntimeEdgesFromInference', () => {
       signal: controller.signal,
     })
 
-    // Should have stopped after first probe (abort checked before each probe)
-    expect(result.probesAttempted).toBeLessThanOrEqual(2)
+    // First probe executes and aborts; abort is checked before probe 2 starts
+    expect(result.probesAttempted).toBe(1)
   })
 
   it('calls onProgress with correct values', async () => {
@@ -104,6 +104,31 @@ describe('discoverRuntimeEdgesFromInference', () => {
     // Second call: completed=1, total=2
     expect(onProgress.mock.calls[1]![0]).toBe(1)
     expect(onProgress.mock.calls[1]![1]).toBe(2)
+  })
+
+  it('marks probe as failed when value extraction throws', async () => {
+    const ops = [
+      op({ id: 'list_a', path: '/a' }),
+    ]
+
+    // Return a value that will cause extractProbeValues to throw
+    // (circular reference would, but easier to mock the module)
+    // Use a getter that throws on property access during extraction
+    const poisonData = new Proxy({}, {
+      get(_target, prop) {
+        if (prop === 'then') return undefined // not a thenable
+        throw new Error('extraction boom')
+      },
+      ownKeys() { throw new Error('extraction boom') },
+    })
+
+    const executeFn = vi.fn().mockResolvedValue(poisonData)
+    const result = await discoverRuntimeEdgesFromInference(ops, executeFn)
+
+    expect(result.probesAttempted).toBe(1)
+    expect(result.probesSucceeded).toBe(0)
+    expect(result.probeResults[0]!.success).toBe(false)
+    expect(result.probeResults[0]!.values).toEqual([])
   })
 
   it('respects maxProbes option', async () => {

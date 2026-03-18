@@ -339,6 +339,141 @@ describe('matchRuntimeValues', () => {
     expect(userIdBindings[0]!.confidence).toBe(0.95)
   })
 
+  it('creates bindings for multiple path params on the same target', () => {
+    const operations: InferenceOperation[] = [
+      op({
+        id: 'get_org',
+        path: '/orgs/{orgId}',
+        method: 'GET',
+        responseFields: [
+          { name: 'orgId', type: 'string', path: 'orgId' },
+          { name: 'defaultTeamId', type: 'string', path: 'defaultTeamId' },
+        ],
+      }),
+      op({
+        id: 'get_team',
+        path: '/orgs/{orgId}/teams/{teamId}',
+        method: 'GET',
+        parameters: [
+          { name: 'orgId', in: 'path', type: 'string', required: true, enum: ['org-1'] },
+          { name: 'teamId', in: 'path', type: 'string', required: true, enum: ['team-a'] },
+        ],
+      }),
+    ]
+
+    const probeResults: RuntimeProbeResult[] = [
+      {
+        operationId: 'get_org',
+        success: true,
+        values: [
+          { fieldPath: 'orgId', value: 'org-1', type: 'string' },
+          { fieldPath: 'defaultTeamId', value: 'team-a', type: 'string' },
+        ],
+      },
+    ]
+
+    const edges = matchRuntimeValues(probeResults, operations)
+    const edge = edges.find(e => e.sourceId === 'get_org' && e.targetId === 'get_team')
+    expect(edge).toBeDefined()
+    expect(edge!.bindings).toHaveLength(2)
+    expect(edge!.bindings.find(b => b.targetParam === 'orgId')).toBeDefined()
+    expect(edge!.bindings.find(b => b.targetParam === 'teamId')).toBeDefined()
+  })
+
+  it('matches against required query parameters', () => {
+    const operations: InferenceOperation[] = [
+      op({
+        id: 'get_product',
+        path: '/products/{id}',
+        method: 'GET',
+        responseFields: [
+          { name: 'status', type: 'string', path: 'status' },
+        ],
+      }),
+      op({
+        id: 'search_products',
+        path: '/products/search',
+        method: 'GET',
+        parameters: [{
+          name: 'status',
+          in: 'query',
+          type: 'string',
+          required: true,
+          enum: ['active', 'discontinued'],
+        }],
+      }),
+    ]
+
+    const probeResults: RuntimeProbeResult[] = [
+      {
+        operationId: 'get_product',
+        success: true,
+        values: [
+          { fieldPath: 'status', value: 'active', type: 'string' },
+        ],
+      },
+    ]
+
+    const edges = matchRuntimeValues(probeResults, operations)
+    const edge = edges.find(e => e.sourceId === 'get_product' && e.targetId === 'search_products')
+    expect(edge).toBeDefined()
+    expect(edge!.bindings[0]!.targetParamIn).toBe('query')
+  })
+
+  it('discovers edges via list-sibling cross-probe (focused test)', () => {
+    // Source returns a categoryId, list endpoint /categories was probed and has id values,
+    // detail endpoint /categories/{id} should get an edge
+    const operations: InferenceOperation[] = [
+      op({
+        id: 'get_order',
+        path: '/orders/{id}',
+        method: 'GET',
+        responseFields: [
+          { name: 'categoryId', type: 'string', path: 'categoryId' },
+        ],
+      }),
+      op({
+        id: 'list_categories',
+        path: '/categories',
+        method: 'GET',
+        responseFields: [
+          { name: 'id', type: 'string', path: 'id' },
+        ],
+      }),
+      op({
+        id: 'get_category',
+        path: '/categories/{id}',
+        method: 'GET',
+        parameters: [{ name: 'id', in: 'path', type: 'string', required: true }],
+      }),
+    ]
+
+    const probeResults: RuntimeProbeResult[] = [
+      {
+        operationId: 'get_order',
+        success: true,
+        values: [
+          { fieldPath: 'categoryId', value: 'electronics', type: 'string' },
+        ],
+      },
+      {
+        operationId: 'list_categories',
+        success: true,
+        values: [
+          { fieldPath: 'id', value: 'electronics', type: 'string' },
+          { fieldPath: 'id', value: 'books', type: 'string' },
+        ],
+      },
+    ]
+
+    const edges = matchRuntimeValues(probeResults, operations)
+    const edge = edges.find(e => e.sourceId === 'get_order' && e.targetId === 'get_category')
+    expect(edge).toBeDefined()
+    expect(edge!.bindings[0]!.sourceField).toBe('categoryId')
+    expect(edge!.bindings[0]!.targetParam).toBe('id')
+    expect(edge!.bindings[0]!.confidence).toBe(0.80)
+  })
+
   it('does not create self-edges', () => {
     const operations: InferenceOperation[] = [
       op({

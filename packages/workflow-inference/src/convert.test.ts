@@ -27,6 +27,51 @@ describe('operationsToInference', () => {
     expect(result[0]!.responseFields).toHaveLength(2)
     expect(result[0]!.responseFields.map(f => f.name)).toEqual(['id', 'name'])
   })
+  it('filters enum to only string/number and passes through valid examples', () => {
+    const result = operationsToInference([{
+      id: 'get_item',
+      path: '/items/{id}',
+      method: 'get',
+      tags: [],
+      parameters: [
+        {
+          name: 'id',
+          in: 'path',
+          required: true,
+          schema: {
+            type: 'string',
+            enum: ['active', 42, true, null, { nested: true }, 'inactive'],
+            example: 'active',
+          },
+        },
+      ],
+    }])
+
+    const param = result[0]!.parameters[0]!
+    // Only string and number values survive
+    expect(param.enum).toEqual(['active', 42, 'inactive'])
+    expect(param.example).toBe('active')
+  })
+
+  it('drops non-string/number example values', () => {
+    const result = operationsToInference([{
+      id: 'get_item',
+      path: '/items/{id}',
+      method: 'get',
+      tags: [],
+      parameters: [
+        {
+          name: 'id',
+          in: 'path',
+          required: true,
+          schema: { type: 'string', example: { nested: true } },
+        },
+      ],
+    }])
+
+    const param = result[0]!.parameters[0]!
+    expect(param.example).toBeUndefined()
+  })
 })
 
 describe('extractFieldsFromSchema', () => {

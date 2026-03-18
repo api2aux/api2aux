@@ -80,6 +80,37 @@ describe('buildOperationGraph', () => {
     expect(createToDetail).toBeDefined()
   })
 
+  it('includes pre-computed runtime edges in the graph', () => {
+    const operations: InferenceOperation[] = [
+      op({
+        id: 'get_skill',
+        path: '/skills/{index}',
+        tags: ['skills'],
+        parameters: [{ name: 'index', in: 'path', type: 'string', required: true }],
+      }),
+      op({
+        id: 'get_ability_score',
+        path: '/ability-scores/{index}',
+        tags: ['ability-scores'],
+        parameters: [{ name: 'index', in: 'path', type: 'string', required: true }],
+      }),
+    ]
+
+    const runtimeEdges = [{
+      sourceId: 'get_skill',
+      targetId: 'get_ability_score',
+      bindings: [{ sourceField: 'ability_score.index', targetParam: 'index', targetParamIn: 'path', confidence: 0.80 }],
+      score: 0.32,
+      signals: [{ signal: 'runtime-value-match' as const, weight: 0.40, matched: true, detail: 'ability_score.index → index (0.80)' }],
+    }]
+
+    const graph = buildOperationGraph(operations, undefined, runtimeEdges)
+
+    const edge = graph.edges.find(e => e.sourceId === 'get_skill' && e.targetId === 'get_ability_score')
+    expect(edge).toBeDefined()
+    expect(edge!.signals.some(s => s.signal === 'runtime-value-match')).toBe(true)
+  })
+
   it('filters out low-score edges', () => {
     const operations: InferenceOperation[] = [
       op({
