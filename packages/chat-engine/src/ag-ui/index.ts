@@ -3,5 +3,26 @@
  * Maps ChatEngine events to the AG-UI event stream protocol.
  */
 
-// Placeholder — will be populated in Phase 4
-export {}
+// === Types ===
+export type {
+  AgUiBaseEvent,
+  AgUiRunStartedEvent,
+  AgUiRunFinishedEvent,
+  AgUiRunErrorEvent,
+  AgUiTextMessageStartEvent,
+  AgUiTextMessageContentEvent,
+  AgUiTextMessageEndEvent,
+  AgUiToolCallStartEvent,
+  AgUiToolCallArgsEvent,
+  AgUiToolCallEndEvent,
+  AgUiToolCallResultEvent,
+  AgUiStateSnapshotEvent,
+  AgUiEvent,
+  AgUiRunInput,
+} from './types'
+
+export { AgUiEventType, AgUiRole } from './types'
+
+// === Adapter ===
+export type { AgUiAgent } from './adapter'
+export { createAgent, mapEvent } from './adapter'
