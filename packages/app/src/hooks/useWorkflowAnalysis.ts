@@ -36,7 +36,7 @@ export interface RelatedOperation {
 
 /**
  * Compute workflow analysis for a parsed API spec.
- * Memoized — recomputes when spec or runtime probes change.
+ * Memoized — recomputes when spec or runtime edges change.
  */
 export function useWorkflowAnalysis(
   parsedSpec: ParsedAPI | null,
@@ -144,6 +144,8 @@ export function useWorkflowAnalysis(
 
       return { graph, workflows, operationWorkflows, relatedOperations }
     } catch (err) {
+      // Graceful degradation: sidebar "Depends on"/"Feeds into" sections
+      // simply won't appear. This is preferable to crashing the entire app.
       console.error('[useWorkflowAnalysis] Workflow analysis failed:', err)
       return null
     }

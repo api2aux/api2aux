@@ -49,6 +49,16 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-method-get: var(--method-get);
+  --color-method-post: var(--method-post);
+  --color-method-put: var(--method-put);
+  --color-method-patch: var(--method-patch);
+  --color-method-delete: var(--method-delete);
+  --color-method-get-bg: var(--method-get-bg);
+  --color-method-post-bg: var(--method-post-bg);
+  --color-method-put-bg: var(--method-put-bg);
+  --color-method-patch-bg: var(--method-patch-bg);
+  --color-method-delete-bg: var(--method-delete-bg);
 }
 
 :root {
@@ -86,6 +96,16 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --method-get: oklch(0.45 0.14 155);
+  --method-post: oklch(0.45 0.16 260);
+  --method-put: oklch(0.55 0.16 55);
+  --method-patch: oklch(0.55 0.14 85);
+  --method-delete: oklch(0.50 0.20 25);
+  --method-get-bg: oklch(0.94 0.03 155);
+  --method-post-bg: oklch(0.94 0.03 260);
+  --method-put-bg: oklch(0.94 0.03 55);
+  --method-patch-bg: oklch(0.94 0.03 85);
+  --method-delete-bg: oklch(0.94 0.03 25);
 }
 
 .dark {
@@ -122,6 +142,16 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --method-get: oklch(0.72 0.17 155);
+  --method-post: oklch(0.70 0.15 260);
+  --method-put: oklch(0.75 0.16 55);
+  --method-patch: oklch(0.80 0.15 90);
+  --method-delete: oklch(0.70 0.19 25);
+  --method-get-bg: oklch(0.22 0.04 155);
+  --method-post-bg: oklch(0.22 0.04 260);
+  --method-put-bg: oklch(0.22 0.04 55);
+  --method-patch-bg: oklch(0.22 0.04 90);
+  --method-delete-bg: oklch(0.22 0.04 25);
 }
 
 /* Midnight — deep navy with cool blue-gray accents */
@@ -159,6 +189,16 @@
   --sidebar-accent-foreground: oklch(0.93 0.01 260);
   --sidebar-border: oklch(0.30 0.02 260);
   --sidebar-ring: oklch(0.50 0.03 260);
+  --method-get: oklch(0.70 0.14 165);
+  --method-post: oklch(0.68 0.15 255);
+  --method-put: oklch(0.72 0.14 55);
+  --method-patch: oklch(0.78 0.13 90);
+  --method-delete: oklch(0.68 0.17 25);
+  --method-get-bg: oklch(0.22 0.04 165);
+  --method-post-bg: oklch(0.22 0.04 255);
+  --method-put-bg: oklch(0.22 0.04 55);
+  --method-patch-bg: oklch(0.22 0.04 90);
+  --method-delete-bg: oklch(0.22 0.04 25);
 }
 
 /* Forest — warm dark with green-tinted neutrals */
@@ -196,6 +236,16 @@
   --sidebar-accent-foreground: oklch(0.92 0.02 145);
   --sidebar-border: oklch(0.30 0.02 145);
   --sidebar-ring: oklch(0.50 0.06 155);
+  --method-get: oklch(0.68 0.16 155);
+  --method-post: oklch(0.68 0.14 260);
+  --method-put: oklch(0.72 0.15 55);
+  --method-patch: oklch(0.78 0.14 90);
+  --method-delete: oklch(0.68 0.18 25);
+  --method-get-bg: oklch(0.22 0.04 155);
+  --method-post-bg: oklch(0.22 0.04 260);
+  --method-put-bg: oklch(0.22 0.04 55);
+  --method-patch-bg: oklch(0.22 0.04 90);
+  --method-delete-bg: oklch(0.22 0.04 25);
 }
 
 /* Sand — warm light, paper-like (cream/tan) */
@@ -233,6 +283,16 @@
   --sidebar-accent-foreground: oklch(0.30 0.03 60);
   --sidebar-border: oklch(0.88 0.02 75);
   --sidebar-ring: oklch(0.60 0.04 60);
+  --method-get: oklch(0.45 0.12 155);
+  --method-post: oklch(0.42 0.14 260);
+  --method-put: oklch(0.50 0.15 50);
+  --method-patch: oklch(0.52 0.12 80);
+  --method-delete: oklch(0.48 0.18 25);
+  --method-get-bg: oklch(0.94 0.03 155);
+  --method-post-bg: oklch(0.94 0.03 260);
+  --method-put-bg: oklch(0.94 0.03 50);
+  --method-patch-bg: oklch(0.94 0.03 80);
+  --method-delete-bg: oklch(0.94 0.03 25);
 }
 
 /* Ocean — cool blue-gray light theme */
@@ -270,6 +330,16 @@
   --sidebar-accent-foreground: oklch(0.28 0.03 230);
   --sidebar-border: oklch(0.88 0.02 230);
   --sidebar-ring: oklch(0.55 0.05 230);
+  --method-get: oklch(0.42 0.12 155);
+  --method-post: oklch(0.42 0.15 245);
+  --method-put: oklch(0.52 0.15 55);
+  --method-patch: oklch(0.52 0.12 85);
+  --method-delete: oklch(0.48 0.19 25);
+  --method-get-bg: oklch(0.94 0.03 155);
+  --method-post-bg: oklch(0.94 0.03 245);
+  --method-put-bg: oklch(0.94 0.03 55);
+  --method-patch-bg: oklch(0.94 0.03 85);
+  --method-delete-bg: oklch(0.94 0.03 25);
 }
 
 /* Rose — warm pink-tinted light theme */
@@ -307,6 +377,16 @@
   --sidebar-accent-foreground: oklch(0.30 0.03 350);
   --sidebar-border: oklch(0.88 0.02 350);
   --sidebar-ring: oklch(0.55 0.18 350);
+  --method-get: oklch(0.45 0.13 155);
+  --method-post: oklch(0.42 0.14 260);
+  --method-put: oklch(0.52 0.14 55);
+  --method-patch: oklch(0.52 0.12 85);
+  --method-delete: oklch(0.48 0.20 350);
+  --method-get-bg: oklch(0.94 0.03 155);
+  --method-post-bg: oklch(0.94 0.03 260);
+  --method-put-bg: oklch(0.94 0.03 55);
+  --method-patch-bg: oklch(0.94 0.03 85);
+  --method-delete-bg: oklch(0.94 0.03 350);
 }
 
 /* Slate — cool dark gray with blue undertones */
@@ -344,6 +424,16 @@
   --sidebar-accent-foreground: oklch(0.93 0.005 260);
   --sidebar-border: oklch(0.32 0.005 260);
   --sidebar-ring: oklch(0.50 0.01 260);
+  --method-get: oklch(0.68 0.12 155);
+  --method-post: oklch(0.65 0.10 260);
+  --method-put: oklch(0.72 0.12 55);
+  --method-patch: oklch(0.75 0.10 90);
+  --method-delete: oklch(0.66 0.15 25);
+  --method-get-bg: oklch(0.22 0.04 155);
+  --method-post-bg: oklch(0.22 0.04 260);
+  --method-put-bg: oklch(0.22 0.04 55);
+  --method-patch-bg: oklch(0.22 0.04 90);
+  --method-delete-bg: oklch(0.22 0.04 25);
 }
 
 /* Sunset — warm amber/orange light theme */
@@ -381,6 +471,16 @@
   --sidebar-accent-foreground: oklch(0.30 0.04 40);
   --sidebar-border: oklch(0.88 0.025 50);
   --sidebar-ring: oklch(0.60 0.20 40);
+  --method-get: oklch(0.42 0.14 155);
+  --method-post: oklch(0.42 0.16 260);
+  --method-put: oklch(0.52 0.18 45);
+  --method-patch: oklch(0.50 0.14 80);
+  --method-delete: oklch(0.50 0.22 30);
+  --method-get-bg: oklch(0.94 0.03 155);
+  --method-post-bg: oklch(0.94 0.03 260);
+  --method-put-bg: oklch(0.94 0.03 45);
+  --method-patch-bg: oklch(0.94 0.03 80);
+  --method-delete-bg: oklch(0.94 0.03 30);
 }
 
 /* Nord — arctic blue-gray dark theme */
@@ -418,6 +518,16 @@
   --sidebar-accent-foreground: oklch(0.90 0.01 220);
   --sidebar-border: oklch(0.35 0.015 230);
   --sidebar-ring: oklch(0.55 0.06 220);
+  --method-get: oklch(0.68 0.12 155);
+  --method-post: oklch(0.65 0.12 220);
+  --method-put: oklch(0.72 0.14 55);
+  --method-patch: oklch(0.78 0.12 90);
+  --method-delete: oklch(0.66 0.16 25);
+  --method-get-bg: oklch(0.22 0.04 155);
+  --method-post-bg: oklch(0.22 0.04 220);
+  --method-put-bg: oklch(0.22 0.04 55);
+  --method-patch-bg: oklch(0.22 0.04 90);
+  --method-delete-bg: oklch(0.22 0.04 25);
 }
 
 @layer base {

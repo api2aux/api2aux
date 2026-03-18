@@ -41,9 +41,15 @@ function getCached(key: string): DiscoveryResult | null {
   try {
     const raw = sessionStorage.getItem(CACHE_PREFIX + key)
     if (!raw) return null
-    return JSON.parse(raw) as DiscoveryResult
+    const parsed = JSON.parse(raw)
+    if (!parsed || !Array.isArray(parsed.edges) || !Array.isArray(parsed.probeResults)) {
+      sessionStorage.removeItem(CACHE_PREFIX + key)
+      return null
+    }
+    return parsed as DiscoveryResult
   } catch (err) {
     console.warn('[runtime-discovery] Cache read failed:', err)
+    sessionStorage.removeItem(CACHE_PREFIX + key)
     return null
   }
 }
@@ -136,17 +142,19 @@ export function useRuntimeDiscovery(parsedSpec: ParsedAPI | null) {
       setCache(key, discoveryResult)
     } catch (err) {
       if (controller.signal.aborted) return
-      setProgress({
+      console.error('[runtime-discovery] Discovery failed:', err)
+      setProgress(prev => ({
         status: 'error',
-        completed: 0,
-        total: 0,
+        completed: prev.status === 'running' ? prev.completed : 0,
+        total: prev.status === 'running' ? prev.total : 0,
         error: err instanceof Error ? err.message : 'Discovery failed',
-      })
+      }))
     }
   }, [parsedSpec])
 
   const cancel = useCallback(() => {
     abortRef.current?.abort()
+    setResult(null)
     setProgress({ status: 'idle' })
   }, [])
 

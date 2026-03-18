@@ -5,15 +5,9 @@ import { OperationItem } from './OperationItem'
 import { useWorkflowAnalysis } from '../../hooks/useWorkflowAnalysis'
 import type { RelatedOperation } from '../../hooks/useWorkflowAnalysis'
 import { useRuntimeDiscovery } from '../../hooks/useRuntimeDiscovery'
-import { ChevronDown, ChevronLeft, ChevronRight, Radar, Loader2 } from 'lucide-react'
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: 'text-green-700 dark:text-green-400',
-  POST: 'text-blue-700 dark:text-blue-400',
-  PUT: 'text-orange-700 dark:text-orange-400',
-  PATCH: 'text-yellow-700 dark:text-yellow-400',
-  DELETE: 'text-red-700 dark:text-red-400',
-}
+import { DiscoveryDialog } from '../DiscoveryDialog'
+import { ChevronLeft, Radar, Loader2 } from 'lucide-react'
+import { methodColorClass } from '../../lib/method-colors'
 
 interface SidebarProps {
   parsedSpec: ParsedAPI
@@ -32,7 +26,7 @@ function RelatedItem({ rel, onClick }: { rel: RelatedOperation; onClick: () => v
       title={rel.path}
     >
       <div className="flex items-baseline gap-1.5">
-        <span className={`text-[10px] font-semibold uppercase shrink-0 ${METHOD_COLORS[rel.method] ?? METHOD_COLORS.GET}`}>
+        <span className={`text-[10px] font-semibold uppercase shrink-0 ${methodColorClass(rel.method)}`}>
           {rel.method}
         </span>
         <span className="text-xs font-mono text-foreground truncate group-hover:underline">{displayPath}</span>
@@ -92,7 +86,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
   const { progress: discoveryProgress, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
   const workflowAnalysis = useWorkflowAnalysis(parsedSpec, runtimeEdges)
   const listRef = useRef<HTMLUListElement>(null)
-  const [relatedExpanded, setRelatedExpanded] = useState(true)
+  const [discoveryDialogOpen, setDiscoveryDialogOpen] = useState(false)
 
   // Group operations by tags
   const groupedOperations = useMemo(() => {
@@ -131,7 +125,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
 
   /** Render inline related card if this operation is selected */
   const renderInlineRelated = (index: number) => {
-    if (index !== selectedIndex || related.length === 0 || !relatedExpanded) return null
+    if (index !== selectedIndex || related.length === 0) return null
     return (
       <RelatedSection
         related={related}
@@ -165,59 +159,18 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
           <p className="text-xs text-muted-foreground">
             {parsedSpec.operations.length} endpoint{parsedSpec.operations.length !== 1 ? 's' : ''}
           </p>
-          <div className="flex items-center gap-2">
-            {/* Runtime discovery button */}
-            {discoveryProgress.status === 'idle' && (
-              <button
-                onClick={discover}
-                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
-                title="Probe API endpoints to discover cross-resource links"
-              >
-                <Radar className="w-3 h-3" />
-                Discover
-              </button>
+          <button
+            onClick={() => setDiscoveryDialogOpen(true)}
+            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+            title="View and discover relations between endpoints"
+          >
+            {discoveryProgress.status === 'running' ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Radar className="w-3 h-3" />
             )}
-            {discoveryProgress.status === 'running' && (
-              <button
-                onClick={cancel}
-                className="text-[10px] text-blue-500 flex items-center gap-0.5"
-                title={`Probing ${discoveryProgress.currentPath ?? '...'} (${discoveryProgress.completed}/${discoveryProgress.total})`}
-              >
-                <Loader2 className="w-3 h-3 animate-spin" />
-                {discoveryProgress.completed}/{discoveryProgress.total}
-              </button>
-            )}
-            {discoveryProgress.status === 'done' && probeResults && probeResults.length > 0 && (
-              <span
-                className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-0.5"
-                title={`Probed ${probeResults.filter(p => p.success).length} endpoints, found ${runtimeEdges?.length ?? 0} links`}
-              >
-                <Radar className="w-3 h-3" />
-                {runtimeEdges && runtimeEdges.length > 0 ? `${runtimeEdges.length} links` : 'Live'}
-              </span>
-            )}
-            {discoveryProgress.status === 'error' && (
-              <button
-                onClick={discover}
-                className="text-[10px] text-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-0.5"
-                title={discoveryProgress.error}
-              >
-                <Radar className="w-3 h-3" />
-                Retry
-              </button>
-            )}
-            {/* Toggle for inline related visibility */}
-            {related.length > 0 && (
-              <button
-                onClick={() => setRelatedExpanded(!relatedExpanded)}
-                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
-                title={relatedExpanded ? 'Hide related endpoints' : 'Show related endpoints'}
-              >
-                {relatedExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                Related
-              </button>
-            )}
-          </div>
+            {discoveryProgress.status === 'running' ? 'Discovering...' : 'Discover more relations'}
+          </button>
         </div>
       </div>
 
@@ -254,6 +207,17 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
         )}
       </ul>
 
+      <DiscoveryDialog
+        open={discoveryDialogOpen}
+        onClose={() => setDiscoveryDialogOpen(false)}
+        parsedSpec={parsedSpec}
+        progress={discoveryProgress}
+        probeResults={probeResults}
+        allEdges={workflowAnalysis?.graph.edges ?? []}
+        analysisAvailable={workflowAnalysis !== null}
+        onDiscover={discover}
+        onCancel={cancel}
+      />
     </nav>
   )
 }
