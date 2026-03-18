@@ -169,4 +169,6 @@ export interface RuntimeProbeResult {
   values: RuntimeProbeValue[]
   /** Whether the probe succeeded (false = network/auth error, skip). */
   success: boolean
+  /** Error message when success is false. */
+  error?: string
 }

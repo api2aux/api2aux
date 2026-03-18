@@ -213,8 +213,8 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
         parsedSpec={parsedSpec}
         progress={discoveryProgress}
         probeResults={probeResults}
-        edges={runtimeEdges}
         allEdges={workflowAnalysis?.graph.edges ?? []}
+        analysisAvailable={workflowAnalysis !== null}
         onDiscover={discover}
         onCancel={cancel}
       />

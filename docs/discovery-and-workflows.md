@@ -24,13 +24,13 @@ The inference engine runs multiple independent signal functions over the operati
 | `rest-convention` | RESTful patterns like list→detail | `/items` → `/items/{id}` |
 | `tag-proximity` | Operations share the same OpenAPI tag | Both tagged `Users` |
 | `name-similarity` | Field and param names are semantically similar | `authorId` ≈ `userId` |
-| `runtime-value-match` | Live response value matches target param (see Runtime Discovery below) | Response `"dex"` matches enum for `{index}` |
-
 Each signal has a weight (0.0–1.0) that contributes to the edge's aggregate score. Only matched signals contribute.
+
+> **Note:** `runtime-value-match` is not run by the static inference engine. It is produced externally by the runtime discovery pipeline (see below) and merged into the graph alongside the static signals.
 
 ### Edge Scoring
 
-An edge's raw score is computed as: `bestBindingConfidence × signalWeight`. When multiple signals match the same source→target pair (including both static and runtime signals), their raw scores are summed and the edges' bindings and signals are merged. After all edges are merged, scores are **normalized** to the 0.0–1.0 range (divided by the maximum raw score across all edges), then filtered by `EDGE_THRESHOLD` (0.15). This means an edge confirmed by both static analysis (e.g., `id-pattern`) and runtime discovery (`runtime-value-match`) will score higher than either signal alone.
+An edge's raw score is computed as: `bestBindingConfidence × signalWeight`. When multiple signals match the same source→target pair (including both static and runtime signals), their raw scores are summed (capped at `MAX_RAW_SCORE` = 1.5) and the edges' bindings and signals are merged. After merging, **plugin boosts** are applied — workflow pattern hints from plugins can add up to `MAX_PLUGIN_BOOST` (0.5) to matching edges. Scores are then **normalized** to the 0.0–1.0 range (divided by the maximum raw score across all edges), then filtered by `EDGE_THRESHOLD` (0.15). This means an edge confirmed by both static analysis (e.g., `id-pattern`) and runtime discovery (`runtime-value-match`) will score higher than either signal alone.
 
 ### Workflow Composition
 
@@ -54,7 +54,7 @@ The "Depends on" / "Feeds into" sections under selected endpoints come from stat
 
 ### Probe Selection
 
-The probe strategy (`probeStrategy.ts`) selects which endpoints to probe within a budget (default: **20 probes**).
+The probe strategy (`probeStrategy.ts`) selects which endpoints to probe within a budget. The `selectProbes` function defaults to 10, but the orchestrator (`runtimeDiscovery.ts`) overrides this to **20 probes**.
 
 **Eligibility:**
 - Only **GET** endpoints (no side effects)
@@ -112,7 +112,7 @@ This is by design — matching response values against optional query params wou
 
 ### Caching
 
-Discovery results are cached in `sessionStorage` keyed by a hash of the spec's identity (title, version, baseUrl, operation count, operation IDs). Results persist across dialog open/close and page navigation within the same session. Changing the loaded spec clears the cache.
+Discovery results are cached in `sessionStorage` keyed by the spec's identity (title, version, baseUrl, operation count, and a fingerprint hash of operation IDs). Results persist across dialog open/close and page navigation within the same session. Changing the loaded spec clears the cache.
 
 ## Discovery Dialog UI
 

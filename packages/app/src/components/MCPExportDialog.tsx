@@ -10,6 +10,7 @@ import type { Operation } from '@api2aux/semantic-analysis'
 import { generateToolName, generateToolDefinitions } from '@api2aux/tool-utils'
 import type { UnifiedToolDefinition } from '@api2aux/tool-utils'
 import { useWorkflowAnalysis } from '../hooks/useWorkflowAnalysis'
+import { methodColorClass } from '../lib/method-colors'
 
 type ExportFormat = 'claude-desktop' | 'claude-code' | 'cli'
 
@@ -485,12 +486,7 @@ export function MCPExportDialog({ open, onClose }: MCPExportDialogProps) {
                                 {({ open: opOpen }) => (
                                   <>
                                     <DisclosureButton className="flex items-start gap-2 px-3 py-2 rounded-lg hover:bg-muted/30 text-xs w-full text-left">
-                                      <span className={`shrink-0 font-mono font-bold w-10 ${
-                                        op.method === 'GET' ? 'text-green-500'
-                                          : op.method === 'POST' ? 'text-blue-500'
-                                          : op.method === 'PUT' ? 'text-amber-500'
-                                          : 'text-purple-500'
-                                      }`}>
+                                      <span className={`shrink-0 font-mono font-bold w-10 ${methodColorClass(op.method)}`}>
                                         {op.method}
                                       </span>
                                       <div className="min-w-0 flex-1">

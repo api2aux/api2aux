@@ -100,8 +100,9 @@ interface DiscoveryDialogProps {
   parsedSpec: ParsedAPI
   progress: DiscoveryProgress
   probeResults: RuntimeProbeResult[] | null
-  edges: OperationEdge[] | null
   allEdges: OperationEdge[]
+  /** Whether workflow analysis completed (false = analysis crashed, distinct from empty results) */
+  analysisAvailable: boolean
   onDiscover: () => void
   onCancel: () => void
 }
@@ -112,8 +113,8 @@ export function DiscoveryDialog({
   parsedSpec,
   progress,
   probeResults,
-  edges,
   allEdges,
+  analysisAvailable,
   onDiscover,
   onCancel,
 }: DiscoveryDialogProps) {
@@ -126,7 +127,6 @@ export function DiscoveryDialog({
   }, [parsedSpec.operations])
 
   const successCount = probeResults?.filter(p => p.success).length ?? 0
-  const runtimeEdgeCount = edges?.length ?? 0
 
   const matchableTargetCount = useMemo(() => {
     return parsedSpec.operations.filter(op =>
@@ -247,7 +247,7 @@ export function DiscoveryDialog({
                       <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
                       <span>
                         Probed {successCount} endpoint{successCount !== 1 ? 's' : ''}, found{' '}
-                        <span className="font-semibold">{runtimeEdgeCount} link{runtimeEdgeCount !== 1 ? 's' : ''}</span>
+                        <span className="font-semibold">{runtimeEdges.length} link{runtimeEdges.length !== 1 ? 's' : ''}</span>
                       </span>
                     </div>
 
@@ -298,6 +298,11 @@ export function DiscoveryDialog({
                                 <span className="font-mono text-foreground truncate">
                                   {op?.path ?? probe.operationId}
                                 </span>
+                                {!probe.success && probe.error && (
+                                  <span className="text-muted-foreground/60 truncate ml-auto" title={probe.error}>
+                                    {probe.error}
+                                  </span>
+                                )}
                               </div>
                             )
                           })}
@@ -339,7 +344,7 @@ export function DiscoveryDialog({
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground italic px-3 py-1.5">
-                    No static relations detected.
+                    {analysisAvailable ? 'No static relations detected.' : 'Static analysis unavailable.'}
                   </p>
                 )}
               </TabPanel>

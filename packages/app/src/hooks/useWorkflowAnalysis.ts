@@ -36,7 +36,7 @@ export interface RelatedOperation {
 
 /**
  * Compute workflow analysis for a parsed API spec.
- * Memoized — recomputes when spec or runtime probes change.
+ * Memoized — recomputes when spec or runtime edges change.
  */
 export function useWorkflowAnalysis(
   parsedSpec: ParsedAPI | null,
