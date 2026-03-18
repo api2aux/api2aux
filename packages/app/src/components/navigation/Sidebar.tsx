@@ -5,6 +5,7 @@ import { OperationItem } from './OperationItem'
 import { useWorkflowAnalysis } from '../../hooks/useWorkflowAnalysis'
 import type { RelatedOperation } from '../../hooks/useWorkflowAnalysis'
 import { useRuntimeDiscovery } from '../../hooks/useRuntimeDiscovery'
+import { DiscoveryDialog } from '../DiscoveryDialog'
 import { ChevronDown, ChevronLeft, ChevronRight, Radar, Loader2 } from 'lucide-react'
 
 const METHOD_COLORS: Record<string, string> = {
@@ -89,10 +90,11 @@ function RelatedSection({
 }
 
 export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: SidebarProps) {
-  const { progress: discoveryProgress, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
+  const { progress: discoveryProgress, result: discoveryResult, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
   const workflowAnalysis = useWorkflowAnalysis(parsedSpec, runtimeEdges)
   const listRef = useRef<HTMLUListElement>(null)
   const [relatedExpanded, setRelatedExpanded] = useState(true)
+  const [discoveryDialogOpen, setDiscoveryDialogOpen] = useState(false)
 
   // Group operations by tags
   const groupedOperations = useMemo(() => {
@@ -166,46 +168,30 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
             {parsedSpec.operations.length} endpoint{parsedSpec.operations.length !== 1 ? 's' : ''}
           </p>
           <div className="flex items-center gap-2">
-            {/* Runtime discovery button */}
-            {discoveryProgress.status === 'idle' && (
-              <button
-                onClick={discover}
-                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
-                title="Probe API endpoints to discover cross-resource links"
-              >
-                <Radar className="w-3 h-3" />
-                Discover
-              </button>
-            )}
-            {discoveryProgress.status === 'running' && (
-              <button
-                onClick={cancel}
-                className="text-[10px] text-blue-500 flex items-center gap-0.5"
-                title={`Probing ${discoveryProgress.currentPath ?? '...'} (${discoveryProgress.completed}/${discoveryProgress.total})`}
-              >
+            {/* Runtime discovery button — opens dialog */}
+            <button
+              onClick={() => setDiscoveryDialogOpen(true)}
+              className={`text-[10px] transition-colors flex items-center gap-0.5 ${
+                discoveryProgress.status === 'error'
+                  ? 'text-red-500 hover:text-red-600 dark:hover:text-red-400'
+                  : discoveryProgress.status === 'done'
+                    ? 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
+                    : discoveryProgress.status === 'running'
+                      ? 'text-blue-500'
+                      : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title="Probe API endpoints to discover cross-resource links"
+            >
+              {discoveryProgress.status === 'running' ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
-                {discoveryProgress.completed}/{discoveryProgress.total}
-              </button>
-            )}
-            {discoveryProgress.status === 'done' && probeResults && probeResults.length > 0 && (
-              <span
-                className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-0.5"
-                title={`Probed ${probeResults.filter(p => p.success).length} endpoints, found ${runtimeEdges?.length ?? 0} links`}
-              >
+              ) : (
                 <Radar className="w-3 h-3" />
-                {runtimeEdges && runtimeEdges.length > 0 ? `${runtimeEdges.length} links` : 'Live'}
-              </span>
-            )}
-            {discoveryProgress.status === 'error' && (
-              <button
-                onClick={discover}
-                className="text-[10px] text-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-0.5"
-                title={discoveryProgress.error}
-              >
-                <Radar className="w-3 h-3" />
-                Retry
-              </button>
-            )}
+              )}
+              {discoveryProgress.status === 'idle' && 'Discover'}
+              {discoveryProgress.status === 'running' && `${discoveryProgress.completed}/${discoveryProgress.total}`}
+              {discoveryProgress.status === 'done' && (runtimeEdges && runtimeEdges.length > 0 ? `${runtimeEdges.length} links` : 'Live')}
+              {discoveryProgress.status === 'error' && 'Error'}
+            </button>
             {/* Toggle for inline related visibility */}
             {related.length > 0 && (
               <button
@@ -254,6 +240,17 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
         )}
       </ul>
 
+      <DiscoveryDialog
+        open={discoveryDialogOpen}
+        onClose={() => setDiscoveryDialogOpen(false)}
+        parsedSpec={parsedSpec}
+        progress={discoveryProgress}
+        result={discoveryResult}
+        probeResults={probeResults}
+        edges={runtimeEdges}
+        onDiscover={discover}
+        onCancel={cancel}
+      />
     </nav>
   )
 }
