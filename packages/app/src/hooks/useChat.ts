@@ -1,120 +1,36 @@
 /**
- * Hook that manages the chat conversation loop:
- * 1. User sends message
- * 2. Call LLM with tool definitions
- * 3. If LLM returns tool_call → execute API call → send result back → get final text
- * 4. Display text + rendered API data
+ * React hook that wraps @api2aux/chat-engine's ChatEngine.
+ *
+ * This is a thin adapter that:
+ * - Injects app-specific dependencies (LLM providers, tool executor, auth)
+ * - Maps ChatEngine events to Zustand store actions (UI sync)
+ * - Manages UI messages (separate from the engine's LLM history)
  */
 
-import { useCallback } from 'react'
+import { useCallback, useRef, useMemo } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useChatStore } from '../store/chatStore'
 import { chatCompletionStream } from '../services/llm/client'
-import { buildToolsFromUrl, buildToolsFromSpec, buildSystemPrompt } from '../services/llm/toolBuilder'
+import { buildChatContext, ChatEngine, ChatEventType, MergeStrategy } from '@api2aux/chat-engine'
+import type { LLMCompletionFn, ToolExecutorFn, ChatEngineEvent } from '@api2aux/chat-engine'
 import { generateToolName } from '@api2aux/tool-utils'
+import { parseUrlParameters } from '../services/urlParser/parser'
 import { useParameterStore } from '../store/parameterStore'
 import { fetchWithAuth, credentialToAuth } from '../services/api/fetcher'
 import { executeOperation } from 'api-invoke'
 import { proxy } from '../services/api/proxy'
 import { useAuthStore } from '../store/authStore'
 import { inferSchema } from '../services/schema/inferrer'
-import type { ChatMessage, UIMessage, Tool, ToolResultEntry } from '../services/llm/types'
+import type { UIMessage } from '../services/llm/types'
 
 let messageCounter = 0
 function nextId(): string {
   return `msg-${Date.now()}-${++messageCounter}`
 }
 
-/** Generate a compact text summary for a tool result shown in the chat */
-function summarizeToolResult(
-  data: unknown,
-  toolName: string,
-  args: Record<string, unknown>,
-): string {
-  const argStr = Object.entries(args)
-    .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
-    .join(', ')
+// ── UI-only helpers (stay in the app) ──
 
-  let countInfo = ''
-  if (Array.isArray(data)) {
-    countInfo = ` → ${data.length} item${data.length !== 1 ? 's' : ''}`
-  } else if (data && typeof data === 'object') {
-    countInfo = ` → ${Object.keys(data).length} field${Object.keys(data).length !== 1 ? 's' : ''}`
-  }
-
-  return `${toolName}(${argStr})${countInfo} — updated main view`
-}
-
-/**
- * Execute a tool call by making the actual API request.
- * For raw URLs: calls the exact endpoint with adjusted query params only.
- * For OpenAPI: delegates to executeOperation with the matched operation.
- */
-async function executeToolCall(
-  toolName: string,
-  args: Record<string, unknown>,
-  apiUrl: string,
-): Promise<unknown> {
-  const parsedUrl = new URL(apiUrl)
-  const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname.replace(/\/$/, '')}`
-
-  if (toolName === 'query_api') {
-    // Raw URL mode: call the exact endpoint, only adjusting query params.
-    // Start with the original URL's query params (e.g. api_key, auth tokens)
-    // then let the LLM's args override/add to them.
-    const queryParams = new URLSearchParams(parsedUrl.search)
-    for (const [key, value] of Object.entries(args)) {
-      if (value !== undefined && value !== '') {
-        queryParams.set(key, String(value))
-      }
-    }
-    const qs = queryParams.toString()
-    const targetUrl = qs ? `${baseUrl}?${qs}` : baseUrl
-
-    return fetchWithAuth(targetUrl)
-  }
-
-  // Spec mode: use executeOperation which handles buildBody hooks (GraphQL),
-  // CORS proxy, auth injection, and proper body serialization
-  const parsedSpec = useAppStore.getState().parsedSpec
-  if (parsedSpec) {
-    const operation = parsedSpec.operations.find(op =>
-      generateToolName(op) === toolName
-    )
-
-    if (operation) {
-      // Build args: if operation has buildBody (GraphQL), body fields go as top-level args;
-      // otherwise parse args.body string back into the body key
-      const execArgs: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(args)) {
-        if (k === 'body') continue
-        execArgs[k] = v
-      }
-      if (args.body) {
-        const parsed = typeof args.body === 'string' ? JSON.parse(args.body as string) : args.body
-        if (operation.buildBody && typeof parsed === 'object' && parsed !== null) {
-          Object.assign(execArgs, parsed)
-        } else {
-          execArgs.body = parsed
-        }
-      }
-
-      const credential = useAuthStore.getState().getActiveCredential(parsedSpec.baseUrl)
-      const result = await executeOperation(parsedSpec.baseUrl, operation, execArgs, {
-        auth: credential ? credentialToAuth(credential) : undefined,
-        middleware: [proxy],
-      })
-      return result.data
-    }
-  }
-
-  // Fallback: just call the base URL
-  return fetchWithAuth(apiUrl)
-}
-
-/** Sync the UI operation selector + parameter chips to reflect a chat tool call.
- *  Sets selectedOperationIndex without clearing data (unlike setSelectedOperation). */
+/** Sync the UI operation selector + parameter chips to reflect a chat tool call. */
 function syncOperationUI(toolName: string, toolArgs: Record<string, unknown>) {
   const state = useAppStore.getState()
   const { parsedSpec } = state
@@ -123,10 +39,8 @@ function syncOperationUI(toolName: string, toolArgs: Record<string, unknown>) {
   const opIndex = parsedSpec.operations.findIndex(op => generateToolName(op) === toolName)
   if (opIndex < 0) return
 
-  // Set index directly — don't use setSelectedOperation which clears data/schema
   useAppStore.setState({ selectedOperationIndex: opIndex })
 
-  // Set parameter values so filter chips and URL preview appear
   const operation = parsedSpec.operations[opIndex]!
   const endpoint = `${parsedSpec.baseUrl}${operation.path}`
   const paramValues: Record<string, string> = {}
@@ -140,18 +54,16 @@ function syncOperationUI(toolName: string, toolArgs: Record<string, unknown>) {
   }
 }
 
-/** Auto-select the tab whose name best matches the LLM response text */
+/** Auto-select the tab whose name best matches the LLM response text. */
 function autoSelectTab(data: unknown, responseText: string) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return
 
-  // Extract nested (non-primitive) field names — these become tab names
   const fields = Object.entries(data as Record<string, unknown>)
     .filter(([, v]) => v !== null && typeof v === 'object')
     .map(([k]) => k)
 
-  if (fields.length < 2) return // no tabs or only one tab — nothing to select
+  if (fields.length < 2) return
 
-  // Tokenize: split camelCase/snake_case into lowercase words
   const tokenize = (s: string) =>
     s.toLowerCase()
       .replace(/([a-z])([A-Z])/g, '$1 $2')
@@ -177,18 +89,97 @@ function autoSelectTab(data: unknown, responseText: string) {
   }
 }
 
-// LLM-format history that preserves tool_calls and tool responses.
-let llmHistory: ChatMessage[] = []
+// ── Tool executor (app-specific, injected into engine) ──
+
+function createToolExecutor(apiUrl: string): ToolExecutorFn {
+  return async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
+    const parsedUrl = new URL(apiUrl)
+    const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname.replace(/\/$/, '')}`
+
+    if (toolName === 'query_api') {
+      const queryParams = new URLSearchParams(parsedUrl.search)
+      for (const [key, value] of Object.entries(args)) {
+        if (value !== undefined && value !== '') {
+          queryParams.set(key, String(value))
+        }
+      }
+      const qs = queryParams.toString()
+      const targetUrl = qs ? `${baseUrl}?${qs}` : baseUrl
+      return fetchWithAuth(targetUrl)
+    }
+
+    const parsedSpec = useAppStore.getState().parsedSpec
+    if (parsedSpec) {
+      const operation = parsedSpec.operations.find(op => generateToolName(op) === toolName)
+
+      if (operation) {
+        const execArgs: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(args)) {
+          if (k === 'body') continue
+          execArgs[k] = v
+        }
+        if (args.body) {
+          const parsed = typeof args.body === 'string' ? JSON.parse(args.body as string) : args.body
+          if (operation.buildBody && typeof parsed === 'object' && parsed !== null) {
+            Object.assign(execArgs, parsed)
+          } else {
+            execArgs.body = parsed
+          }
+        }
+
+        const credential = useAuthStore.getState().getActiveCredential(parsedSpec.baseUrl)
+        const result = await executeOperation(parsedSpec.baseUrl, operation, execArgs, {
+          auth: credential ? credentialToAuth(credential) : undefined,
+          middleware: [proxy],
+        })
+        return result.data
+      }
+    }
+
+    return fetchWithAuth(apiUrl)
+  }
+}
+
+// ── Hook ──
 
 export function useChat() {
   const url = useAppStore((s) => s.url)
   const parsedSpec = useAppStore((s) => s.parsedSpec)
   const { messages, addMessage, updateMessage, clearMessages: storeClearMessages, config, sending, setSending, setChatApiUrl } = useChatStore()
 
-  // Wrap clearMessages to also reset LLM history
+  const engineRef = useRef<ChatEngine | null>(null)
+
+  // Create LLM function by closing over config
+  const llmFn: LLMCompletionFn = useMemo(() => {
+    return (messages, tools, onToken) =>
+      chatCompletionStream(messages, tools, config, onToken)
+  }, [config])
+
+  // Build context from current URL/spec
+  const context = useMemo(() => {
+    if (!url) return null
+    const urlParams = parseUrlParameters(url).parameters
+    return buildChatContext(url, parsedSpec ?? null, urlParams)
+  }, [url, parsedSpec])
+
+  // Create or update engine when dependencies change
+  const getEngine = useCallback(() => {
+    if (!url || !context) return null
+
+    if (!engineRef.current) {
+      const executor = createToolExecutor(url)
+      engineRef.current = new ChatEngine(llmFn, executor, context, {
+        mergeStrategy: MergeStrategy.Array, // UI handles rendering; array is simplest
+      })
+    } else {
+      engineRef.current.setContext(context)
+    }
+    return engineRef.current
+  }, [url, context, llmFn])
+
   const clearMessages = useCallback(() => {
     storeClearMessages()
-    llmHistory = []
+    engineRef.current?.clearHistory()
   }, [storeClearMessages])
 
   const sendMessage = useCallback(async (text: string) => {
@@ -204,12 +195,15 @@ export function useChat() {
       return
     }
 
+    const engine = getEngine()
+    if (!engine) return
+
     // Track which API this chat belongs to
     if (messages.length === 0) {
       setChatApiUrl(url?.split('?')[0] ?? '')
     }
 
-    // Add user message
+    // Add user message to UI
     const userMsg: UIMessage = {
       id: nextId(),
       role: 'user',
@@ -229,140 +223,63 @@ export function useChat() {
     })
 
     setSending(true)
+    let streamedText = ''
 
     try {
-      // Build tools and system prompt
-      const tools: Tool[] = parsedSpec
-        ? buildToolsFromSpec(parsedSpec)
-        : buildToolsFromUrl(url)
-
-      const systemPrompt = buildSystemPrompt(url, parsedSpec)
-
-      // Add the new user message to LLM history
-      llmHistory.push({ role: 'user', content: text.trim() })
-
-      // Tool calling loop with streaming: allow up to MAX_ROUNDS of LLM→tool→LLM cycles.
-      // Each round streams text tokens to the UI. If tool_calls come back instead,
-      // execute them and loop again.
-      const MAX_ROUNDS = 3
-      let roundCount = 0
-      const collectedResults: ToolResultEntry[] = []
-
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const llmMessages: ChatMessage[] = [
-          { role: 'system', content: systemPrompt },
-          ...llmHistory,
-        ]
-        // On last allowed round, send no tools to force a text response
-        const roundTools = roundCount >= MAX_ROUNDS ? [] : tools
-
-        // Stream the response — text tokens update the UI live
-        let streamedText = ''
-        const streamResult = await chatCompletionStream(
-          llmMessages,
-          roundTools,
-          config,
-          (token) => {
-            streamedText += token
+      const result = await engine.sendMessage(text.trim(), (event: ChatEngineEvent) => {
+        switch (event.type) {
+          case ChatEventType.Token:
+            streamedText += event.token
             updateMessage(assistantId, { text: streamedText })
-          },
-        )
+            break
 
-        // If no tool calls, this was the final text response
-        if (streamResult.tool_calls.length === 0) {
-          const responseText = streamResult.content || 'Done.'
-          llmHistory.push({ role: 'assistant', content: responseText })
-          updateMessage(assistantId, {
-            text: responseText,
-            loading: false,
-            ...(collectedResults.length > 0 ? { toolResults: collectedResults } : {}),
-          })
-
-          // Auto-select the most relevant tab based on the LLM response text
-          if (collectedResults.length > 0) {
-            const lastData = collectedResults[collectedResults.length - 1]!.data
-            autoSelectTab(lastData, responseText)
-          }
-          break
-        }
-
-        // Tool calls returned — execute them, then loop
-        roundCount++
-        const allToolCalls = streamResult.tool_calls
-
-        // Track assistant message with ALL tool_calls in LLM history
-        llmHistory.push({
-          role: 'assistant',
-          content: null,
-          tool_calls: allToolCalls,
-        })
-
-        // Execute ALL tool calls and collect responses
-        for (const toolCall of allToolCalls) {
-          const toolArgs = JSON.parse(toolCall.function.arguments)
-
-          updateMessage(assistantId, {
-            text: `Calling ${toolCall.function.name}...${allToolCalls.length > 1 ? ` (${allToolCalls.length} parallel calls)` : ''}`,
-            toolName: toolCall.function.name,
-            toolArgs,
-          })
-
-          let toolResult: unknown
-          try {
-            toolResult = await executeToolCall(toolCall.function.name, toolArgs, url)
-          } catch (err) {
-            // Must still add a tool response for this call_id
-            llmHistory.push({
-              role: 'tool',
-              content: `Error: ${err instanceof Error ? err.message : String(err)}`,
-              tool_call_id: toolCall.id,
+          case ChatEventType.ToolCallStart:
+            updateMessage(assistantId, {
+              text: `Calling ${event.toolName}...${event.parallelCount > 1 ? ` (${event.parallelCount} parallel calls)` : ''}`,
+              toolName: event.toolName,
+              toolArgs: event.toolArgs,
             })
+            syncOperationUI(event.toolName, event.toolArgs)
+            break
+
+          case ChatEventType.ToolCallResult: {
+            const toolSchema = inferSchema(event.data, url)
+            useAppStore.getState().fetchSuccess(event.data, toolSchema)
+
             addMessage({
               id: nextId(),
               role: 'tool-result',
-              text: `${toolCall.function.name} failed: ${err instanceof Error ? err.message : String(err)}`,
-              toolName: toolCall.function.name,
-              toolArgs,
+              text: `${event.summary} — updated main view`,
+              toolName: event.toolName,
+              toolArgs: event.toolArgs,
               timestamp: Date.now(),
             })
-            continue
+            break
           }
 
-          // Sync operation selection + parameter values so the UI shows what was called
-          syncOperationUI(toolCall.function.name, toolArgs)
-
-          // Push result to main view (last successful call wins)
-          const toolSchema = inferSchema(toolResult, url)
-          useAppStore.getState().fetchSuccess(toolResult, toolSchema)
-
-          const summary = summarizeToolResult(toolResult, toolCall.function.name, toolArgs)
-          collectedResults.push({
-            toolName: toolCall.function.name,
-            toolArgs,
-            data: toolResult,
-            summary,
-          })
-
-          addMessage({
-            id: nextId(),
-            role: 'tool-result',
-            text: summary,
-            toolName: toolCall.function.name,
-            toolArgs,
-            timestamp: Date.now(),
-          })
-
-          const truncatedResult = JSON.stringify(toolResult).slice(0, 8000)
-          llmHistory.push({
-            role: 'tool',
-            content: truncatedResult,
-            tool_call_id: toolCall.id,
-          })
+          case ChatEventType.ToolCallError:
+            addMessage({
+              id: nextId(),
+              role: 'tool-result',
+              text: `${event.toolName} failed: ${event.error}`,
+              toolName: event.toolName,
+              toolArgs: event.toolArgs,
+              timestamp: Date.now(),
+            })
+            break
         }
+      })
 
-        // Safety: if we've hit max rounds the next iteration will send no tools,
-        // forcing a text response
+      updateMessage(assistantId, {
+        text: result.text,
+        loading: false,
+        ...(result.toolResults.length > 0 ? { toolResults: result.toolResults } : {}),
+      })
+
+      // Auto-select the most relevant tab based on the response text
+      if (result.toolResults.length > 0) {
+        const lastData = result.toolResults[result.toolResults.length - 1]!.data
+        autoSelectTab(lastData, result.text)
       }
     } catch (err) {
       updateMessage(assistantId, {
@@ -373,13 +290,14 @@ export function useChat() {
     } finally {
       setSending(false)
     }
-  }, [url, parsedSpec, messages, config, sending, addMessage, updateMessage, setSending])
+  }, [url, parsedSpec, messages, config, sending, addMessage, updateMessage, setSending, getEngine])
 
   // Approximate context size for the UI indicator
+  const history = engineRef.current?.getHistory() ?? []
   const contextStats = {
-    messageCount: llmHistory.length,
+    messageCount: history.length,
     estimatedTokens: Math.ceil(
-      llmHistory.reduce((sum, m) => sum + (m.content?.length || 0), 0) / 4
+      history.reduce((sum, m) => sum + (m.content?.length || 0), 0) / 4
     ),
   }
 
@@ -390,6 +308,6 @@ export function useChat() {
     sending,
     hasApiKey: !!config.apiKey,
     contextStats,
-    llmHistory,
+    llmHistory: history as import('@api2aux/chat-engine').ChatMessage[],
   }
 }
