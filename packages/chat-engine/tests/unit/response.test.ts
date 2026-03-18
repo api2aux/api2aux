@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { formatStructuredResponse } from './response'
-import { MergeStrategy } from './types'
-import type { ToolResultEntry, LLMCompletionFn } from './types'
+import { formatStructuredResponse } from '../../src/response'
+import { MergeStrategy } from '../../src/types'
+import type { ToolResultEntry, LLMCompletionFn } from '../../src/types'
 
 const singleResult: ToolResultEntry[] = [
   {

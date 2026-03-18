@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mapEvent, createAgent } from './adapter'
-import { AgUiEventType, AgUiRole } from './types'
-import { ChatEventType, MergeStrategy } from '../types'
-import { ChatEngine } from '../engine'
+import { mapEvent, createAgent } from '../../../src/ag-ui/adapter'
+import { AgUiEventType, AgUiRole } from '../../../src/ag-ui/types'
+import { ChatEventType, MergeStrategy } from '../../../src/types'
+import { ChatEngine } from '../../../src/engine'
 import type {
   ChatEngineEvent,
   LLMCompletionFn,
@@ -10,8 +10,8 @@ import type {
   ChatEngineContext,
   Tool,
   StreamResult,
-} from '../types'
-import type { AgUiEvent } from './types'
+} from '../../../src/types'
+import type { AgUiEvent } from '../../../src/ag-ui/types'
 
 // ── Test helpers ──
 

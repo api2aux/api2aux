@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { truncateToolResult, summarizeToolResult } from './truncation'
+import { truncateToolResult, summarizeToolResult } from '../../src/truncation'
 
 describe('truncateToolResult', () => {
   it('returns JSON within the limit', () => {

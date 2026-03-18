@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildToolsFromUrl, buildToolsFromSpec, buildSystemPrompt, buildChatContext } from './context'
-import type { ApiSpec } from './types'
+import { buildToolsFromUrl, buildToolsFromSpec, buildSystemPrompt, buildChatContext } from '../../src/context'
+import type { ApiSpec } from '../../src/types'
 
 const minimalSpec: ApiSpec = {
   title: 'Test API',

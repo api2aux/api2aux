@@ -130,6 +130,7 @@ function detectPaginationHints(spec: ApiSpec): string | null {
 
   for (const op of spec.operations) {
     for (const param of op.parameters) {
+      if (!param.name) continue
       const lower = param.name.toLowerCase()
       if (PAGINATION_PARAM_NAMES.has(lower)) {
         if (!paginationParams.has(param.name)) {
@@ -164,6 +165,7 @@ function detectSearchHints(spec: ApiSpec): string | null {
     const filterParams: string[] = []
 
     for (const param of op.parameters) {
+      if (!param.name) continue
       const lower = param.name.toLowerCase()
       if (SEARCH_PARAM_NAMES.has(lower)) {
         searchParam = param.name

@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { ChatEngine } from './engine'
-import { ChatEventType, MergeStrategy } from './types'
-import { NO_DATA_MESSAGE } from './defaults'
+import { ChatEngine } from '../../src/engine'
+import { ChatEventType, MergeStrategy } from '../../src/types'
+import { NO_DATA_MESSAGE } from '../../src/defaults'
 import type {
   ChatEnginePlugin,
   LLMCompletionFn,
@@ -15,7 +15,7 @@ import type {
   ChatEngineEvent,
   Tool,
   StreamResult,
-} from './types'
+} from '../../src/types'
 
 // ── Test fixtures ──
 
