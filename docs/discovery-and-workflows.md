@@ -30,7 +30,7 @@ Each signal has a weight (0.0–1.0) that contributes to the edge's aggregate sc
 
 ### Edge Scoring
 
-An edge's raw score is computed as: `bestBindingConfidence × signalWeight`. When multiple signals match the same source→target pair (including both static and runtime signals), their raw scores are summed (capped at `MAX_RAW_SCORE` = 1.5) and the edges' bindings and signals are merged. After merging, **plugin boosts** are applied — workflow pattern hints from plugins can add up to `MAX_PLUGIN_BOOST` (0.5) to matching edges. Scores are then **normalized** to the 0.0–1.0 range (divided by the maximum raw score across all edges), then filtered by `EDGE_THRESHOLD` (0.15). This means an edge confirmed by both static analysis (e.g., `id-pattern`) and runtime discovery (`runtime-value-match`) will score higher than either signal alone.
+An edge's raw score is computed as: `bestBindingConfidence × signalWeight`. When multiple signals match the same source→target pair (including both static and runtime signals), their raw scores are summed (capped at `MAX_RAW_SCORE` = 1.5) and the edges' bindings and signals are merged. After merging, **plugin boosts** are applied — workflow pattern hints from plugins can add up to `MAX_PLUGIN_BOOST` (0.5) to matching edges. Scores are then **normalized** to the 0.0–1.0 range (divided by the maximum score across all edges), then filtered by `EDGE_THRESHOLD` (0.15). This means an edge confirmed by both static analysis (e.g., `id-pattern`) and runtime discovery (`runtime-value-match`) will score higher than either signal alone.
 
 ### Workflow Composition
 
