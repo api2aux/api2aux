@@ -6,15 +6,8 @@ import { useWorkflowAnalysis } from '../../hooks/useWorkflowAnalysis'
 import type { RelatedOperation } from '../../hooks/useWorkflowAnalysis'
 import { useRuntimeDiscovery } from '../../hooks/useRuntimeDiscovery'
 import { DiscoveryDialog } from '../DiscoveryDialog'
-import { ChevronDown, ChevronLeft, ChevronRight, Radar, Loader2 } from 'lucide-react'
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: 'text-green-700 dark:text-green-400',
-  POST: 'text-blue-700 dark:text-blue-400',
-  PUT: 'text-orange-700 dark:text-orange-400',
-  PATCH: 'text-yellow-700 dark:text-yellow-400',
-  DELETE: 'text-red-700 dark:text-red-400',
-}
+import { ChevronLeft, Radar, Loader2 } from 'lucide-react'
+import { METHOD_COLORS } from '../../lib/method-colors'
 
 interface SidebarProps {
   parsedSpec: ParsedAPI
@@ -93,7 +86,6 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
   const { progress: discoveryProgress, result: discoveryResult, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
   const workflowAnalysis = useWorkflowAnalysis(parsedSpec, runtimeEdges)
   const listRef = useRef<HTMLUListElement>(null)
-  const [relatedExpanded, setRelatedExpanded] = useState(true)
   const [discoveryDialogOpen, setDiscoveryDialogOpen] = useState(false)
 
   // Group operations by tags
@@ -133,7 +125,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
 
   /** Render inline related card if this operation is selected */
   const renderInlineRelated = (index: number) => {
-    if (index !== selectedIndex || related.length === 0 || !relatedExpanded) return null
+    if (index !== selectedIndex || related.length === 0) return null
     return (
       <RelatedSection
         related={related}
@@ -167,43 +159,18 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
           <p className="text-xs text-muted-foreground">
             {parsedSpec.operations.length} endpoint{parsedSpec.operations.length !== 1 ? 's' : ''}
           </p>
-          <div className="flex items-center gap-2">
-            {/* Runtime discovery button — opens dialog */}
-            <button
-              onClick={() => setDiscoveryDialogOpen(true)}
-              className={`text-[10px] transition-colors flex items-center gap-0.5 ${
-                discoveryProgress.status === 'error'
-                  ? 'text-red-500 hover:text-red-600 dark:hover:text-red-400'
-                  : discoveryProgress.status === 'done'
-                    ? 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
-                    : discoveryProgress.status === 'running'
-                      ? 'text-blue-500'
-                      : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="Probe API endpoints to discover cross-resource links"
-            >
-              {discoveryProgress.status === 'running' ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Radar className="w-3 h-3" />
-              )}
-              {discoveryProgress.status === 'idle' && 'Discover'}
-              {discoveryProgress.status === 'running' && `${discoveryProgress.completed}/${discoveryProgress.total}`}
-              {discoveryProgress.status === 'done' && (runtimeEdges && runtimeEdges.length > 0 ? `${runtimeEdges.length} links` : 'Live')}
-              {discoveryProgress.status === 'error' && 'Error'}
-            </button>
-            {/* Toggle for inline related visibility */}
-            {related.length > 0 && (
-              <button
-                onClick={() => setRelatedExpanded(!relatedExpanded)}
-                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
-                title={relatedExpanded ? 'Hide related endpoints' : 'Show related endpoints'}
-              >
-                {relatedExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                Related
-              </button>
+          <button
+            onClick={() => setDiscoveryDialogOpen(true)}
+            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+            title="View and discover relations between endpoints"
+          >
+            {discoveryProgress.status === 'running' ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Radar className="w-3 h-3" />
             )}
-          </div>
+            {discoveryProgress.status === 'running' ? 'Discovering...' : 'Discover more relations'}
+          </button>
         </div>
       </div>
 
@@ -248,6 +215,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
         result={discoveryResult}
         probeResults={probeResults}
         edges={runtimeEdges}
+        allEdges={workflowAnalysis?.graph.edges ?? []}
         onDiscover={discover}
         onCancel={cancel}
       />
