@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Dialog, DialogPanel, DialogTitle, Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react'
+import { useMemo, useState } from 'react'
+import { Dialog, DialogPanel, DialogTitle, Disclosure, DisclosureButton, DisclosurePanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import { Radar, Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { Progress } from './ui/progress'
 import { METHOD_COLORS } from '../lib/method-colors'
@@ -163,198 +163,184 @@ export function DiscoveryDialog({
             </button>
           </div>
 
-          {/* Body */}
-          <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
-            {/* Static Discovery Section */}
-            <Disclosure defaultOpen>
-              {({ open: isOpen }) => (
-                <>
-                  <DisclosureButton className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                    Static Discovery ({staticEdges.length})
-                    <ChevronIcon open={isOpen} />
-                  </DisclosureButton>
-                  <DisclosurePanel className="mt-2 space-y-1">
-                    {staticEdges.length > 0 ? (
-                      staticEdges.map((edge, i) => (
-                        <EdgeRow key={`${edge.sourceId}-${edge.targetId}-${i}`} edge={edge} opMap={opMap} />
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic px-3 py-1.5">
-                        No static relations detected.
-                      </p>
-                    )}
-                  </DisclosurePanel>
-                </>
-              )}
-            </Disclosure>
+          {/* Tabs */}
+          <TabGroup defaultIndex={0} className="flex flex-col flex-1 min-h-0">
+            <TabList className="flex gap-1 px-6 pb-2 border-b border-border shrink-0">
+              <Tab className="px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none cursor-pointer data-[selected]:bg-muted data-[selected]:text-foreground text-muted-foreground hover:text-foreground">
+                Runtime
+              </Tab>
+              <Tab className="px-3 py-1.5 text-sm font-medium rounded-md transition-colors outline-none cursor-pointer data-[selected]:bg-muted data-[selected]:text-foreground text-muted-foreground hover:text-foreground">
+                Static ({staticEdges.length})
+              </Tab>
+            </TabList>
 
-            {/* Runtime Discovery Section */}
-            <Disclosure>
-              {({ open: isOpen }) => (
-                <>
-                  <DisclosureButton className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                    Runtime Discovery
-                    <ChevronIcon open={isOpen} />
-                  </DisclosureButton>
-                  <DisclosurePanel className="mt-2 space-y-4">
-                    {/* Idle state */}
-                    {progress.status === 'idle' && (
-                      <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                          Runtime discovery probes your API&apos;s GET endpoints with live requests to find
-                          cross-resource relationships that can&apos;t be inferred from the spec alone.
+            <TabPanels className="overflow-y-auto flex-1 min-h-0">
+              {/* Runtime Discovery Tab */}
+              <TabPanel className="px-6 py-4 space-y-4">
+                {/* Idle state */}
+                {progress.status === 'idle' && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Runtime discovery probes your API&apos;s GET endpoints with live requests to find
+                      cross-resource relationships that can&apos;t be inferred from the spec alone.
+                    </p>
+                    {matchableTargetCount === 0 ? (
+                      <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
+                        <p className="text-sm font-medium text-foreground">
+                          Not applicable for this API
                         </p>
-                        {matchableTargetCount === 0 ? (
-                          <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
-                            <p className="text-sm font-medium text-foreground">
-                              Not applicable for this API
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Runtime discovery matches response values against path parameters and required query
-                              parameters. This API&apos;s endpoints use only optional query filters, so runtime
-                              probing won&apos;t find additional links.
-                            </p>
-                          </div>
-                        ) : (
-                          <>
-                            <p className="text-xs text-muted-foreground">
-                              {parsedSpec.operations.filter(op => op.method === 'GET').length} GET endpoints
-                              available for probing, {matchableTargetCount} with matchable parameters.
-                            </p>
-                            <button
-                              onClick={onDiscover}
-                              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-                            >
-                              Start Discovery
-                            </button>
-                          </>
-                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Runtime discovery matches response values against path parameters and required query
+                          parameters. This API&apos;s endpoints use only optional query filters, so runtime
+                          probing won&apos;t find additional links.
+                        </p>
                       </div>
-                    )}
-
-                    {/* Running state */}
-                    {progress.status === 'running' && (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                          <span className="text-sm font-medium">
-                            Probing {progress.completed}/{progress.total}
-                          </span>
-                        </div>
-                        <Progress value={progress.total > 0 ? (progress.completed / progress.total) * 100 : 0} />
-                        {progress.currentPath && (
-                          <p className="text-xs text-muted-foreground font-mono truncate">
-                            {progress.currentPath}
-                          </p>
-                        )}
-                        <button
-                          onClick={onCancel}
-                          className="px-3 py-1.5 text-xs text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Done state */}
-                    {progress.status === 'done' && (
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-sm">
-                          <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                          <span>
-                            Probed {successCount} endpoint{successCount !== 1 ? 's' : ''}, found{' '}
-                            <span className="font-semibold">{runtimeEdgeCount} link{runtimeEdgeCount !== 1 ? 's' : ''}</span>
-                          </span>
-                        </div>
-
-                        {/* Probes disclosure */}
-                        {probeResults && probeResults.length > 0 && (
-                          <Disclosure>
-                            <DisclosureButton className="flex items-center justify-between w-full text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                              {({ open: probesOpen }) => (
-                                <>
-                                  Probes ({probeResults.length})
-                                  <ChevronIcon open={probesOpen} />
-                                </>
-                              )}
-                            </DisclosureButton>
-                            <DisclosurePanel className="mt-2 space-y-1">
-                              {probeResults.map((probe) => {
-                                const op = opMap.get(probe.operationId)
-                                return (
-                                  <div
-                                    key={probe.operationId}
-                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/30 text-xs"
-                                  >
-                                    {probe.success ? (
-                                      <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                                    ) : (
-                                      <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                                    )}
-                                    {op && (
-                                      <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[op.method] ?? METHOD_COLORS.GET}`}>
-                                        {op.method}
-                                      </span>
-                                    )}
-                                    <span className="font-mono text-foreground truncate">
-                                      {op?.path ?? probe.operationId}
-                                    </span>
-                                    {probe.success && (
-                                      <span className="text-muted-foreground ml-auto shrink-0">
-                                        {probe.values.length} value{probe.values.length !== 1 ? 's' : ''}
-                                      </span>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </DisclosurePanel>
-                          </Disclosure>
-                        )}
-
-                        {/* Runtime edges */}
-                        {runtimeEdges.length > 0 ? (
-                          <div className="space-y-1">
-                            {runtimeEdges.map((edge, i) => (
-                              <EdgeRow key={`rt-${edge.sourceId}-${edge.targetId}-${i}`} edge={edge} opMap={opMap} />
-                            ))}
-                          </div>
-                        ) : (
-                          probeResults && probeResults.some(p => p.success) && (
-                            <p className="text-sm text-muted-foreground italic">
-                              No cross-resource links discovered.
-                            </p>
-                          )
-                        )}
-
-                        <button
-                          onClick={onDiscover}
-                          className="px-3 py-1.5 text-xs text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors"
-                        >
-                          Re-run Discovery
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Error state */}
-                    {progress.status === 'error' && (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
-                          <span className="text-red-500">{progress.error}</span>
-                        </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          {parsedSpec.operations.filter(op => op.method === 'GET').length} GET endpoints
+                          available for probing, {matchableTargetCount} with matchable parameters.
+                        </p>
                         <button
                           onClick={onDiscover}
                           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                         >
-                          Retry
+                          Start Discovery
                         </button>
-                      </div>
+                      </>
                     )}
-                  </DisclosurePanel>
-                </>
-              )}
-            </Disclosure>
-          </div>
+                  </div>
+                )}
+
+                {/* Running state */}
+                {progress.status === 'running' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      <span className="text-sm font-medium">
+                        Probing {progress.completed}/{progress.total}
+                      </span>
+                    </div>
+                    <Progress value={progress.total > 0 ? (progress.completed / progress.total) * 100 : 0} />
+                    {progress.currentPath && (
+                      <p className="text-xs text-muted-foreground font-mono truncate">
+                        {progress.currentPath}
+                      </p>
+                    )}
+                    <button
+                      onClick={onCancel}
+                      className="px-3 py-1.5 text-xs text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {/* Done state */}
+                {progress.status === 'done' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                      <span>
+                        Probed {successCount} endpoint{successCount !== 1 ? 's' : ''}, found{' '}
+                        <span className="font-semibold">{runtimeEdgeCount} link{runtimeEdgeCount !== 1 ? 's' : ''}</span>
+                      </span>
+                    </div>
+
+                    {/* Runtime edges */}
+                    {runtimeEdges.length > 0 ? (
+                      <div className="space-y-1">
+                        {runtimeEdges.map((edge, i) => (
+                          <EdgeRow key={`rt-${edge.sourceId}-${edge.targetId}-${i}`} edge={edge} opMap={opMap} />
+                        ))}
+                      </div>
+                    ) : (
+                      probeResults && probeResults.some(p => p.success) && (
+                        <p className="text-sm text-muted-foreground italic">
+                          No cross-resource links discovered.
+                        </p>
+                      )
+                    )}
+
+                    {/* Probes disclosure — diagnostic detail, below results */}
+                    {probeResults && probeResults.length > 0 && (
+                      <Disclosure>
+                        <DisclosureButton className="flex items-center justify-between w-full text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          {({ open: probesOpen }) => (
+                            <>
+                              Probes ({probeResults.length})
+                              <ChevronIcon open={probesOpen} />
+                            </>
+                          )}
+                        </DisclosureButton>
+                        <DisclosurePanel className="mt-2 space-y-1">
+                          {probeResults.map((probe) => {
+                            const op = opMap.get(probe.operationId)
+                            return (
+                              <div
+                                key={probe.operationId}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/30 text-xs"
+                              >
+                                {probe.success ? (
+                                  <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                                ) : (
+                                  <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                                )}
+                                {op && (
+                                  <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[op.method] ?? METHOD_COLORS.GET}`}>
+                                    {op.method}
+                                  </span>
+                                )}
+                                <span className="font-mono text-foreground truncate">
+                                  {op?.path ?? probe.operationId}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </DisclosurePanel>
+                      </Disclosure>
+                    )}
+
+                    <button
+                      onClick={onDiscover}
+                      className="px-3 py-1.5 text-xs text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors"
+                    >
+                      Re-run Discovery
+                    </button>
+                  </div>
+                )}
+
+                {/* Error state */}
+                {progress.status === 'error' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                      <span className="text-red-500">{progress.error}</span>
+                    </div>
+                    <button
+                      onClick={onDiscover}
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </TabPanel>
+
+              {/* Static Discovery Tab */}
+              <TabPanel className="px-6 py-4 space-y-1">
+                {staticEdges.length > 0 ? (
+                  staticEdges.map((edge, i) => (
+                    <EdgeRow key={`${edge.sourceId}-${edge.targetId}-${i}`} edge={edge} opMap={opMap} />
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground italic px-3 py-1.5">
+                    No static relations detected.
+                  </p>
+                )}
+              </TabPanel>
+            </TabPanels>
+          </TabGroup>
 
           {/* Footer */}
           <div className="border-t border-border px-6 py-3 shrink-0 mt-auto">
