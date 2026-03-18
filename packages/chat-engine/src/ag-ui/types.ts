@@ -126,7 +126,7 @@ export type AgUiEvent =
 export interface AgUiRunInput {
   threadId: string
   runId: string
-  messages?: Array<{ role: string; content: string }>
+  messages?: Array<{ role: AgUiRole; content: string }>
   tools?: Tool[]
   context?: unknown
 }

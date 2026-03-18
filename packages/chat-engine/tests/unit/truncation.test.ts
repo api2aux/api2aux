@@ -8,10 +8,11 @@ describe('truncateToolResult', () => {
     expect(result).toBe(JSON.stringify(data))
   })
 
-  it('truncates JSON exceeding the limit', () => {
+  it('truncates JSON exceeding the limit and appends marker', () => {
     const data = { long: 'x'.repeat(200) }
     const result = truncateToolResult(data, 50)
-    expect(result.length).toBe(50)
+    expect(result).toMatch(/^\{.*\.\.\. \[truncated\]$/)
+    expect(result.startsWith(JSON.stringify(data).slice(0, 50))).toBe(true)
   })
 
   it('uses default limit when not specified', () => {

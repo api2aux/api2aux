@@ -7,6 +7,7 @@ import type {
   ToolExecutorFn,
   ChatEngineContext,
   ChatEngineEvent,
+  ChatEngineEventHandler,
   ChatEnginePlugin,
   StreamResult,
   Tool,
@@ -44,18 +45,6 @@ function toolCallResponse(name: string, args: Record<string, unknown>): StreamRe
     }],
     finish_reason: 'tool_calls',
   }
-}
-
-function collectEvents(handler: ChatEngineEventHandler): ChatEngineEvent[] {
-  const events: ChatEngineEvent[] = []
-  return new Proxy(events, {
-    get(target, prop) {
-      if (prop === 'handler') {
-        return (event: ChatEngineEvent) => { target.push(event) }
-      }
-      return Reflect.get(target, prop)
-    },
-  })
 }
 
 describe('ChatEngine', () => {

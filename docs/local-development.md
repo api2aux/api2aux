@@ -40,7 +40,7 @@ cd ../api2aux
 pnpm install
 
 # 4. Link local api-invoke (symlink, edits reflect instantly)
-pnpm link ../../../api-invoke
+pnpm link ../api-invoke
 
 # 5. Build all packages (needed for cross-package imports)
 pnpm run build
@@ -57,7 +57,7 @@ pnpm run dev
 
 ### How it works
 
-`pnpm link ../../../api-invoke` creates a symlink from `api2aux/node_modules/api-invoke` → `api-invoke/`. This means:
+`pnpm link ../api-invoke` creates a symlink from `api2aux/node_modules/api-invoke` → `api-invoke/`. This means:
 
 - Edits to `api-invoke/src/` are picked up after rebuilding (`pnpm run build` in api-invoke)
 - `api-invoke/dist/` is what gets imported — you need to rebuild after source changes
@@ -83,7 +83,7 @@ pnpm install
 Running `pnpm install` in `api2aux` can remove the symlink. Re-link afterwards:
 
 ```bash
-pnpm link ../../../api-invoke
+pnpm link ../api-invoke
 ```
 
 ## Available scripts

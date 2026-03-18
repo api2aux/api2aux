@@ -33,9 +33,9 @@ export function createScriptedLlm(steps: ScriptedStep[]): LLMCompletionFn {
     onToken: (token: string) => void,
   ): Promise<StreamResult> => {
     if (stepIndex >= steps.length) {
-      // Safety fallback: return empty text
-      onToken('Done.')
-      return { content: 'Done.', tool_calls: [], finish_reason: 'stop' }
+      throw new Error(
+        `Scripted LLM exhausted: expected ${steps.length} call(s) but received call #${stepIndex + 1}`,
+      )
     }
 
     const step = steps[stepIndex]!

@@ -3,8 +3,6 @@
  *
  * Manages multi-round LLM tool calling, event emission, plugin hooks,
  * and the no-LLM-knowledge guardrail.
- *
- * Extracted from packages/app/src/hooks/useChat.ts
  */
 
 import type {
@@ -46,13 +44,32 @@ export class ChatEngine {
     this.context = context
     this.plugins = plugins
     this.maxRounds = config?.maxRounds ?? MAX_ROUNDS
+
+    // Validate plugin IDs are unique
+    if (plugins) {
+      const ids = new Set<string>()
+      for (const p of plugins) {
+        if (ids.has(p.id)) throw new Error(`Duplicate plugin id: ${p.id}`)
+        ids.add(p.id)
+      }
+    }
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
   }
 
-  /** Get current conversation history (read-only copy). */
+  /** Get current conversation history (read-only view of the live array). */
   getHistory(): readonly ChatMessage[] {
     return this.history
+  }
+
+  /** Get current context. */
+  getContext(): ChatEngineContext {
+    return this.context
+  }
+
+  /** Update the LLM function (e.g., when user changes model/provider/API key). */
+  setLlm(llm: LLMCompletionFn): void {
+    this.llm = llm
   }
 
   /** Clear conversation history. */
@@ -82,19 +99,27 @@ export class ChatEngine {
     // 1. Push user message to history
     this.history.push({ role: MessageRole.User, content: text.trim() })
 
-    // 2. Apply plugin hooks
+    // Apply plugin hooks
     let systemPrompt = this.context.systemPrompt
     for (const plugin of this.plugins ?? []) {
       if (plugin.modifySystemPrompt) {
-        const modified = plugin.modifySystemPrompt(systemPrompt, this.context)
-        if (modified !== null) systemPrompt = modified
+        try {
+          const modified = plugin.modifySystemPrompt(systemPrompt, this.context)
+          if (modified !== null) systemPrompt = modified
+        } catch (err) {
+          console.error(`[chat-engine] Plugin "${plugin.id}" modifySystemPrompt threw:`, err instanceof Error ? err.message : String(err))
+        }
       }
     }
 
     let tools = [...this.context.tools]
     for (const plugin of this.plugins ?? []) {
       if (plugin.modifyTools) {
-        tools = plugin.modifyTools(tools, this.context)
+        try {
+          tools = plugin.modifyTools(tools, this.context)
+        } catch (err) {
+          console.error(`[chat-engine] Plugin "${plugin.id}" modifyTools threw:`, err instanceof Error ? err.message : String(err))
+        }
       }
     }
 
@@ -134,7 +159,7 @@ export class ChatEngine {
       if (streamResult.tool_calls.length === 0) {
         let responseText = streamResult.content || 'Done.'
 
-        // 4. No-LLM-knowledge guardrail
+        // Guardrail: override response when no tool calls succeeded
         if (collectedResults.length === 0) {
           responseText = NO_DATA_MESSAGE
         }
@@ -142,7 +167,11 @@ export class ChatEngine {
         // Apply plugin processResponse hooks
         for (const plugin of this.plugins ?? []) {
           if (plugin.processResponse) {
-            responseText = plugin.processResponse(responseText, collectedResults)
+            try {
+              responseText = plugin.processResponse(responseText, collectedResults)
+            } catch (err) {
+              console.error(`[chat-engine] Plugin "${plugin.id}" processResponse threw:`, err instanceof Error ? err.message : String(err))
+            }
           }
         }
 
@@ -185,9 +214,9 @@ export class ChatEngine {
         let toolArgs: Record<string, unknown>
         try {
           toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>
-        } catch {
-          // Malformed tool call arguments
-          const errorMsg = `Invalid JSON in tool arguments: ${toolCall.function.arguments}`
+        } catch (parseErr) {
+          const parseDetail = parseErr instanceof Error ? parseErr.message : ''
+          const errorMsg = `Invalid JSON in tool arguments (${parseDetail}): ${toolCall.function.arguments}`
           this.history.push({
             role: MessageRole.Tool,
             content: `Error: ${errorMsg}`,
@@ -195,6 +224,7 @@ export class ChatEngine {
           })
           onEvent({
             type: ChatEventType.ToolCallError,
+            toolCallId: toolCall.id,
             toolName: toolCall.function.name,
             toolArgs: {},
             error: errorMsg,
@@ -204,6 +234,7 @@ export class ChatEngine {
 
         onEvent({
           type: ChatEventType.ToolCallStart,
+          toolCallId: toolCall.id,
           toolName: toolCall.function.name,
           toolArgs,
           parallelCount: allToolCalls.length,
@@ -221,6 +252,7 @@ export class ChatEngine {
           })
           onEvent({
             type: ChatEventType.ToolCallError,
+            toolCallId: toolCall.id,
             toolName: toolCall.function.name,
             toolArgs,
             error: errorMsg,
@@ -231,7 +263,11 @@ export class ChatEngine {
         // Apply plugin processToolResult hooks
         for (const plugin of this.plugins ?? []) {
           if (plugin.processToolResult) {
-            toolResult = plugin.processToolResult(toolCall.function.name, toolResult)
+            try {
+              toolResult = plugin.processToolResult(toolCall.function.name, toolResult)
+            } catch (err) {
+              console.error(`[chat-engine] Plugin "${plugin.id}" processToolResult threw:`, err instanceof Error ? err.message : String(err))
+            }
           }
         }
 
@@ -245,6 +281,7 @@ export class ChatEngine {
 
         onEvent({
           type: ChatEventType.ToolCallResult,
+          toolCallId: toolCall.id,
           toolName: toolCall.function.name,
           toolArgs,
           data: toolResult,

@@ -5,7 +5,7 @@
  * Defines messages, tools, engine context, events, responses, and plugin interfaces.
  */
 
-// ── LLM Message Types (moved from app, OpenAI-compatible format) ──
+// ── LLM Message Types (OpenAI-compatible format) ──
 
 /** Chat message roles. */
 export const MessageRole = {
@@ -194,9 +194,9 @@ export type ChatEventType = typeof ChatEventType[keyof typeof ChatEventType]
 
 export type ChatEngineEvent =
   | { type: typeof ChatEventType.Token; token: string }
-  | { type: typeof ChatEventType.ToolCallStart; toolName: string; toolArgs: Record<string, unknown>; parallelCount: number }
-  | { type: typeof ChatEventType.ToolCallResult; toolName: string; toolArgs: Record<string, unknown>; data: unknown; summary: string }
-  | { type: typeof ChatEventType.ToolCallError; toolName: string; toolArgs: Record<string, unknown>; error: string }
+  | { type: typeof ChatEventType.ToolCallStart; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; parallelCount: number }
+  | { type: typeof ChatEventType.ToolCallResult; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; data: unknown; summary: string }
+  | { type: typeof ChatEventType.ToolCallError; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; error: string }
   | { type: typeof ChatEventType.TurnComplete; text: string; toolResults: ToolResultEntry[]; structured: StructuredResponse }
   | { type: typeof ChatEventType.Error; error: string }
 

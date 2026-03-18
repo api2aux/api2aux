@@ -6,11 +6,14 @@
 import { TRUNCATION_LIMIT } from './defaults'
 
 /**
- * Truncate a tool result to fit within the LLM context window.
- * Serializes to JSON and cuts at the character limit.
+ * Truncate a tool result's JSON serialization to a character limit.
+ * The result may be invalid JSON if truncated mid-value; a [truncated] marker
+ * is appended so the LLM knows the data is incomplete.
  */
 export function truncateToolResult(data: unknown, limit: number = TRUNCATION_LIMIT): string {
-  return JSON.stringify(data).slice(0, limit)
+  const json = JSON.stringify(data)
+  if (json.length <= limit) return json
+  return json.slice(0, limit) + '... [truncated]'
 }
 
 /**

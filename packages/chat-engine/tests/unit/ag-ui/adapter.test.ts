@@ -4,7 +4,6 @@ import { AgUiEventType, AgUiRole } from '../../../src/ag-ui/types'
 import { ChatEventType, MergeStrategy } from '../../../src/types'
 import { ChatEngine } from '../../../src/engine'
 import type {
-  ChatEngineEvent,
   LLMCompletionFn,
   ToolExecutorFn,
   ChatEngineContext,
@@ -47,12 +46,16 @@ function toolCallResponse(name: string, args: Record<string, unknown>): StreamRe
   }
 }
 
+function makeState() {
+  return { messageId: null as string | null, toolCallCounter: 0, toolCallIdMap: new Map<string, string>() }
+}
+
 describe('mapEvent', () => {
   const threadId = 'thread_1'
   const runId = 'run_1'
 
   it('maps Token event — starts message on first token', () => {
-    const state = { messageId: null as string | null, toolCallCounter: 0 }
+    const state = makeState()
 
     const events = mapEvent(
       { type: ChatEventType.Token, token: 'Hello' },
@@ -72,7 +75,7 @@ describe('mapEvent', () => {
   })
 
   it('maps Token event — no start on subsequent tokens', () => {
-    const state = { messageId: 'existing_id', toolCallCounter: 0 }
+    const state = { ...makeState(), messageId: 'existing_id' }
 
     const events = mapEvent(
       { type: ChatEventType.Token, token: ' world' },
@@ -86,10 +89,10 @@ describe('mapEvent', () => {
   })
 
   it('maps ToolCallStart to Start + Args + End', () => {
-    const state = { messageId: null, toolCallCounter: 0 }
+    const state = makeState()
 
     const events = mapEvent(
-      { type: ChatEventType.ToolCallStart, toolName: 'list_users', toolArgs: { limit: 10 }, parallelCount: 1 },
+      { type: ChatEventType.ToolCallStart, toolCallId: 'call_1', toolName: 'list_users', toolArgs: { limit: 10 }, parallelCount: 1 },
       state,
       threadId,
       runId,
@@ -108,11 +111,20 @@ describe('mapEvent', () => {
     }
   })
 
-  it('maps ToolCallResult', () => {
-    const state = { messageId: null, toolCallCounter: 1 }
+  it('maps ToolCallResult using toolCallId correlation', () => {
+    const state = makeState()
 
+    // First register a tool call via ToolCallStart
+    mapEvent(
+      { type: ChatEventType.ToolCallStart, toolCallId: 'call_abc', toolName: 'list_users', toolArgs: {}, parallelCount: 1 },
+      state,
+      threadId,
+      runId,
+    )
+
+    // Then map the result — should correlate via toolCallId
     const events = mapEvent(
-      { type: ChatEventType.ToolCallResult, toolName: 'list_users', toolArgs: {}, data: [{ id: 1 }], summary: 'ok' },
+      { type: ChatEventType.ToolCallResult, toolCallId: 'call_abc', toolName: 'list_users', toolArgs: {}, data: [{ id: 1 }], summary: 'ok' },
       state,
       threadId,
       runId,
@@ -122,14 +134,23 @@ describe('mapEvent', () => {
     expect(events[0]!.type).toBe(AgUiEventType.ToolCallResult)
     if (events[0]!.type === AgUiEventType.ToolCallResult) {
       expect(events[0]!.role).toBe(AgUiRole.Tool)
+      expect(events[0]!.toolCallId).toBe('tc_1')
     }
   })
 
   it('maps ToolCallError as ToolCallResult with error', () => {
-    const state = { messageId: null, toolCallCounter: 1 }
+    const state = makeState()
+
+    // Register the tool call
+    mapEvent(
+      { type: ChatEventType.ToolCallStart, toolCallId: 'call_err', toolName: 'list_users', toolArgs: {}, parallelCount: 1 },
+      state,
+      threadId,
+      runId,
+    )
 
     const events = mapEvent(
-      { type: ChatEventType.ToolCallError, toolName: 'list_users', toolArgs: {}, error: 'Network error' },
+      { type: ChatEventType.ToolCallError, toolCallId: 'call_err', toolName: 'list_users', toolArgs: {}, error: 'Network error' },
       state,
       threadId,
       runId,
@@ -143,7 +164,7 @@ describe('mapEvent', () => {
   })
 
   it('maps TurnComplete to MessageEnd + StateSnapshot + RunFinished', () => {
-    const state = { messageId: 'msg_1', toolCallCounter: 0 }
+    const state = { ...makeState(), messageId: 'msg_1' }
 
     const events = mapEvent(
       {
@@ -169,7 +190,7 @@ describe('mapEvent', () => {
   })
 
   it('maps TurnComplete without message end when no message was started', () => {
-    const state = { messageId: null, toolCallCounter: 0 }
+    const state = makeState()
 
     const events = mapEvent(
       {
@@ -190,7 +211,7 @@ describe('mapEvent', () => {
   })
 
   it('maps Error to RunError', () => {
-    const state = { messageId: null, toolCallCounter: 0 }
+    const state = makeState()
 
     const events = mapEvent(
       { type: ChatEventType.Error, error: 'Rate limited' },
@@ -224,7 +245,11 @@ describe('createAgent', () => {
     const agent = createAgent(engine)
 
     const events: AgUiEvent[] = []
-    for await (const event of agent.run({ threadId: 'thread_1', runId: 'run_1' })) {
+    for await (const event of agent.run({
+      threadId: 'thread_1',
+      runId: 'run_1',
+      messages: [{ role: AgUiRole.User, content: 'list users' }],
+    })) {
       events.push(event)
     }
 
@@ -259,7 +284,11 @@ describe('createAgent', () => {
     const agent = createAgent(engine)
 
     const events: AgUiEvent[] = []
-    for await (const event of agent.run({ threadId: 't', runId: 'r' })) {
+    for await (const event of agent.run({
+      threadId: 't',
+      runId: 'r',
+      messages: [{ role: AgUiRole.User, content: 'hello' }],
+    })) {
       events.push(event)
     }
 
@@ -270,6 +299,25 @@ describe('createAgent', () => {
     const errorEvent = events.find(e => e.type === AgUiEventType.RunError)
     if (errorEvent?.type === AgUiEventType.RunError) {
       expect(errorEvent.message).toBe('API error')
+    }
+  })
+
+  it('emits RUN_ERROR when no user message provided', async () => {
+    const llm: LLMCompletionFn = vi.fn()
+    const executor: ToolExecutorFn = vi.fn()
+
+    const engine = new ChatEngine(llm, executor, testContext)
+    const agent = createAgent(engine)
+
+    const events: AgUiEvent[] = []
+    for await (const event of agent.run({ threadId: 't', runId: 'r' })) {
+      events.push(event)
+    }
+
+    expect(events).toHaveLength(1)
+    expect(events[0]!.type).toBe(AgUiEventType.RunError)
+    if (events[0]!.type === AgUiEventType.RunError) {
+      expect(events[0]!.message).toContain('No user message')
     }
   })
 
@@ -302,7 +350,7 @@ describe('createAgent', () => {
       threadId: 't',
       runId: 'r',
       tools: [customTool],
-      messages: [{ role: 'user', content: 'use custom tool' }],
+      messages: [{ role: AgUiRole.User, content: 'use custom tool' }],
     })) {
       events.push(event)
     }
@@ -331,9 +379,9 @@ describe('createAgent', () => {
       threadId: 't',
       runId: 'r',
       messages: [
-        { role: 'user', content: 'first message' },
-        { role: 'assistant', content: 'reply' },
-        { role: 'user', content: 'latest question' },
+        { role: AgUiRole.User, content: 'first message' },
+        { role: AgUiRole.Assistant, content: 'reply' },
+        { role: AgUiRole.User, content: 'latest question' },
       ],
     })) {
       events.push(event)

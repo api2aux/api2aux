@@ -16,7 +16,7 @@ const ID_FIELD_PATTERNS = new Set(['id', '_id', 'uuid', 'slug', 'key', 'identifi
 
 function isIdField(name: string): boolean {
   const lower = name.toLowerCase()
-  return ID_FIELD_PATTERNS.has(lower) || lower.endsWith('_id') || lower.endsWith('id')
+  return ID_FIELD_PATTERNS.has(lower) || lower.endsWith('_id') || /(?:^|[a-z])Id$/.test(name)
 }
 
 /** Extract ID-like fields from a data object. */
@@ -124,8 +124,11 @@ async function mergeLlmGuided(
       sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
       data: parsed,
     }
-  } catch {
-    // Fall back to array if LLM merge fails
+  } catch (err) {
+    console.warn(
+      '[chat-engine] LLM-guided merge failed, falling back to array strategy:',
+      err instanceof Error ? err.message : String(err),
+    )
     return mergeArray(toolResults)
   }
 }
@@ -165,7 +168,9 @@ export async function formatStructuredResponse(
       if (llm && userMessage) {
         return mergeLlmGuided(toolResults, userMessage, llm)
       }
-      // Fall back to array if LLM is not available
+      console.warn(
+        '[chat-engine] LLM-guided merge requested but llm/userMessage not provided; falling back to array strategy',
+      )
       return mergeArray(toolResults)
 
     default:

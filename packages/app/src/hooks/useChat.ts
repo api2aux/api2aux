@@ -173,6 +173,7 @@ export function useChat() {
       })
     } else {
       engineRef.current.setContext(context)
+      engineRef.current.setLlm(llmFn)
     }
     return engineRef.current
   }, [url, context, llmFn])

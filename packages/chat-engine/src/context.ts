@@ -4,7 +4,6 @@
  * Builds LLM tool definitions and system prompts from API specs,
  * enrichment plugins, and workflow inference data.
  *
- * Moved from packages/app/src/services/llm/toolBuilder.ts
  */
 
 import type { Tool, ApiSpec, ApiOperation, ChatEngineContext } from './types'
@@ -316,7 +315,12 @@ function buildToolCatalog(spec: ApiSpec): string | null {
  * Build the system prompt that describes the API and instructs the LLM.
  */
 export function buildSystemPrompt(url: string, spec?: ApiSpec | null): string {
-  const hostname = new URL(url).hostname
+  let hostname: string
+  try {
+    hostname = new URL(url).hostname
+  } catch {
+    hostname = url
+  }
 
   if (spec) {
     const lines = [
@@ -379,7 +383,15 @@ export function buildSystemPrompt(url: string, spec?: ApiSpec | null): string {
       : base
   }
 
-  const parsedUrl = new URL(url)
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(url)
+  } catch {
+    return [
+      `You are a helpful assistant that queries the REST API at ${url} on behalf of the user.`,
+      `IMPORTANT: You MUST always call the tool to answer the user's question. NEVER answer from your own knowledge.`,
+    ].join(' ')
+  }
   const pathname = parsedUrl.pathname.replace(/\/$/, '')
 
   return [
