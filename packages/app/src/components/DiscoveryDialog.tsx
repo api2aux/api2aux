@@ -30,24 +30,28 @@ function EdgeRow({ edge, opMap }: { edge: OperationEdge; opMap: OpMap }) {
     <Disclosure>
       {({ open: edgeOpen }) => (
         <>
-          <DisclosureButton className="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg hover:bg-muted/30 text-xs text-left">
-            <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[source?.method ?? 'GET'] ?? METHOD_COLORS.GET}`}>
-              {source?.method ?? '?'}
+          <DisclosureButton className="flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full px-3 py-1.5 rounded-lg hover:bg-muted/30 text-xs text-left">
+            <span className="flex items-center gap-1.5 shrink-0">
+              <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[source?.method ?? 'GET'] ?? METHOD_COLORS.GET}`}>
+                {source?.method ?? '?'}
+              </span>
+              <span className="font-mono text-foreground">
+                {source?.path ?? edge.sourceId}
+              </span>
             </span>
-            <span className="font-mono text-foreground truncate">
-              {source?.path ?? edge.sourceId}
+            <span className="flex items-center gap-1.5 grow shrink-0">
+              <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[target?.method ?? 'GET'] ?? METHOD_COLORS.GET}`}>
+                {target?.method ?? '?'}
+              </span>
+              <span className="font-mono text-foreground">
+                {target?.path ?? edge.targetId}
+              </span>
+              <span className="text-muted-foreground ml-auto shrink-0 flex items-center gap-1">
+                {pct}%
+                <ChevronIcon open={edgeOpen} />
+              </span>
             </span>
-            <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
-            <span className={`font-mono font-bold shrink-0 ${METHOD_COLORS[target?.method ?? 'GET'] ?? METHOD_COLORS.GET}`}>
-              {target?.method ?? '?'}
-            </span>
-            <span className="font-mono text-foreground truncate">
-              {target?.path ?? edge.targetId}
-            </span>
-            <span className="text-muted-foreground ml-auto shrink-0">
-              {pct}%
-            </span>
-            <ChevronIcon open={edgeOpen} />
           </DisclosureButton>
           <DisclosurePanel className="ml-6 mr-3 mb-1 space-y-1">
             {edge.bindings.length > 0 && (
