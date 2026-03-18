@@ -61,6 +61,14 @@ export function DiscoveryDialog({
   const successCount = probeResults?.filter(p => p.success).length ?? 0
   const edgeCount = edges?.length ?? 0
 
+  // Count operations that have matchable target params (path or required query).
+  // If zero, runtime discovery is guaranteed to find 0 links.
+  const matchableTargetCount = useMemo(() => {
+    return parsedSpec.operations.filter(op =>
+      op.parameters.some(p => p.in === 'path' || (p.in === 'query' && p.required))
+    ).length
+  }, [parsedSpec.operations])
+
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
@@ -93,16 +101,34 @@ export function DiscoveryDialog({
                   Runtime discovery probes your API&apos;s GET endpoints with live requests to find
                   cross-resource relationships that can&apos;t be inferred from the spec alone.
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {parsedSpec.operations.filter(op => op.method === 'GET').length} GET endpoints
-                  available for probing.
-                </p>
-                <button
-                  onClick={onDiscover}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-                >
-                  Start Discovery
-                </button>
+                {matchableTargetCount === 0 ? (
+                  <>
+                    <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
+                      <p className="text-sm font-medium text-foreground">
+                        Not applicable for this API
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Runtime discovery matches response values against path parameters and required query
+                        parameters. This API&apos;s endpoints use only optional query filters, so runtime
+                        probing won&apos;t find additional links. Relationships are already detected by static
+                        analysis and shown in the sidebar.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {parsedSpec.operations.filter(op => op.method === 'GET').length} GET endpoints
+                      available for probing, {matchableTargetCount} with matchable parameters.
+                    </p>
+                    <button
+                      onClick={onDiscover}
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      Start Discovery
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
