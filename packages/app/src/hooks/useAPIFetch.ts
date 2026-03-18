@@ -17,6 +17,7 @@ import {
   isGraphQLUrl,
 } from 'api-invoke'
 import type { BuiltRequest, SSEEvent, RawEndpoint } from 'api-invoke'
+import * as yaml from 'js-yaml'
 import { useAuthStore } from '../store/authStore'
 import { GraphQLError } from '../services/api/errors'
 import { proxy } from '../services/api/proxy'
@@ -59,8 +60,8 @@ export function useAPIFetch() {
       // which uses Buffer (unavailable in browser).
       // Route through CORS proxy so specs without CORS headers still load.
       const proxyResult = proxy.onRequest
-        ? await proxy.onRequest(url, { headers: { Accept: 'application/json' } })
-        : { url, init: { headers: { Accept: 'application/json' } } }
+        ? await proxy.onRequest(url, { headers: { Accept: 'application/json, application/x-yaml, text/yaml, */*' } })
+        : { url, init: { headers: { Accept: 'application/json, application/x-yaml, text/yaml, */*' } } }
       const response = await fetch(proxyResult.url, proxyResult.init)
       if (!response.ok) {
         throw new Error(`Failed to fetch spec: ${response.status} ${response.statusText}`)
@@ -69,9 +70,19 @@ export function useAPIFetch() {
       let specObject: object
       try {
         specObject = JSON.parse(text) as object
-      } catch (parseErr) {
-        console.warn('[useAPIFetch] Standard JSON parse failed, retrying with lenient parsing:', parseErr instanceof Error ? parseErr.message : parseErr)
-        specObject = JSON.parse(text.replace(/,\s*([\]}])/g, '$1')) as object
+      } catch (jsonErr) {
+        console.warn('[useAPIFetch] JSON parse failed, attempting YAML:', jsonErr instanceof Error ? jsonErr.message : jsonErr)
+        try {
+          const parsed = yaml.load(text, { schema: yaml.JSON_SCHEMA })
+          if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('YAML content is not an object')
+          }
+          specObject = parsed
+        } catch (yamlErr) {
+          const jsonMsg = jsonErr instanceof Error ? jsonErr.message : String(jsonErr)
+          const yamlMsg = yamlErr instanceof Error ? yamlErr.message : String(yamlErr)
+          throw new Error(`Failed to parse spec as JSON (${jsonMsg}) or YAML (${yamlMsg})`)
+        }
       }
       const spec = await parseOpenAPISpec(specObject, { specUrl: url })
       specSuccess(spec)
