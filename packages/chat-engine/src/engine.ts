@@ -25,6 +25,7 @@ import { formatStructuredResponse } from './response'
 
 export class ChatEngine {
   private history: ChatMessage[] = []
+  private busy = false
   private llm: LLMCompletionFn
   private executor: ToolExecutorFn
   private context: ChatEngineContext
@@ -99,6 +100,20 @@ export class ChatEngine {
    * Returns the final response when the turn is complete.
    */
   async sendMessage(
+    text: string,
+    onEvent: ChatEngineEventHandler,
+  ): Promise<ChatEngineResponse> {
+    if (this.busy) throw new Error('ChatEngine: sendMessage is already in progress')
+    this.busy = true
+
+    try {
+      return await this.runConversation(text, onEvent)
+    } finally {
+      this.busy = false
+    }
+  }
+
+  private async runConversation(
     text: string,
     onEvent: ChatEngineEventHandler,
   ): Promise<ChatEngineResponse> {
@@ -270,8 +285,9 @@ export class ChatEngine {
           continue
         }
 
-        // Note: if a plugin throws here, the original (untransformed) data is used.
-        // For safety-critical plugins (e.g. PII redaction), plugins should catch internally.
+        // Note: if a plugin throws here, its transform is skipped and the last
+        // successfully-transformed value is used. For safety-critical plugins
+        // (e.g. PII redaction), plugins should catch internally.
         for (const plugin of this.plugins ?? []) {
           if (plugin.processToolResult) {
             try {

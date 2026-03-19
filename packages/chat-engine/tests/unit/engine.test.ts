@@ -489,6 +489,68 @@ describe('ChatEngine', () => {
     })
   })
 
+  describe('onEvent error isolation', () => {
+    it('completes the turn even when onEvent handler throws', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('Done.')
+          return textResponse('Done.')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      const collectedEvents: ChatEngineEvent[] = []
+
+      const throwingHandler: ChatEngineEventHandler = (event) => {
+        collectedEvents.push(event)
+        if (event.type === ChatEventType.ToolCallStart) {
+          throw new Error('handler crash')
+        }
+      }
+
+      const result = await engine.sendMessage('test', throwingHandler)
+
+      // Engine should complete despite the handler throwing on ToolCallStart
+      expect(result.text).toBeDefined()
+      expect(result.toolResults).toHaveLength(1)
+
+      // All events should still have been emitted (handler was called for each)
+      const types = collectedEvents.map(e => e.type)
+      expect(types).toContain(ChatEventType.ToolCallStart)
+      expect(types).toContain(ChatEventType.ToolCallResult)
+      expect(types).toContain(ChatEventType.TurnComplete)
+    })
+  })
+
+  describe('concurrent sendMessage guard', () => {
+    it('throws when sendMessage is called while another is in progress', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementation(async (_msgs, _tools, onToken) => {
+          // Simulate a delay
+          await new Promise(r => setTimeout(r, 50))
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext)
+
+      // Start first message (will take ~50ms)
+      const first = engine.sendMessage('first', onEvent)
+
+      // Immediately try a second — should throw
+      await expect(engine.sendMessage('second', onEvent))
+        .rejects.toThrow('sendMessage is already in progress')
+
+      // First should still complete
+      const result = await first
+      expect(result.text).toBeDefined()
+    })
+  })
+
   describe('history management', () => {
     it('maintains conversation history across messages', async () => {
       const llm: LLMCompletionFn = vi.fn()

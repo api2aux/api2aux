@@ -32,6 +32,12 @@ describe('truncateToolResult', () => {
     expect(truncateToolResult(42, 100)).toBe('42')
     expect(truncateToolResult('hello', 100)).toBe('"hello"')
   })
+
+  it('returns fallback for unserializable data (circular reference)', () => {
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+    expect(truncateToolResult(circular, 100)).toBe('[Unserializable tool result]')
+  })
 })
 
 describe('summarizeToolResult', () => {
@@ -68,5 +74,13 @@ describe('summarizeToolResult', () => {
   it('handles primitive result', () => {
     const result = summarizeToolResult(42, 'get_count', {})
     expect(result).toBe('get_count()')
+  })
+
+  it('handles unserializable arg values gracefully', () => {
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+    const result = summarizeToolResult([1], 'test', { ref: circular as unknown as string })
+    expect(result).toContain('ref=[unserializable]')
+    expect(result).toContain('1 item')
   })
 })

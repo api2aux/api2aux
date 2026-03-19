@@ -58,7 +58,7 @@ export function createOpenAICompatProvider(providerConfig: OpenAICompatConfig): 
       })
 
       let content = ''
-      let finishReason = 'stop'
+      let finishReason: StreamResult['finish_reason'] = 'stop'
       const toolCallMap = new Map<number, { id: string; name: string; arguments: string }>()
 
       for await (const chunk of stream) {
@@ -66,7 +66,7 @@ export function createOpenAICompatProvider(providerConfig: OpenAICompatConfig): 
         if (!choice) continue
 
         if (choice.finish_reason) {
-          finishReason = choice.finish_reason
+          finishReason = choice.finish_reason as StreamResult['finish_reason']
         }
 
         // Text content — stream to UI

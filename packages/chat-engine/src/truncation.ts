@@ -11,7 +11,12 @@ import { TRUNCATION_LIMIT } from './defaults'
  * is appended so the LLM knows the data is incomplete.
  */
 export function truncateToolResult(data: unknown, limit: number = TRUNCATION_LIMIT): string {
-  const json = JSON.stringify(data)
+  let json: string
+  try {
+    json = JSON.stringify(data)
+  } catch {
+    return '[Unserializable tool result]'
+  }
   if (json.length <= limit) return json
   return json.slice(0, limit) + '... [truncated]'
 }
@@ -27,7 +32,13 @@ export function summarizeToolResult(
 ): string {
   const argStr = Object.entries(args)
     .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    .map(([k, v]) => {
+      try {
+        return `${k}=${JSON.stringify(v)}`
+      } catch {
+        return `${k}=[unserializable]`
+      }
+    })
     .join(', ')
 
   let countInfo = ''

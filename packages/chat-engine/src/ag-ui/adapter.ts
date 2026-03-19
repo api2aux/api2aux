@@ -22,6 +22,17 @@ function now(): number {
   return Date.now()
 }
 
+/** Per-run state for the AG-UI adapter's event mapping. */
+export interface AdapterState {
+  messageId: string | null
+  toolCallCounter: number
+  toolCallIdMap: Map<string, string>
+}
+
+export function createAdapterState(): AdapterState {
+  return { messageId: null, toolCallCounter: 0, toolCallIdMap: new Map() }
+}
+
 /**
  * Map a single ChatEngineEvent to one or more AG-UI events.
  * Manages messageId lifecycle for text message streaming.
@@ -29,7 +40,7 @@ function now(): number {
  */
 export function mapEvent(
   event: ChatEngineEvent,
-  state: { messageId: string | null; toolCallCounter: number; toolCallIdMap: Map<string, string> },
+  state: AdapterState,
   threadId: string,
   runId: string,
 ): AgUiEvent[] {
@@ -162,6 +173,7 @@ export interface AgUiAgent {
 /**
  * Simple async queue for bridging synchronous callbacks to async iterators.
  * The onEvent callback pushes events; the async iterator pulls them.
+ * Single-consumer only: concurrent .next() calls are not supported.
  */
 function createEventQueue<T>() {
   const buffer: T[] = []
@@ -188,6 +200,7 @@ function createEventQueue<T>() {
     [Symbol.asyncIterator](): AsyncIterator<T> {
       return {
         next(): Promise<IteratorResult<T>> {
+          if (resolve) throw new Error('EventQueue: concurrent .next() calls are not supported')
           if (buffer.length > 0) {
             return Promise.resolve({ value: buffer.shift()!, done: false })
           }
@@ -235,7 +248,7 @@ export function createAgent(engine: ChatEngine): AgUiAgent {
 
       const queue = createEventQueue<AgUiEvent>()
 
-      const state = { messageId: null as string | null, toolCallCounter: 0, toolCallIdMap: new Map<string, string>() }
+      const state = createAdapterState()
 
       queue.push({
         type: AgUiEventType.RunStarted,
@@ -260,6 +273,20 @@ export function createAgent(engine: ChatEngine): AgUiAgent {
             timestamp: now(),
           } as AgUiEvent)
         }
+        // Close any in-progress text message
+        if (state.messageId) {
+          queue.push({
+            type: AgUiEventType.TextMessageEnd,
+            messageId: state.messageId,
+            timestamp: now(),
+          } as AgUiEvent)
+        }
+        queue.push({
+          type: AgUiEventType.RunFinished,
+          threadId,
+          runId,
+          timestamp: now(),
+        } as AgUiEvent)
         queue.finish()
       })
 

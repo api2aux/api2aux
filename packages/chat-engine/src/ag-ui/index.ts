@@ -24,5 +24,5 @@ export type {
 export { AgUiEventType, AgUiRole } from './types'
 
 // === Adapter ===
-export type { AgUiAgent } from './adapter'
-export { createAgent, mapEvent } from './adapter'
+export type { AgUiAgent, AdapterState } from './adapter'
+export { createAgent, mapEvent, createAdapterState } from './adapter'

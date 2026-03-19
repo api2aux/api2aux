@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mapEvent, createAgent } from '../../../src/ag-ui/adapter'
+import { mapEvent, createAgent, createAdapterState } from '../../../src/ag-ui/adapter'
 import { AgUiEventType, AgUiRole } from '../../../src/ag-ui/types'
 import { ChatEventType, FinishReason, MergeStrategy } from '../../../src/types'
 import { ChatEngine } from '../../../src/engine'
@@ -46,9 +46,7 @@ function toolCallResponse(name: string, args: Record<string, unknown>): StreamRe
   }
 }
 
-function makeState() {
-  return { messageId: null as string | null, toolCallCounter: 0, toolCallIdMap: new Map<string, string>() }
-}
+const makeState = createAdapterState
 
 describe('mapEvent', () => {
   const threadId = 'thread_1'
@@ -327,7 +325,7 @@ describe('createAgent', () => {
     expect(types[types.length - 1]).toBe(AgUiEventType.RunFinished)
   })
 
-  it('emits RUN_ERROR when engine throws', async () => {
+  it('emits RUN_ERROR and RUN_FINISHED when engine throws', async () => {
     const llm: LLMCompletionFn = vi.fn().mockRejectedValue(new Error('API error'))
     const executor: ToolExecutorFn = vi.fn()
 
@@ -346,11 +344,35 @@ describe('createAgent', () => {
     const types = events.map(e => e.type)
     expect(types[0]).toBe(AgUiEventType.RunStarted)
     expect(types).toContain(AgUiEventType.RunError)
+    expect(types[types.length - 1]).toBe(AgUiEventType.RunFinished)
 
     const errorEvent = events.find(e => e.type === AgUiEventType.RunError)
     if (errorEvent?.type === AgUiEventType.RunError) {
       expect(errorEvent.message).toBe('API error')
     }
+  })
+
+  it('emits only one RUN_ERROR when engine emits Error event and then throws', async () => {
+    const llm: LLMCompletionFn = vi.fn().mockRejectedValue(new Error('API error'))
+    const executor: ToolExecutorFn = vi.fn()
+
+    const engine = new ChatEngine(llm, executor, testContext)
+    const agent = createAgent(engine)
+
+    const events: AgUiEvent[] = []
+    for await (const event of agent.run({
+      threadId: 't',
+      runId: 'r',
+      messages: [{ role: AgUiRole.User, content: 'hello' }],
+    })) {
+      events.push(event)
+    }
+
+    const errorEvents = events.filter(e => e.type === AgUiEventType.RunError)
+    // Engine emits ChatEventType.Error (mapped to RunError) then throws (.catch path)
+    // The errorEmitted flag should prevent a duplicate RunError
+    expect(errorEvents).toHaveLength(1)
+    expect(events[events.length - 1]!.type).toBe(AgUiEventType.RunFinished)
   })
 
   it('emits RUN_ERROR when no user message provided', async () => {

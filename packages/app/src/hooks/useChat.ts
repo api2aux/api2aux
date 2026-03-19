@@ -209,7 +209,16 @@ export function useChat() {
     }
 
     const engine = getEngine()
-    if (!engine) return
+    if (!engine) {
+      addMessage({
+        id: nextId(),
+        role: 'assistant',
+        text: 'Please enter an API URL before sending messages.',
+        timestamp: Date.now(),
+        error: 'No API URL configured',
+      })
+      return
+    }
 
     if (useChatStore.getState().messages.length === 0) {
       setChatApiUrl(url?.split('?')[0] ?? '')

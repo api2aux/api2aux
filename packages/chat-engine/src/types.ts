@@ -226,7 +226,7 @@ export type ChatEngineEventHandler = (event: ChatEngineEvent) => void
 interface StructuredResponseBase {
   /** Source API calls that produced the data. */
   sources: Array<{ toolName: string; args: Record<string, unknown> }>
-  /** Field metadata for UI rendering hints. */
+  /** Field metadata for UI rendering hints. Reserved for future enrichment; not yet populated by the engine. */
   fields?: Array<{ name: string; type: string; semantic?: string }>
 }
 
