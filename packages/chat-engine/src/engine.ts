@@ -2,8 +2,8 @@
  * ChatEngine — the core conversation loop.
  *
  * Manages multi-round LLM tool calling, event emission, plugin hooks,
- * and a guardrail that forces API-sourced answers (overrides the LLM
- * when no tool calls succeeded).
+ * and a no-knowledge guardrail (blocks the LLM from answering when
+ * no tool calls succeeded, replacing its response with a refusal).
  */
 
 import type {
@@ -59,9 +59,9 @@ export class ChatEngine {
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
   }
 
-  /** Get current conversation history (typed as readonly; backed by the live mutable array). */
+  /** Get a snapshot of the current conversation history. */
   getHistory(): readonly ChatMessage[] {
-    return this.history
+    return [...this.history]
   }
 
   /** Get current context. */

@@ -93,7 +93,12 @@ function autoSelectTab(data: unknown, responseText: string) {
 
 function createToolExecutor(apiUrl: string): ToolExecutorFn {
   return async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
-    const parsedUrl = new URL(apiUrl)
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(apiUrl)
+    } catch {
+      throw new Error(`Invalid API URL "${apiUrl}". Please check the URL includes a protocol (e.g., https://).`)
+    }
     const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname.replace(/\/$/, '')}`
 
     if (toolName === 'query_api') {

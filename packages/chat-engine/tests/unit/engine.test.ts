@@ -549,6 +549,27 @@ describe('ChatEngine', () => {
       const result = await first
       expect(result.text).toBeDefined()
     })
+
+    it('resets busy flag after sendMessage rejects', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockRejectedValueOnce(new Error('transient error'))
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+
+      const engine = new ChatEngine(llm, executor, testContext)
+
+      // First call fails
+      await expect(engine.sendMessage('first', onEvent)).rejects.toThrow('transient error')
+
+      // Second call should succeed (busy flag was reset)
+      const result = await engine.sendMessage('second', onEvent)
+      expect(result.text).toBe('ok')
+    })
   })
 
   describe('history management', () => {

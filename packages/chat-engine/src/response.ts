@@ -79,7 +79,7 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
     }
   }
 
-  // If no entities were merged, fall back to array strategy
+  // If no entities with ID fields were found, fall back to array strategy
   if (entityMap.size === 0) {
     return mergeArray(toolResults)
   }
@@ -108,7 +108,15 @@ async function mergeLlmGuided(
   }
 
   const resultsText = toolResults
-    .map((r, i) => `Result ${i + 1} (from ${r.toolName}):\n${JSON.stringify(r.data, null, 2).slice(0, 4000)}`)
+    .map((r, i) => {
+      let dataStr: string
+      try {
+        dataStr = JSON.stringify(r.data, null, 2).slice(0, 4000)
+      } catch {
+        dataStr = '[Unserializable data]'
+      }
+      return `Result ${i + 1} (from ${r.toolName}):\n${dataStr}`
+    })
     .join('\n\n')
 
   const messages: ChatMessage[] = [
@@ -139,9 +147,10 @@ async function mergeLlmGuided(
  * Format a structured response from collected tool results.
  *
  * @param toolResults - The tool results to merge.
- * @param strategy - Which merge strategy to use.
- * @param userMessage - The user's original message (needed for LLM-guided merge).
- * @param llm - The LLM function (needed for LLM-guided merge).
+ * @param strategy - Which merge strategy to use. The response's `strategy` reflects
+ *   what was actually applied, which may differ if a fallback occurred.
+ * @param userMessage - The user's original message (required for LLM-guided merge).
+ * @param llm - The LLM function (required for LLM-guided merge).
  */
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],

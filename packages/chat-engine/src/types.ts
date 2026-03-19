@@ -22,12 +22,12 @@ export const ToolType = {
 } as const
 export type ToolType = typeof ToolType[keyof typeof ToolType]
 
-export interface ChatMessage {
-  role: MessageRole
-  content: string | null
-  tool_calls?: ToolCall[]
-  tool_call_id?: string
-}
+export type ChatMessage =
+  | { role: typeof MessageRole.System; content: string }
+  | { role: typeof MessageRole.User; content: string }
+  | { role: typeof MessageRole.Assistant; content: string; tool_calls?: undefined; tool_call_id?: undefined }
+  | { role: typeof MessageRole.Assistant; content: null; tool_calls: ToolCall[]; tool_call_id?: undefined }
+  | { role: typeof MessageRole.Tool; content: string; tool_call_id: string; tool_calls?: undefined }
 
 export interface ToolCall {
   id: string

@@ -375,6 +375,49 @@ describe('createAgent', () => {
     expect(events[events.length - 1]!.type).toBe(AgUiEventType.RunFinished)
   })
 
+  it('closes in-progress text message on error path', async () => {
+    const llm: LLMCompletionFn = vi.fn()
+      // First call: returns a tool call
+      .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+      // Second call: streams tokens then throws
+      .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+        onToken('Starting to...')
+        throw new Error('mid-stream crash')
+      })
+
+    const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+    const engine = new ChatEngine(llm, executor, testContext, {
+      mergeStrategy: MergeStrategy.Array,
+    })
+    const agent = createAgent(engine)
+
+    const events: AgUiEvent[] = []
+    for await (const event of agent.run({
+      threadId: 't',
+      runId: 'r',
+      messages: [{ role: AgUiRole.User, content: 'list users' }],
+    })) {
+      events.push(event)
+    }
+
+    const types = events.map(e => e.type)
+
+    // Tokens were streamed, so TextMessageStart was emitted
+    expect(types).toContain(AgUiEventType.TextMessageStart)
+    expect(types).toContain(AgUiEventType.TextMessageContent)
+
+    // Error path should close the message and finish the run
+    expect(types).toContain(AgUiEventType.RunError)
+    expect(types).toContain(AgUiEventType.TextMessageEnd)
+    expect(types[types.length - 1]).toBe(AgUiEventType.RunFinished)
+
+    // TextMessageEnd should come after RunError
+    const errorIdx = types.indexOf(AgUiEventType.RunError)
+    const msgEndIdx = types.indexOf(AgUiEventType.TextMessageEnd)
+    expect(msgEndIdx).toBeGreaterThan(errorIdx)
+  })
+
   it('emits RUN_ERROR when no user message provided', async () => {
     const llm: LLMCompletionFn = vi.fn()
     const executor: ToolExecutorFn = vi.fn()

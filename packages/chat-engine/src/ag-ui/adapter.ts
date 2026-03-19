@@ -77,10 +77,16 @@ export function mapEvent(
         timestamp: now(),
       })
       // Emit all args in a single delta (this engine receives them atomically from the LLM)
+      let argsJson: string
+      try {
+        argsJson = JSON.stringify(event.toolArgs)
+      } catch {
+        argsJson = '{}'
+      }
       events.push({
         type: AgUiEventType.ToolCallArgs,
         toolCallId: agUiToolCallId,
-        delta: JSON.stringify(event.toolArgs),
+        delta: argsJson,
         timestamp: now(),
       })
       events.push({
