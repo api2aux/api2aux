@@ -2,8 +2,9 @@
  * ChatEngine — the core conversation loop.
  *
  * Manages multi-round LLM tool calling, event emission, plugin hooks,
- * and a no-knowledge guardrail (blocks the LLM from answering when
- * no tool calls succeeded, replacing its response with a fallback message).
+ * and a no-knowledge guardrail (replaces the LLM's response with a fallback
+ * message when no tool calls produced results — either because none were
+ * attempted or because all attempts failed).
  */
 
 import type {
@@ -57,6 +58,14 @@ export class ChatEngine {
     }
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
+
+    // Validate resolved config values
+    if (!Number.isFinite(this.maxRounds) || this.maxRounds < 1) {
+      throw new Error(`ChatEngineConfig: maxRounds must be a finite number >= 1, got ${this.maxRounds}`)
+    }
+    if (!Number.isFinite(this.truncationLimit) || this.truncationLimit < 1) {
+      throw new Error(`ChatEngineConfig: truncationLimit must be a finite number >= 1, got ${this.truncationLimit}`)
+    }
   }
 
   /** Get a snapshot of the current conversation history. */
@@ -93,7 +102,11 @@ export class ChatEngine {
     this.history = []
   }
 
-  /** Replace conversation history (for restoring from persistence). */
+  /**
+   * Replace conversation history (for restoring from persistence).
+   * Caller is responsible for structural validity: tool messages must reference
+   * a preceding assistant message's tool_call IDs, etc.
+   */
   setHistory(history: ChatMessage[]): void {
     this.history = [...history]
   }
@@ -147,6 +160,9 @@ export class ChatEngine {
       }
     }
 
+    // Note: if a plugin throws here, the tools from the last successful plugin
+    // (or the original tools) are used. For security-critical plugins (e.g. tool
+    // filtering to restrict access), plugins should catch internally.
     let tools = [...this.context.tools]
     for (const plugin of this.plugins ?? []) {
       if (plugin.modifyTools) {

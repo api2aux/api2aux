@@ -19,7 +19,7 @@
 
 ## Testing
 
-- **Always run both unit and functional tests before committing.** Use `pnpm --filter workflow-inference test` and `pnpm --filter app test` to run all tests across both packages. This includes the functional tests in `packages/workflow-inference/src/functional/` that validate against real API specs (Spotify, GitHub, Stripe, etc.).
+- **Always run both unit and functional tests before committing.** Use `pnpm --filter workflow-inference test`, `pnpm --filter chat-engine test`, and `pnpm --filter app test` to run all tests across all packages. This includes the functional tests in `packages/workflow-inference/src/functional/` that validate against real API specs (Spotify, GitHub, Stripe, etc.).
 
 ## Local Development
 

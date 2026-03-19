@@ -146,12 +146,25 @@ async function mergeLlmGuided(
 /**
  * Format a structured response from collected tool results.
  *
- * @param toolResults - The tool results to merge.
- * @param strategy - Which merge strategy to use. The response's `strategy` reflects
- *   what was actually applied, which may differ if a fallback occurred.
- * @param userMessage - The user's original message (required for LLM-guided merge).
- * @param llm - The LLM function (required for LLM-guided merge).
+ * The response's `strategy` reflects what was actually applied, which may
+ * differ from the requested strategy if a fallback occurred.
  */
+export async function formatStructuredResponse(
+  toolResults: ToolResultEntry[],
+  strategy: typeof MergeStrategy.LlmGuided,
+  userMessage: string,
+  llm: LLMCompletionFn,
+): Promise<StructuredResponse>
+export async function formatStructuredResponse(
+  toolResults: ToolResultEntry[],
+  strategy?: typeof MergeStrategy.Array | typeof MergeStrategy.SchemaBased,
+): Promise<StructuredResponse>
+export async function formatStructuredResponse(
+  toolResults: ToolResultEntry[],
+  strategy: MergeStrategy,
+  userMessage: string,
+  llm: LLMCompletionFn,
+): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: MergeStrategy = MergeStrategy.LlmGuided,

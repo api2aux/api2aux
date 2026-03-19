@@ -774,5 +774,153 @@ describe('ChatEngine', () => {
       expect(config.truncationLimit).toBe(4000)
       expect(config.mergeStrategy).toBe(MergeStrategy.Array)
     })
+
+    it('rejects invalid maxRounds', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+
+      expect(() => new ChatEngine(llm, executor, testContext, { maxRounds: 0 }))
+        .toThrow('maxRounds must be a finite number >= 1')
+      expect(() => new ChatEngine(llm, executor, testContext, { maxRounds: -1 }))
+        .toThrow('maxRounds must be a finite number >= 1')
+      expect(() => new ChatEngine(llm, executor, testContext, { maxRounds: NaN }))
+        .toThrow('maxRounds must be a finite number >= 1')
+      expect(() => new ChatEngine(llm, executor, testContext, { maxRounds: Infinity }))
+        .toThrow('maxRounds must be a finite number >= 1')
+    })
+
+    it('rejects invalid truncationLimit', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+
+      expect(() => new ChatEngine(llm, executor, testContext, { truncationLimit: 0 }))
+        .toThrow('truncationLimit must be a finite number >= 1')
+      expect(() => new ChatEngine(llm, executor, testContext, { truncationLimit: -5 }))
+        .toThrow('truncationLimit must be a finite number >= 1')
+    })
+  })
+
+  describe('empty LLM content with no tool calls', () => {
+    it('uses guardrail message when LLM returns empty content and no tool calls', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => ({
+          content: '',
+          tool_calls: [],
+          finish_reason: FinishReason.Stop,
+        }))
+
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      const result = await engine.sendMessage('hello', onEvent)
+
+      // Guardrail should override empty content
+      expect(result.text).toBe(NO_DATA_MESSAGE)
+      // History should contain the guardrail message, not empty string
+      const assistantMsg = result.history.find(m => m.role === MessageRole.Assistant)
+      expect(assistantMsg?.content).toBe(NO_DATA_MESSAGE)
+    })
+  })
+
+  describe('setHistory then sendMessage', () => {
+    it('uses restored history in subsequent LLM calls', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      engine.setHistory([
+        { role: MessageRole.User, content: 'previous question' },
+        { role: MessageRole.Assistant, content: 'previous answer' },
+      ])
+
+      await engine.sendMessage('new question', onEvent)
+
+      // LLM should receive: system + restored history + new user message
+      const firstCall = (llm as ReturnType<typeof vi.fn>).mock.calls[0]!
+      const messages = firstCall[0] as ChatMessage[]
+      expect(messages[0]!.role).toBe(MessageRole.System)
+      expect(messages[1]!.role).toBe(MessageRole.User)
+      expect(messages[1]!.content).toBe('previous question')
+      expect(messages[2]!.role).toBe(MessageRole.Assistant)
+      expect(messages[2]!.content).toBe('previous answer')
+      expect(messages[3]!.role).toBe(MessageRole.User)
+      expect(messages[3]!.content).toBe('new question')
+    })
+  })
+
+  describe('processResponse with guardrail', () => {
+    it('plugin receives guardrail text when no tool calls succeeded', async () => {
+      const receivedText: string[] = []
+      const plugin: ChatEnginePlugin = {
+        id: 'guardrail-observer',
+        processResponse: (text) => {
+          receivedText.push(text)
+          return `[modified] ${text}`
+        },
+      }
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('LLM knowledge answer')
+          return textResponse('LLM knowledge answer')
+        })
+
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext, undefined, [plugin])
+      const result = await engine.sendMessage('What is 2+2?', onEvent)
+
+      // Plugin should receive NO_DATA_MESSAGE, not the LLM's original text
+      expect(receivedText).toEqual([NO_DATA_MESSAGE])
+      expect(result.text).toBe(`[modified] ${NO_DATA_MESSAGE}`)
+    })
+  })
+
+  describe('setContext', () => {
+    it('uses new context tools and prompt after setContext', async () => {
+      const newTool: Tool = {
+        type: 'function',
+        function: {
+          name: 'search_items',
+          description: 'Search items',
+          parameters: { type: 'object', properties: {}, required: [] },
+        },
+      }
+      const newContext: ChatEngineContext = {
+        url: 'https://api2.example.com',
+        spec: null,
+        tools: [newTool],
+        systemPrompt: 'New system prompt.',
+      }
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('search_items', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      engine.setContext(newContext)
+      await engine.sendMessage('test', onEvent)
+
+      // LLM should receive the new system prompt
+      const firstCall = (llm as ReturnType<typeof vi.fn>).mock.calls[0]!
+      const messages = firstCall[0] as ChatMessage[]
+      expect(messages[0]!.content).toBe('New system prompt.')
+
+      // LLM should receive new tools
+      const tools = firstCall[1] as Tool[]
+      expect(tools).toHaveLength(1)
+      expect(tools[0]!.function.name).toBe('search_items')
+    })
   })
 })

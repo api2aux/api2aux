@@ -418,7 +418,7 @@ describe('createAgent', () => {
     expect(msgEndIdx).toBeGreaterThan(errorIdx)
   })
 
-  it('emits RUN_ERROR when no user message provided', async () => {
+  it('emits RunStarted + RunError + RunFinished when no user message provided', async () => {
     const llm: LLMCompletionFn = vi.fn()
     const executor: ToolExecutorFn = vi.fn()
 
@@ -430,10 +430,15 @@ describe('createAgent', () => {
       events.push(event)
     }
 
-    expect(events).toHaveLength(1)
-    expect(events[0]!.type).toBe(AgUiEventType.RunError)
-    if (events[0]!.type === AgUiEventType.RunError) {
-      expect(events[0]!.message).toContain('No user message')
+    const types = events.map(e => e.type)
+    expect(types).toEqual([
+      AgUiEventType.RunStarted,
+      AgUiEventType.RunError,
+      AgUiEventType.RunFinished,
+    ])
+    const errorEvent = events.find(e => e.type === AgUiEventType.RunError)
+    if (errorEvent?.type === AgUiEventType.RunError) {
+      expect(errorEvent.message).toContain('No user message')
     }
   })
 

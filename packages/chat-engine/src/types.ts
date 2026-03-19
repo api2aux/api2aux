@@ -183,7 +183,7 @@ export interface ChatEngineContext {
   readonly spec: ApiSpec | null
   /** Pre-built tools (from buildToolsFromSpec/Url). */
   readonly tools: Tool[]
-  /** Pre-built system prompt (from buildSystemPrompt). */
+  /** Base system prompt (from buildSystemPrompt). May be modified by plugins before each LLM call. */
   readonly systemPrompt: string
 }
 

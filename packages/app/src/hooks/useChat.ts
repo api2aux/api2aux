@@ -263,6 +263,7 @@ export function useChat() {
             break
 
           case ChatEventType.ToolCallStart:
+            streamedText = '' // Reset for next round to prevent cross-round text accumulation
             updateMessage(assistantId, {
               text: `Calling ${event.toolName}...${event.parallelCount > 1 ? ` (${event.parallelCount} parallel calls)` : ''}`,
               toolName: event.toolName,

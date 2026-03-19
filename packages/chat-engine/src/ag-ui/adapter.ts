@@ -81,11 +81,12 @@ export function mapEvent(
         parentMessageId: state.messageId ?? undefined,
         timestamp: now(),
       })
-      // Emit all args in a single delta (this engine receives them atomically from the LLM)
+      // Emit all args in a single delta (this engine receives them already assembled, not streamed incrementally)
       let argsJson: string
       try {
         argsJson = JSON.stringify(event.toolArgs)
-      } catch {
+      } catch (err) {
+        console.warn('[chat-engine] Failed to serialize toolArgs for', event.toolName, ':', err instanceof Error ? err.message : String(err))
         argsJson = '{}'
       }
       events.push({
@@ -108,7 +109,8 @@ export function mapEvent(
       try {
         const s = JSON.stringify(event.data)
         content = s.length <= 8000 ? s : s.slice(0, 8000) + '... [truncated]'
-      } catch {
+      } catch (err) {
+        console.warn('[chat-engine] Failed to serialize tool result data:', err instanceof Error ? err.message : String(err))
         content = '[Unserializable data]'
       }
       events.push({
@@ -152,8 +154,9 @@ export function mapEvent(
           toolResults: event.toolResults,
           structured: event.structured,
         })) as Record<string, unknown>
-      } catch {
-        snapshot = { text: event.text, toolResults: [], structured: event.structured }
+      } catch (err) {
+        console.warn('[chat-engine] Failed to serialize state snapshot:', err instanceof Error ? err.message : String(err))
+        snapshot = { text: event.text, toolResults: [], structured: { strategy: 'array', sources: [], data: [] } }
       }
 
       events.push({
@@ -257,8 +260,20 @@ export function createAgent(engine: ChatEngine): AgUiAgent {
         return {
           async *[Symbol.asyncIterator]() {
             yield {
+              type: AgUiEventType.RunStarted,
+              threadId,
+              runId,
+              timestamp: now(),
+            } as AgUiEvent
+            yield {
               type: AgUiEventType.RunError,
               message: 'No user message found in AG-UI input',
+              timestamp: now(),
+            } as AgUiEvent
+            yield {
+              type: AgUiEventType.RunFinished,
+              threadId,
+              runId,
               timestamp: now(),
             } as AgUiEvent
           },
