@@ -67,7 +67,11 @@ export const FinishReason = {
 } as const
 export type FinishReason = typeof FinishReason[keyof typeof FinishReason]
 
-/** The result of a streaming completion: either streamed text or accumulated tool calls. */
+/**
+ * The result of a streaming completion.
+ * When tool_calls is non-empty, content is typically empty (the LLM chose to call tools
+ * instead of responding with text). The engine branches on tool_calls.length.
+ */
 export interface StreamResult {
   content: string
   tool_calls: ToolCall[]

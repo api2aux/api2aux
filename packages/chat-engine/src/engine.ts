@@ -3,7 +3,7 @@
  *
  * Manages multi-round LLM tool calling, event emission, plugin hooks,
  * and a no-knowledge guardrail (blocks the LLM from answering when
- * no tool calls succeeded, replacing its response with a refusal).
+ * no tool calls succeeded, replacing its response with a fallback message).
  */
 
 import type {
@@ -67,6 +67,15 @@ export class ChatEngine {
   /** Get current context. */
   getContext(): ChatEngineContext {
     return this.context
+  }
+
+  /** Get the resolved engine configuration. */
+  getConfig(): Readonly<Required<ChatEngineConfig>> {
+    return {
+      maxRounds: this.maxRounds,
+      truncationLimit: this.truncationLimit,
+      mergeStrategy: this.mergeStrategy,
+    }
   }
 
   /** Update the LLM function (e.g., when user changes model/provider/API key). */
@@ -159,7 +168,7 @@ export class ChatEngine {
         ...this.history,
       ]
 
-      // On last allowed round, send no tools to force a text response
+      // After max tool-calling rounds, send no tools to force a text response
       const roundTools = roundCount >= this.maxRounds ? [] : tools
 
       let streamedText = ''
@@ -242,6 +251,14 @@ export class ChatEngine {
         } catch (parseErr) {
           const parseDetail = parseErr instanceof Error ? parseErr.message : ''
           const errorMsg = `Invalid JSON in tool arguments (${parseDetail}): ${toolCall.function.arguments}`
+          // Emit ToolCallStart so consumers always see a start before an error
+          emit({
+            type: ChatEventType.ToolCallStart,
+            toolCallId: toolCall.id,
+            toolName: toolCall.function.name,
+            toolArgs: {},
+            parallelCount: allToolCalls.length,
+          })
           this.history.push({
             role: MessageRole.Tool,
             content: `Error: ${errorMsg}`,

@@ -170,8 +170,13 @@ export function useChat() {
   // Build context from current URL/spec
   const context = useMemo(() => {
     if (!url) return null
-    const urlParams = parseUrlParameters(url).parameters
-    return buildChatContext(url, parsedSpec ?? null, urlParams)
+    try {
+      const urlParams = parseUrlParameters(url).parameters
+      return buildChatContext(url, parsedSpec ?? null, urlParams)
+    } catch (err) {
+      console.error('[useChat] Failed to build chat context:', err instanceof Error ? err.message : String(err))
+      return null
+    }
   }, [url, parsedSpec])
 
   // Create or update engine when dependencies change

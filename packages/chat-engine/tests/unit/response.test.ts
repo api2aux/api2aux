@@ -112,6 +112,31 @@ describe('formatStructuredResponse', () => {
       expect(item1).toHaveProperty('name', 'A')
       expect(item1).toHaveProperty('price', 10)
     })
+
+    it('uses last-writer-wins for conflicting field values', async () => {
+      const results: ToolResultEntry[] = [
+        {
+          toolName: 'get_user_v1',
+          toolArgs: { id: '1' },
+          data: { id: 1, name: 'Alice', status: 'active' },
+          summary: '',
+        },
+        {
+          toolName: 'get_user_v2',
+          toolArgs: { id: '1' },
+          data: { id: 1, name: 'Alice Updated', status: 'inactive' },
+          summary: '',
+        },
+      ]
+
+      const resp = await formatStructuredResponse(results, MergeStrategy.SchemaBased)
+      expect(resp.strategy).toBe(MergeStrategy.SchemaBased)
+      const data = resp.data as Record<string, unknown>[]
+      expect(data).toHaveLength(1)
+      // Last writer wins: second result's values override first
+      expect(data[0]).toHaveProperty('name', 'Alice Updated')
+      expect(data[0]).toHaveProperty('status', 'inactive')
+    })
   })
 
   describe('LLM-guided strategy', () => {
@@ -185,6 +210,36 @@ describe('formatStructuredResponse', () => {
       )
 
       expect(resp.strategy).toBe(MergeStrategy.Array)
+    })
+
+    it('truncates individual result data at 4000 chars in the merge prompt', async () => {
+      const largeData = { payload: 'x'.repeat(5000) }
+      const results: ToolResultEntry[] = [
+        { toolName: 'big_api', toolArgs: {}, data: largeData, summary: '' },
+        { toolName: 'small_api', toolArgs: {}, data: { id: 1 }, summary: '' },
+      ]
+
+      let capturedMessages: unknown[] = []
+      const mockLlm: LLMCompletionFn = vi.fn().mockImplementation(async (msgs) => {
+        capturedMessages = msgs
+        return {
+          content: JSON.stringify({ merged: true }),
+          tool_calls: [],
+          finish_reason: FinishReason.Stop,
+        }
+      })
+
+      await formatStructuredResponse(results, MergeStrategy.LlmGuided, 'merge', mockLlm)
+
+      // The user message sent to the LLM should have truncated the large result
+      const userMsg = (capturedMessages as Array<{ role: string; content: string }>).find(m => m.role === 'user')
+      expect(userMsg).toBeDefined()
+      // The large data's JSON is ~5010 chars, but should be sliced to 4000
+      const fullJson = JSON.stringify(largeData, null, 2)
+      expect(fullJson.length).toBeGreaterThan(4000)
+      expect(userMsg!.content).not.toContain(fullJson)
+      // Should contain the truncated version
+      expect(userMsg!.content.length).toBeLessThan(fullJson.length + 200)
     })
   })
 })

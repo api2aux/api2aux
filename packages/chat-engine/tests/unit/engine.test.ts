@@ -274,6 +274,34 @@ describe('ChatEngine', () => {
       // Guardrail: no successful tool results
       expect(result.text).toBe(NO_DATA_MESSAGE)
     })
+
+    it('emits ToolCallStart before ToolCallError on malformed args', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => ({
+          content: '',
+          tool_calls: [{
+            id: 'call_bad',
+            type: 'function' as const,
+            function: { name: 'list_users', arguments: '{invalid' },
+          }],
+          finish_reason: FinishReason.ToolCalls,
+        }))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn()
+      const engine = new ChatEngine(llm, executor, testContext)
+      await engine.sendMessage('test', onEvent)
+
+      const types = events.map(e => e.type)
+      const startIdx = types.indexOf(ChatEventType.ToolCallStart)
+      const errorIdx = types.indexOf(ChatEventType.ToolCallError)
+
+      expect(startIdx).toBeGreaterThanOrEqual(0)
+      expect(errorIdx).toBeGreaterThan(startIdx)
+    })
   })
 
   describe('plugin hooks', () => {
@@ -696,6 +724,55 @@ describe('ChatEngine', () => {
       expect(result.structured.strategy).toBe(MergeStrategy.Array)
       expect(Array.isArray(result.structured.data)).toBe(true)
       spy.mockRestore()
+    })
+  })
+
+  describe('whitespace-only messages', () => {
+    it('trims whitespace from user message before adding to history', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      await engine.sendMessage('  hello  ', onEvent)
+
+      const history = engine.getHistory()
+      expect(history[0]!.content).toBe('hello')
+    })
+  })
+
+  describe('getConfig', () => {
+    it('returns resolved config with defaults', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      const config = engine.getConfig()
+
+      expect(config.maxRounds).toBe(3) // MAX_ROUNDS default
+      expect(config.truncationLimit).toBe(8000) // TRUNCATION_LIMIT default
+      expect(config.mergeStrategy).toBe(MergeStrategy.LlmGuided)
+    })
+
+    it('returns overridden config values', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        maxRounds: 5,
+        truncationLimit: 4000,
+        mergeStrategy: MergeStrategy.Array,
+      })
+      const config = engine.getConfig()
+
+      expect(config.maxRounds).toBe(5)
+      expect(config.truncationLimit).toBe(4000)
+      expect(config.mergeStrategy).toBe(MergeStrategy.Array)
     })
   })
 })

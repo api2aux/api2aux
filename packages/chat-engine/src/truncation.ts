@@ -7,8 +7,9 @@ import { TRUNCATION_LIMIT } from './defaults'
 
 /**
  * Truncate a tool result's JSON serialization to a character limit.
- * The result may be invalid JSON if truncated mid-value; a [truncated] marker
- * is appended so the LLM knows the data is incomplete.
+ * Returns a count suffix for arrays (N items) and objects (N fields),
+ * or the raw JSON if within limit. A [truncated] marker is appended
+ * when the serialization exceeds the limit (may produce invalid JSON).
  */
 export function truncateToolResult(data: unknown, limit: number = TRUNCATION_LIMIT): string {
   let json: string

@@ -18,6 +18,11 @@ function nextId(): string {
   return `msg_${Date.now()}_${++idCounter}`
 }
 
+/** Reset the ID counter (for tests only). */
+export function _resetIdCounter(): void {
+  idCounter = 0
+}
+
 function now(): number {
   return Date.now()
 }
@@ -139,13 +144,21 @@ export function mapEvent(
         })
       }
 
-      events.push({
-        type: AgUiEventType.StateSnapshot,
-        snapshot: {
+      // Serialization guard: ensure snapshot data is JSON-safe for transport
+      let snapshot: Record<string, unknown>
+      try {
+        snapshot = JSON.parse(JSON.stringify({
           text: event.text,
           toolResults: event.toolResults,
           structured: event.structured,
-        },
+        })) as Record<string, unknown>
+      } catch {
+        snapshot = { text: event.text, toolResults: [], structured: event.structured }
+      }
+
+      events.push({
+        type: AgUiEventType.StateSnapshot,
+        snapshot,
         timestamp: now(),
       })
 
