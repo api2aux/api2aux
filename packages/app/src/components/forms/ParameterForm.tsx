@@ -222,6 +222,11 @@ export function ParameterForm({
     const ungroupedList: FormParameter[] = []
 
     for (const param of paramsWithTypes) {
+      if (!param.name) {
+        console.warn('[ParameterForm] Parameter with empty/missing name:', param)
+        ungroupedList.push(param)
+        continue
+      }
       const prefix = extractGroupPrefix(param.name)
       if (prefix) {
         if (!groups.has(prefix)) groups.set(prefix, [])
