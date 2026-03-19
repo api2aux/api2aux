@@ -3,7 +3,7 @@
  *
  * Three strategies for combining tool results into a structured response:
  * - Array: Return each result separately (simplest)
- * - LLM-guided: Use an extra LLM call to merge (most intelligent)
+ * - LLM-guided: Use an extra LLM call to merge or focus results (most flexible)
  * - Schema-based: Merge deterministically by shared entity IDs (no LLM call)
  */
 
@@ -93,8 +93,10 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
 
 const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document that best answers the user's question. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
 
+const FOCUS_PROMPT = `You are a data formatting assistant. Given the following API result, extract and organize the data that best answers the user's question into a single JSON document. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
+
 /**
- * LLM-guided strategy: use an extra LLM call to merge results.
+ * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
  * Falls back to array strategy if the LLM call fails or returns invalid JSON.
  */
 async function mergeLlmGuided(
@@ -102,9 +104,7 @@ async function mergeLlmGuided(
   userMessage: string,
   llm: LLMCompletionFn,
 ): Promise<StructuredResponse> {
-  if (toolResults.length === 0) {
-    return mergeArray(toolResults)
-  }
+  const prompt = toolResults.length === 1 ? FOCUS_PROMPT : MERGE_PROMPT
 
   const resultsText = toolResults
     .map((r, i) => {
@@ -120,7 +120,7 @@ async function mergeLlmGuided(
     .join('\n\n')
 
   const messages: ChatMessage[] = [
-    { role: MessageRole.System, content: MERGE_PROMPT },
+    { role: MessageRole.System, content: prompt },
     { role: MessageRole.User, content: `User's question: ${userMessage}\n\n${resultsText}` },
   ]
 

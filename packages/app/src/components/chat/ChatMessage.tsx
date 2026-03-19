@@ -1,9 +1,20 @@
-import type { UIMessage, ToolResultEntry } from '../../services/llm/types'
-import type { StructuredResponse } from '@api2aux/chat-engine'
+import type { UIMessage, ToolResultEntry, StructuredResponse } from '../../services/llm/types'
 import { useAppStore } from '../../store/appStore'
 import { useParameterStore } from '../../store/parameterStore'
 import { generateToolName } from '@api2aux/tool-utils'
 import { inferSchema } from '../../services/schema/inferrer'
+
+/** Infer schema and push data to the main view panel. Returns false if inference fails. */
+function updateMainView(data: unknown, url: string): boolean {
+  try {
+    const schema = inferSchema(data, url)
+    useAppStore.getState().fetchSuccess(data, schema)
+    return true
+  } catch (err) {
+    console.error('[ChatMessage] Failed to display data:', err instanceof Error ? err.message : String(err))
+    return false
+  }
+}
 
 interface ChatMessageProps {
   message: UIMessage
@@ -49,7 +60,7 @@ function friendlyLabel(entry: ToolResultEntry): string {
   return `${resource}${countInfo}`
 }
 
-function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[], contextText?: string }) {
+function ToolResultLinks({ results, contextText, hideBorder }: { results: ToolResultEntry[], contextText?: string, hideBorder?: boolean }) {
   const url = useAppStore((s) => s.url)
 
   const handleClick = (entry: ToolResultEntry) => {
@@ -72,8 +83,7 @@ function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[],
       }
     }
 
-    const schema = inferSchema(entry.data, url || '')
-    useAppStore.getState().fetchSuccess(entry.data, schema)
+    updateMainView(entry.data, url)
 
     // Auto-select the most relevant tab based on the surrounding message text
     if (contextText && entry.data && typeof entry.data === 'object' && !Array.isArray(entry.data)) {
@@ -97,7 +107,7 @@ function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[],
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1 mt-2 pt-2 border-t border-border/50">
+    <div className={`flex flex-wrap items-center justify-end gap-1 mt-2 pt-2 ${hideBorder ? '' : 'border-t border-border/50'}`}>
       <span className="text-[10px] text-muted-foreground">Sources:</span>
       {results.map((entry, i) => (
         <button
@@ -121,8 +131,7 @@ function MergedDataButton({ structured }: { structured: StructuredResponse }) {
   const url = useAppStore((s) => s.url)
 
   const handleClick = () => {
-    const schema = inferSchema(structured.data, url || '')
-    useAppStore.getState().fetchSuccess(structured.data, schema)
+    updateMainView(structured.data, url)
     scrollToResponseData()
   }
 
@@ -189,7 +198,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
               <MergedDataButton structured={message.structured} />
             )}
             {message.toolResults && message.toolResults.length > 0 && (
-              <ToolResultLinks results={message.toolResults} contextText={message.text || undefined} />
+              <ToolResultLinks results={message.toolResults} contextText={message.text || undefined} hideBorder={!!message.structured} />
             )}
           </>
         )}

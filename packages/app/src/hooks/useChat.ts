@@ -21,7 +21,7 @@ import { executeOperation } from 'api-invoke'
 import { proxy } from '../services/api/proxy'
 import { useAuthStore } from '../store/authStore'
 import { inferSchema } from '../services/schema/inferrer'
-import type { UIMessage } from '../services/llm/types'
+import type { UIMessage, StructuredResponse } from '../services/llm/types'
 
 let messageCounter = 0
 function nextId(): string {
@@ -86,6 +86,28 @@ function autoSelectTab(data: unknown, responseText: string) {
 
   if (bestScore > 0) {
     useAppStore.getState().setTabSelection('$', bestIndex)
+  }
+}
+
+/** True when structured data is non-empty and came from a real merge/focus (not Array fallback). */
+function hasUsableData(s: StructuredResponse): boolean {
+  if (s.strategy === MergeStrategy.Array) return false
+  const { data } = s
+  if (data == null) return false
+  if (Array.isArray(data) && data.length === 0) return false
+  if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data as object).length === 0) return false
+  return true
+}
+
+/** Infer schema and push data to the main view. Returns false if inference fails. */
+function updateMainView(data: unknown, url: string): boolean {
+  try {
+    const schema = inferSchema(data, url)
+    useAppStore.getState().fetchSuccess(data, schema)
+    return true
+  } catch (err) {
+    console.error('[useChat] Failed to update main view:', err instanceof Error ? err.message : String(err))
+    return false
   }
 }
 
@@ -283,46 +305,31 @@ export function useChat() {
           case ChatEventType.ToolCallError: {
             const errorText = `${event.toolName} failed: ${event.error}`
             streamedText += (streamedText ? '\n' : '') + errorText
-            updateMessage(assistantId, { text: streamedText })
+            updateMessage(assistantId, { text: streamedText, loading: false })
             break
           }
         }
       })
 
-      const hasStructuredData = result.structured?.data != null
-        && (!Array.isArray(result.structured.data) || result.structured.data.length > 0)
+      const structuredUsable = hasUsableData(result.structured)
 
       updateMessage(assistantId, {
         text: result.text,
         loading: false,
         ...(result.toolResults.length > 0 ? { toolResults: result.toolResults } : {}),
-        ...(hasStructuredData ? { structured: result.structured } : {}),
+        ...(structuredUsable ? { structured: result.structured } : {}),
       })
 
-      // Update main panel once with structured/focused data
-      if (hasStructuredData) {
-        try {
-          const schema = inferSchema(result.structured.data, url || '')
-          useAppStore.getState().fetchSuccess(result.structured.data, schema)
-        } catch (err) {
-          console.error('[useChat] Failed to update main view with structured data:', err instanceof Error ? err.message : String(err))
-        }
-      } else if (result.toolResults.length > 0) {
-        const last = result.toolResults[result.toolResults.length - 1]!
-        try {
-          const schema = inferSchema(last.data, url || '')
-          useAppStore.getState().fetchSuccess(last.data, schema)
-        } catch (err) {
-          console.error('[useChat] Failed to update main view:', err instanceof Error ? err.message : String(err))
-        }
+      // Update main panel once — prefer structured (merged/focused) data; fall back to last raw tool result
+      const lastToolResult = result.toolResults.at(-1)
+      const viewData = structuredUsable ? result.structured.data : lastToolResult?.data
+      if (viewData !== undefined) {
+        updateMainView(viewData, url)
       }
 
       // Auto-select the most relevant tab based on the response text
-      if (hasStructuredData) {
-        autoSelectTab(result.structured.data, result.text)
-      } else if (result.toolResults.length > 0) {
-        const lastData = result.toolResults[result.toolResults.length - 1]!.data
-        autoSelectTab(lastData, result.text)
+      if (viewData !== undefined) {
+        autoSelectTab(viewData, result.text)
       }
     } catch (err) {
       updateMessage(assistantId, {

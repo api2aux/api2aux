@@ -193,7 +193,7 @@ export interface ChatEngineConfig {
   maxRounds?: number
   /** Maximum characters of tool result to feed back to LLM. Default: 8000. */
   truncationLimit?: number
-  /** Strategy for merging multiple tool results. Default: MergeStrategy.LlmGuided. */
+  /** Strategy for merging/focusing tool results. Default: MergeStrategy.LlmGuided. */
   mergeStrategy?: MergeStrategy
 }
 

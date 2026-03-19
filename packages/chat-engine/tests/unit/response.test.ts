@@ -163,7 +163,7 @@ describe('formatStructuredResponse', () => {
       const mockLlm: LLMCompletionFn = vi.fn().mockResolvedValue({
         content: JSON.stringify([{ name: 'Alice' }]),
         tool_calls: [],
-        finish_reason: 'stop',
+        finish_reason: FinishReason.Stop,
       })
 
       const resp = await formatStructuredResponse(
@@ -182,6 +182,8 @@ describe('formatStructuredResponse', () => {
       const resp = await formatStructuredResponse(
         multipleResults,
         MergeStrategy.LlmGuided,
+        'merge data',
+        undefined as unknown as LLMCompletionFn,
       )
       expect(resp.strategy).toBe(MergeStrategy.Array)
     })

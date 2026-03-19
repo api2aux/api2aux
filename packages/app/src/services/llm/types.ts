@@ -13,6 +13,7 @@ export type {
   ToolParameter,
   StreamResult,
   ToolResultEntry,
+  StructuredResponse,
 } from '@api2aux/chat-engine'
 
 import type { ToolResultEntry, StructuredResponse } from '@api2aux/chat-engine'
@@ -30,7 +31,7 @@ export interface UIMessage {
   toolArgs?: Record<string, unknown>
   /** All tool results from this turn (for "view result" links) */
   toolResults?: ToolResultEntry[]
-  /** Merged structured response from the chat engine (for "view merged data" button) */
+  /** Structured response from the chat engine — merged when multiple sources, focused when single source. */
   structured?: StructuredResponse
   /** Is this message still streaming/loading */
   loading?: boolean
