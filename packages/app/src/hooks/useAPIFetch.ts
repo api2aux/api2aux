@@ -210,10 +210,20 @@ export function useAPIFetch() {
       const data = await fetchWithAuth(url, options)
 
       // Content-based spec detection fallback (Auto mode only)
-      if (mode === UrlMode.AUTO && isSpecContent(data)) {
-        const spec = await parseOpenAPISpec(data as Record<string, unknown>, { specUrl: url })
-        specSuccess(spec)
-        return
+      if (mode === UrlMode.AUTO) {
+        let specCandidate = isSpecContent(data) ? data as Record<string, unknown> : null
+        // If data is a raw string (e.g. YAML spec), try parsing it
+        if (!specCandidate && typeof data === 'string') {
+          try {
+            const parsed = yaml.load(data, { schema: yaml.JSON_SCHEMA })
+            if (isSpecContent(parsed)) specCandidate = parsed
+          } catch { /* not valid YAML — fall through */ }
+        }
+        if (specCandidate) {
+          const spec = await parseOpenAPISpec(specCandidate, { specUrl: url })
+          specSuccess(spec)
+          return
+        }
       }
 
       const schema = inferSchema(data, url)

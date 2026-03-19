@@ -222,6 +222,7 @@ export function ParameterForm({
     const ungroupedList: FormParameter[] = []
 
     for (const param of paramsWithTypes) {
+      if (!param.name) { ungroupedList.push(param); continue }
       const prefix = extractGroupPrefix(param.name)
       if (prefix) {
         if (!groups.has(prefix)) groups.set(prefix, [])
