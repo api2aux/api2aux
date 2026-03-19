@@ -10,9 +10,9 @@
 import { useCallback, useRef, useMemo } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useChatStore } from '../store/chatStore'
-import { chatCompletionStream } from '../services/llm/client'
+import { chatCompletionStream, chatCompletion } from '../services/llm/client'
 import { buildChatContext, ChatEngine, ChatEventType, MergeStrategy } from '@api2aux/chat-engine'
-import type { LLMCompletionFn, ToolExecutorFn, ChatEngineEvent } from '@api2aux/chat-engine'
+import type { LLMCompletionFn, ToolExecutorFn, ChatEngineEvent, ChatMessage } from '@api2aux/chat-engine'
 import { generateToolName } from '@api2aux/tool-utils'
 import { parseUrlParameters } from '../services/urlParser/parser'
 import { useParameterStore } from '../store/parameterStore'
@@ -195,10 +195,15 @@ export function useChat() {
 
   const engineRef = useRef<ChatEngine | null>(null)
 
-  // Create LLM function by closing over config
+  // Create LLM functions by closing over config
   const llmFn: LLMCompletionFn = useMemo(() => {
     return (messages, tools, onToken) =>
       chatCompletionStream(messages, tools, config, onToken)
+  }, [config])
+
+  // Non-streaming LLM for merge/focus — runs in a separate async context
+  const llmCompleteFn = useMemo(() => {
+    return (messages: ChatMessage[]) => chatCompletion(messages, config)
   }, [config])
 
   // Build context from current URL/spec
@@ -221,7 +226,7 @@ export function useChat() {
       const executor = createToolExecutor(url)
       engineRef.current = new ChatEngine(llmFn, executor, context, {
         mergeStrategy: MergeStrategy.LlmGuided,
-      })
+      }, undefined, llmCompleteFn)
     } else {
       // Clear stale history when switching to a different API
       if (engineRef.current.getContext().url !== context.url) {
@@ -229,10 +234,11 @@ export function useChat() {
       }
       engineRef.current.setContext(context)
       engineRef.current.setLlm(llmFn)
+      engineRef.current.setLlmComplete(llmCompleteFn)
       engineRef.current.setExecutor(createToolExecutor(url))
     }
     return engineRef.current
-  }, [url, context, llmFn])
+  }, [url, context, llmFn, llmCompleteFn])
 
   const clearMessages = useCallback(() => {
     storeClearMessages()

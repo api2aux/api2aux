@@ -9,6 +9,7 @@
 import type {
   ChatMessage,
   LLMCompletionFn,
+  LLMCompleteFn,
   ToolExecutorFn,
   ChatEngineContext,
   ChatEngineConfig,
@@ -18,7 +19,7 @@ import type {
   ToolResultEntry,
   StructuredResponse,
 } from './types'
-import { ChatEventType, MergeStrategy, MessageRole } from './types'
+import { ChatEventType, FinishReason, MergeStrategy, MessageRole } from './types'
 import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from './defaults'
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
@@ -34,6 +35,7 @@ export class ChatEngine {
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
   private readonly parallelMerge: boolean
+  private llmComplete: LLMCompleteFn | undefined
 
   constructor(
     llm: LLMCompletionFn,
@@ -41,6 +43,7 @@ export class ChatEngine {
     context: ChatEngineContext,
     config?: ChatEngineConfig,
     plugins?: ChatEnginePlugin[],
+    llmComplete?: LLMCompleteFn,
   ) {
     this.llm = llm
     this.executor = executor
@@ -59,6 +62,7 @@ export class ChatEngine {
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
     this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
+    this.llmComplete = llmComplete
 
     // Validate resolved config values
     if (!Number.isFinite(this.maxRounds) || this.maxRounds < 1) {
@@ -91,6 +95,11 @@ export class ChatEngine {
   /** Update the LLM function (e.g., when user changes model/provider/API key). */
   setLlm(llm: LLMCompletionFn): void {
     this.llm = llm
+  }
+
+  /** Update the non-streaming LLM function used for merge/focus calls. */
+  setLlmComplete(llmComplete: LLMCompleteFn | undefined): void {
+    this.llmComplete = llmComplete
   }
 
   /** Update the tool executor (e.g., when user changes API URL). */
@@ -379,11 +388,20 @@ export class ChatEngine {
     toolResults: ToolResultEntry[],
     userMessage: string,
   ): Promise<StructuredResponse> {
+    // Prefer non-streaming LLM for merge/focus — runs in a separate async context
+    // so React doesn't batch it with the streaming text updates
+    const mergeLlm: LLMCompletionFn = this.llmComplete
+      ? async (messages, _tools, _onToken) => {
+          const content = await this.llmComplete!(messages)
+          return { content, tool_calls: [], finish_reason: FinishReason.Stop }
+        }
+      : this.llm
+
     return formatStructuredResponse(
       toolResults,
       this.mergeStrategy,
       userMessage,
-      this.llm,
+      mergeLlm,
     )
   }
 }

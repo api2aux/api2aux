@@ -105,5 +105,29 @@ export function createOpenAICompatProvider(providerConfig: OpenAICompatConfig): 
 
       return { content, tool_calls, finish_reason: finishReason }
     },
+
+    async complete(
+      messages: ChatMessage[],
+      config: { apiKey: string; model: string },
+    ): Promise<string> {
+      const effectiveBaseURL = providerConfig.browserCors
+        ? providerConfig.baseURL
+        : `/api-proxy/${encodeURIComponent(providerConfig.baseURL)}`
+
+      const client = new OpenAI({
+        apiKey: config.apiKey,
+        baseURL: effectiveBaseURL,
+        dangerouslyAllowBrowser: true,
+        defaultHeaders: providerConfig.defaultHeaders,
+      })
+
+      const response = await client.chat.completions.create({
+        model: config.model,
+        messages: messages as OpenAI.ChatCompletionMessageParam[],
+        stream: false,
+      })
+
+      return response.choices[0]?.message?.content ?? ''
+    },
   }
 }

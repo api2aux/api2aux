@@ -23,4 +23,9 @@ export interface LLMProvider {
     config: { apiKey: string; model: string },
     onToken: (token: string) => void,
   ): Promise<StreamResult>
+  /** Send a non-streaming chat completion. Used for merge/focus calls that don't need token-by-token output. */
+  complete(
+    messages: ChatMessage[],
+    config: { apiKey: string; model: string },
+  ): Promise<string>
 }

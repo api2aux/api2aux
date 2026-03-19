@@ -15,6 +15,7 @@ export type {
   StreamResult,
   ToolResultEntry,
   LLMCompletionFn,
+  LLMCompleteFn,
   ToolExecutorFn,
   ApiSpec,
   ApiOperation,

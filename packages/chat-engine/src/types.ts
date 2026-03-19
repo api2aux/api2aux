@@ -95,6 +95,11 @@ export type LLMCompletionFn = (
   onToken: (token: string) => void,
 ) => Promise<StreamResult>
 
+/** Non-streaming LLM completion for merge/focus calls. Runs independently of the streaming context. */
+export type LLMCompleteFn = (
+  messages: ChatMessage[],
+) => Promise<string>
+
 /** Executes a tool call and returns raw API response data. */
 export type ToolExecutorFn = (
   toolName: string,
