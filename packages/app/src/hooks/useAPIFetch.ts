@@ -22,6 +22,19 @@ import { useAuthStore } from '../store/authStore'
 import { GraphQLError } from '../services/api/errors'
 import { proxy } from '../services/api/proxy'
 
+/** Try to interpret `data` as a parsed spec object, including YAML string fallback. */
+function asSpecCandidate(data: unknown): Record<string, unknown> | null {
+  if (isSpecContent(data)) return data
+  if (typeof data !== 'string') return null
+  try {
+    const parsed = yaml.load(data, { schema: yaml.JSON_SCHEMA })
+    if (isSpecContent(parsed)) return parsed
+  } catch (e) {
+    console.warn('[useAPIFetch] YAML spec probe failed:', e instanceof Error ? e.message : e)
+  }
+  return null
+}
+
 /** Build args for executeOperation, handling buildBody-aware operations (GraphQL). */
 function buildArgs(
   params: Record<string, string>,
@@ -211,14 +224,7 @@ export function useAPIFetch() {
 
       // Content-based spec detection fallback (Auto mode only)
       if (mode === UrlMode.AUTO) {
-        let specCandidate = isSpecContent(data) ? data as Record<string, unknown> : null
-        // If data is a raw string (e.g. YAML spec), try parsing it
-        if (!specCandidate && typeof data === 'string') {
-          try {
-            const parsed = yaml.load(data, { schema: yaml.JSON_SCHEMA })
-            if (isSpecContent(parsed)) specCandidate = parsed
-          } catch { /* not valid YAML — fall through */ }
-        }
+        const specCandidate = asSpecCandidate(data)
         if (specCandidate) {
           const spec = await parseOpenAPISpec(specCandidate, { specUrl: url })
           specSuccess(spec)
