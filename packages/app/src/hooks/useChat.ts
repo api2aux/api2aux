@@ -311,7 +311,6 @@ export function useChat() {
                 : 'Querying API...',
               loading: true,
             })
-            syncOperationUI(event.toolName, event.toolArgs)
             break
 
           case ChatEventType.ToolCallResult:
