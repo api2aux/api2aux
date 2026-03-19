@@ -137,7 +137,7 @@ export type HttpMethod = typeof HttpMethod[keyof typeof HttpMethod]
 export interface ApiOperation {
   id: string
   path: string
-  method: HttpMethod
+  method: string
   summary?: string
   description?: string
   tags: string[]
