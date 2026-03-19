@@ -24,6 +24,14 @@ export function ChatPanel() {
     prevMessageCount.current = messages.length
   }, [messages.length])
 
+  // Auto-scroll during streaming (text updates in place, message count doesn't change)
+  const lastMessage = messages[messages.length - 1]
+  useEffect(() => {
+    if (sending && lastMessage?.role === 'assistant') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [sending, lastMessage?.text, lastMessage?.role])
+
   // Show settings by default when no API key
   useEffect(() => {
     if (!hasApiKey) {
