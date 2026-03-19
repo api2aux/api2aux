@@ -9,7 +9,7 @@
 import type {
   ChatMessage,
   LLMCompletionFn,
-  LLMCompleteFn,
+  LLMTextFn,
   ToolExecutorFn,
   ChatEngineContext,
   ChatEngineConfig,
@@ -19,7 +19,7 @@ import type {
   ToolResultEntry,
   StructuredResponse,
 } from './types'
-import { ChatEventType, FinishReason, MergeStrategy, MessageRole } from './types'
+import { ChatEventType, MergeStrategy, MessageRole } from './types'
 import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from './defaults'
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
@@ -35,7 +35,7 @@ export class ChatEngine {
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
   private readonly parallelMerge: boolean
-  private llmComplete: LLMCompleteFn | undefined
+  private llmText: LLMTextFn | undefined
 
   constructor(
     llm: LLMCompletionFn,
@@ -43,7 +43,6 @@ export class ChatEngine {
     context: ChatEngineContext,
     config?: ChatEngineConfig,
     plugins?: ChatEnginePlugin[],
-    llmComplete?: LLMCompleteFn,
   ) {
     this.llm = llm
     this.executor = executor
@@ -62,7 +61,7 @@ export class ChatEngine {
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
     this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
-    this.llmComplete = llmComplete
+    this.llmText = config?.llmText
 
     // Validate resolved config values
     if (!Number.isFinite(this.maxRounds) || this.maxRounds < 1) {
@@ -83,7 +82,7 @@ export class ChatEngine {
   }
 
   /** Get the resolved engine configuration. */
-  getConfig(): Readonly<Required<ChatEngineConfig>> {
+  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText'>>> {
     return {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
@@ -98,8 +97,8 @@ export class ChatEngine {
   }
 
   /** Update the non-streaming LLM function used for merge/focus calls. */
-  setLlmComplete(llmComplete: LLMCompleteFn | undefined): void {
-    this.llmComplete = llmComplete
+  setLlmText(llmText: LLMTextFn | undefined): void {
+    this.llmText = llmText
   }
 
   /** Update the tool executor (e.g., when user changes API URL). */
@@ -188,6 +187,8 @@ export class ChatEngine {
     let roundCount = 0
     const collectedResults: ToolResultEntry[] = []
     let mergePromise: Promise<StructuredResponse> | null = null
+    // Generation counter: prevents stale merge promises from emitting StructuredReady
+    let mergeGeneration = 0
 
     // Loop until the LLM produces a text response (no tool calls)
     // eslint-disable-next-line no-constant-condition
@@ -215,10 +216,18 @@ export class ChatEngine {
             // Start merge/focus in parallel while text continues streaming.
             if (!mergeStarted && this.parallelMerge && collectedResults.length > 0) {
               mergeStarted = true
+              const gen = ++mergeGeneration
               mergePromise = this.buildStructuredResponse(collectedResults, text)
               mergePromise.then(structured => {
-                emit({ type: ChatEventType.StructuredReady, structured })
-              }).catch(() => {}) // errors handled when awaited below
+                // Only emit if this is still the latest merge (not superseded by a later round)
+                if (gen === mergeGeneration) {
+                  emit({ type: ChatEventType.StructuredReady, structured })
+                }
+              }).catch((err) => {
+                // buildStructuredResponse failures are handled when mergePromise is awaited below.
+                // This catch prevents unhandled-rejection warnings from the .then() chain.
+                console.warn('[chat-engine] Parallel merge .then() chain rejected:', err instanceof Error ? err.message : String(err))
+              })
             }
           },
         )
@@ -389,13 +398,13 @@ export class ChatEngine {
     userMessage: string,
   ): Promise<StructuredResponse> {
     // Prefer non-streaming LLM for merge/focus — runs in a separate async context
-    // so React doesn't batch it with the streaming text updates
-    const mergeLlm: LLMCompletionFn = this.llmComplete
-      ? async (messages, _tools, _onToken) => {
-          const content = await this.llmComplete!(messages)
-          return { content, tool_calls: [], finish_reason: FinishReason.Stop }
-        }
-      : this.llm
+    // so React doesn't batch it with the streaming text updates.
+    // Falls back to wrapping the streaming LLM with a no-op token handler.
+    const mergeLlm: LLMTextFn = this.llmText
+      ?? (async (messages) => {
+          const result = await this.llm(messages, [], () => {})
+          return result.content
+        })
 
     return formatStructuredResponse(
       toolResults,

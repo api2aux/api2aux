@@ -127,7 +127,12 @@ export function createOpenAICompatProvider(providerConfig: OpenAICompatConfig): 
         stream: false,
       })
 
-      return response.choices[0]?.message?.content ?? ''
+      const content = response.choices[0]?.message?.content
+      if (!content) {
+        console.warn(`[${providerConfig.id}] complete() received no text content. Finish reason:`, response.choices[0]?.finish_reason)
+        return ''
+      }
+      return content
     },
   }
 }

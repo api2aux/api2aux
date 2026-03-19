@@ -7,7 +7,7 @@
  * - Schema-based: Merge deterministically by shared entity IDs (no LLM call)
  */
 
-import type { ToolResultEntry, StructuredResponse, LLMCompletionFn, ChatMessage } from './types'
+import type { ToolResultEntry, StructuredResponse, LLMTextFn, ChatMessage } from './types'
 import { MergeStrategy, MessageRole } from './types'
 
 // ── ID field detection for schema-based merge ──
@@ -102,7 +102,7 @@ const FOCUS_PROMPT = `You are a data formatting assistant. Given the following A
 async function mergeLlmGuided(
   toolResults: ToolResultEntry[],
   userMessage: string,
-  llm: LLMCompletionFn,
+  llm: LLMTextFn,
 ): Promise<StructuredResponse> {
   const prompt = toolResults.length === 1 ? FOCUS_PROMPT : MERGE_PROMPT
 
@@ -125,8 +125,8 @@ async function mergeLlmGuided(
   ]
 
   try {
-    const result = await llm(messages, [], () => {})
-    const parsed = JSON.parse(result.content)
+    const content = await llm(messages)
+    const parsed = JSON.parse(content)
     return {
       strategy: MergeStrategy.LlmGuided,
       sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
@@ -155,7 +155,7 @@ export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: typeof MergeStrategy.LlmGuided,
   userMessage: string,
-  llm: LLMCompletionFn,
+  llm: LLMTextFn,
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
@@ -165,13 +165,13 @@ export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: MergeStrategy,
   userMessage: string,
-  llm: LLMCompletionFn,
+  llm: LLMTextFn,
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: MergeStrategy = MergeStrategy.LlmGuided,
   userMessage?: string,
-  llm?: LLMCompletionFn,
+  llm?: LLMTextFn,
 ): Promise<StructuredResponse> {
   if (toolResults.length === 0) {
     return mergeArray(toolResults)
@@ -196,4 +196,14 @@ export async function formatStructuredResponse(
     default:
       return mergeArray(toolResults)
   }
+}
+
+/** True when structured data is non-empty and came from a real merge/focus (not Array fallback). */
+export function hasUsableStructuredData(s: StructuredResponse): boolean {
+  if (s.strategy === MergeStrategy.Array) return false
+  const { data } = s
+  if (data == null) return false
+  if (Array.isArray(data) && data.length === 0) return false
+  if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data as object).length === 0) return false
+  return true
 }

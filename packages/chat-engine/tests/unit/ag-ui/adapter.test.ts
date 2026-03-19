@@ -285,6 +285,38 @@ describe('mapEvent', () => {
     }
   })
 
+  it('maps StructuredReady with fallback snapshot on serialization failure', () => {
+    const state = makeState()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+
+    const events = mapEvent(
+      {
+        type: ChatEventType.StructuredReady,
+        structured: {
+          strategy: MergeStrategy.LlmGuided,
+          sources: [{ toolName: 'list_users', args: {} }],
+          data: circular,
+        },
+      },
+      state,
+      threadId,
+      runId,
+    )
+
+    // Should still emit a snapshot (with fallback data)
+    expect(events).toHaveLength(1)
+    expect(events[0]!.type).toBe(AgUiEventType.StateSnapshot)
+    if (events[0]!.type === AgUiEventType.StateSnapshot) {
+      expect(events[0]!.snapshot.structured.strategy).toBe('array')
+      expect(events[0]!.snapshot.structured.data).toEqual([])
+    }
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
   it('maps Error to RunError', () => {
     const state = makeState()
 

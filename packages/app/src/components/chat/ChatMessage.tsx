@@ -2,34 +2,10 @@ import type { UIMessage, ToolResultEntry, StructuredResponse } from '../../servi
 import { useAppStore } from '../../store/appStore'
 import { useParameterStore } from '../../store/parameterStore'
 import { generateToolName } from '@api2aux/tool-utils'
-import { inferSchema } from '../../services/schema/inferrer'
-
-/** Infer schema and push data to the main view panel. Returns false if inference fails. */
-function updateMainView(data: unknown, url: string): boolean {
-  try {
-    const schema = inferSchema(data, url)
-    useAppStore.getState().fetchSuccess(data, schema)
-    return true
-  } catch (err) {
-    console.error('[ChatMessage] Failed to display data:', err instanceof Error ? err.message : String(err))
-    return false
-  }
-}
+import { updateMainView, scrollToResponseData } from '../../utils/chatViewHelpers'
 
 interface ChatMessageProps {
   message: UIMessage
-}
-
-/** Scroll the response data panel into view with a highlight flash. */
-function scrollToResponseData() {
-  setTimeout(() => {
-    const el = document.getElementById('response-data')
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      el.classList.add('highlight-flash')
-      setTimeout(() => el.classList.remove('highlight-flash'), 1500)
-    }
-  }, 50)
 }
 
 /** Turn a tool name + args into a short, human-readable label */
@@ -83,10 +59,10 @@ function ToolResultLinks({ results, contextText, hideBorder }: { results: ToolRe
       }
     }
 
-    updateMainView(entry.data, url)
+    const ok = updateMainView(entry.data, url)
 
     // Auto-select the most relevant tab based on the surrounding message text
-    if (contextText && entry.data && typeof entry.data === 'object' && !Array.isArray(entry.data)) {
+    if (ok && contextText && entry.data && typeof entry.data === 'object' && !Array.isArray(entry.data)) {
       const fields = Object.entries(entry.data as Record<string, unknown>)
         .filter(([, v]) => v !== null && typeof v === 'object')
         .map(([k]) => k)
@@ -103,7 +79,7 @@ function ToolResultLinks({ results, contextText, hideBorder }: { results: ToolRe
       }
     }
 
-    scrollToResponseData()
+    if (ok) scrollToResponseData()
   }
 
   return (
@@ -131,8 +107,8 @@ function MergedDataButton({ structured }: { structured: StructuredResponse }) {
   const url = useAppStore((s) => s.url)
 
   const handleClick = () => {
-    updateMainView(structured.data, url)
-    scrollToResponseData()
+    const ok = updateMainView(structured.data, url)
+    if (ok) scrollToResponseData()
   }
 
   const sourceCount = structured.sources.length

@@ -95,8 +95,8 @@ export type LLMCompletionFn = (
   onToken: (token: string) => void,
 ) => Promise<StreamResult>
 
-/** Non-streaming LLM completion for merge/focus calls. Runs independently of the streaming context. */
-export type LLMCompleteFn = (
+/** Non-streaming LLM text completion for merge/focus calls. Runs independently of the streaming context. */
+export type LLMTextFn = (
   messages: ChatMessage[],
 ) => Promise<string>
 
@@ -200,8 +200,10 @@ export interface ChatEngineConfig {
   truncationLimit?: number
   /** Strategy for merging/focusing tool results. Default: MergeStrategy.LlmGuided. */
   mergeStrategy?: MergeStrategy
-  /** Run merge/focus LLM call in parallel with text response. Default: true. */
+  /** Run merge/focus LLM call in parallel with text response. Default: true. Only meaningful when mergeStrategy is LlmGuided. */
   parallelMerge?: boolean
+  /** Non-streaming LLM for merge/focus calls. When provided, runs in a separate async context from the streaming LLM. Falls back to the streaming LLM with a no-op token handler if not set. */
+  llmText?: LLMTextFn
 }
 
 // ── Events ──
@@ -215,7 +217,7 @@ export const ChatEventType = {
   ToolCallResult: 'tool_call_result',
   /** A tool call failed. */
   ToolCallError: 'tool_call_error',
-  /** Structured data is ready (may arrive before text finishes when parallelMerge is enabled). */
+  /** Structured data is ready (may arrive before text finishes when parallelMerge is enabled). Consumers that also handle TurnComplete should deduplicate, as both carry the same structured data. */
   StructuredReady: 'structured_ready',
   /** The full turn is complete. */
   TurnComplete: 'turn_complete',

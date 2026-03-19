@@ -11,7 +11,7 @@ import { useCallback, useRef, useMemo } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useChatStore } from '../store/chatStore'
 import { chatCompletionStream, chatCompletion } from '../services/llm/client'
-import { buildChatContext, ChatEngine, ChatEventType, MergeStrategy } from '@api2aux/chat-engine'
+import { buildChatContext, ChatEngine, ChatEventType, hasUsableStructuredData } from '@api2aux/chat-engine'
 import type { LLMCompletionFn, ToolExecutorFn, ChatEngineEvent, ChatMessage } from '@api2aux/chat-engine'
 import { generateToolName } from '@api2aux/tool-utils'
 import { parseUrlParameters } from '../services/urlParser/parser'
@@ -20,8 +20,8 @@ import { fetchWithAuth, credentialToAuth } from '../services/api/fetcher'
 import { executeOperation } from 'api-invoke'
 import { proxy } from '../services/api/proxy'
 import { useAuthStore } from '../store/authStore'
-import { inferSchema } from '../services/schema/inferrer'
-import type { UIMessage, StructuredResponse } from '../services/llm/types'
+import type { UIMessage } from '../services/llm/types'
+import { updateMainView, scrollToResponseData } from '../utils/chatViewHelpers'
 
 let messageCounter = 0
 function nextId(): string {
@@ -86,40 +86,6 @@ function autoSelectTab(data: unknown, responseText: string) {
 
   if (bestScore > 0) {
     useAppStore.getState().setTabSelection('$', bestIndex)
-  }
-}
-
-/** Scroll the response data panel into view with a highlight flash. */
-function scrollToResponseData() {
-  setTimeout(() => {
-    const el = document.getElementById('response-data')
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      el.classList.add('highlight-flash')
-      setTimeout(() => el.classList.remove('highlight-flash'), 1500)
-    }
-  }, 50)
-}
-
-/** True when structured data is non-empty and came from a real merge/focus (not Array fallback). */
-function hasUsableData(s: StructuredResponse): boolean {
-  if (s.strategy === MergeStrategy.Array) return false
-  const { data } = s
-  if (data == null) return false
-  if (Array.isArray(data) && data.length === 0) return false
-  if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data as object).length === 0) return false
-  return true
-}
-
-/** Infer schema and push data to the main view. Returns false if inference fails. */
-function updateMainView(data: unknown, url: string): boolean {
-  try {
-    const schema = inferSchema(data, url)
-    useAppStore.getState().fetchSuccess(data, schema)
-    return true
-  } catch (err) {
-    console.error('[useChat] Failed to update main view:', err instanceof Error ? err.message : String(err))
-    return false
   }
 }
 
@@ -202,7 +168,7 @@ export function useChat() {
   }, [config])
 
   // Non-streaming LLM for merge/focus — runs in a separate async context
-  const llmCompleteFn = useMemo(() => {
+  const llmTextFn = useMemo(() => {
     return (messages: ChatMessage[]) => chatCompletion(messages, config)
   }, [config])
 
@@ -225,8 +191,9 @@ export function useChat() {
     if (!engineRef.current) {
       const executor = createToolExecutor(url)
       engineRef.current = new ChatEngine(llmFn, executor, context, {
-        mergeStrategy: MergeStrategy.LlmGuided,
-      }, undefined, llmCompleteFn)
+        mergeStrategy: 'llm-guided',
+        llmText: llmTextFn,
+      })
     } else {
       // Clear stale history when switching to a different API
       if (engineRef.current.getContext().url !== context.url) {
@@ -234,11 +201,11 @@ export function useChat() {
       }
       engineRef.current.setContext(context)
       engineRef.current.setLlm(llmFn)
-      engineRef.current.setLlmComplete(llmCompleteFn)
+      engineRef.current.setLlmText(llmTextFn)
       engineRef.current.setExecutor(createToolExecutor(url))
     }
     return engineRef.current
-  }, [url, context, llmFn, llmCompleteFn])
+  }, [url, context, llmFn, llmTextFn])
 
   const clearMessages = useCallback(() => {
     storeClearMessages()
@@ -311,6 +278,7 @@ export function useChat() {
                 : 'Querying API...',
               loading: true,
             })
+            syncOperationUI(event.toolName, event.toolArgs)
             break
 
           case ChatEventType.ToolCallResult:
@@ -329,17 +297,19 @@ export function useChat() {
 
           case ChatEventType.StructuredReady:
             // Parallel merge finished — update main panel while text is still streaming
-            if (hasUsableData(event.structured)) {
-              mainPanelUpdated = true
-              updateMainView(event.structured.data, url)
-              autoSelectTab(event.structured.data, '')
-              scrollToResponseData()
+            if (hasUsableStructuredData(event.structured)) {
+              const ok = updateMainView(event.structured.data, url)
+              if (ok) {
+                mainPanelUpdated = true
+                autoSelectTab(event.structured.data, '')
+                scrollToResponseData()
+              }
             }
             break
         }
       })
 
-      const structuredUsable = hasUsableData(result.structured)
+      const structuredUsable = hasUsableStructuredData(result.structured)
 
       updateMessage(assistantId, {
         text: result.text,
@@ -353,9 +323,11 @@ export function useChat() {
         const lastToolResult = result.toolResults.at(-1)
         const viewData = structuredUsable ? result.structured.data : lastToolResult?.data
         if (viewData !== undefined) {
-          updateMainView(viewData, url)
-          autoSelectTab(viewData, result.text)
-          scrollToResponseData()
+          const ok = updateMainView(viewData, url)
+          if (ok) {
+            autoSelectTab(viewData, result.text)
+            scrollToResponseData()
+          }
         }
       }
     } catch (err) {
