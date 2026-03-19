@@ -5,7 +5,7 @@
  * Compatible with the AG-UI specification (https://docs.ag-ui.com).
  */
 
-import type { Tool } from '../types'
+import type { Tool, ToolResultEntry, StructuredResponse } from '../types'
 
 // ── AG-UI Event Types ──
 
@@ -21,8 +21,6 @@ export const AgUiEventType = {
   ToolCallEnd: 'TOOL_CALL_END',
   ToolCallResult: 'TOOL_CALL_RESULT',
   StateSnapshot: 'STATE_SNAPSHOT',
-  /** Defined for AG-UI spec completeness; not currently emitted by this adapter. */
-  StateDelta: 'STATE_DELTA',
 } as const
 export type AgUiEventType = typeof AgUiEventType[keyof typeof AgUiEventType]
 
@@ -104,9 +102,16 @@ export interface AgUiToolCallResultEvent extends AgUiBaseEvent {
   role?: AgUiRole
 }
 
+/** Snapshot of the engine's turn-end state, sent as the final data event before RunFinished. */
+export interface AgUiStateSnapshot {
+  text: string
+  toolResults: ToolResultEntry[]
+  structured: StructuredResponse
+}
+
 export interface AgUiStateSnapshotEvent extends AgUiBaseEvent {
   type: typeof AgUiEventType.StateSnapshot
-  snapshot: unknown
+  snapshot: AgUiStateSnapshot
 }
 
 export type AgUiEvent =

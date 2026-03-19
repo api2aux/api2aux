@@ -126,6 +126,12 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('NEVER answer from your own knowledge')
   })
 
+  it('handles invalid URL gracefully in raw-URL mode', () => {
+    const prompt = buildSystemPrompt('not a valid url')
+    expect(prompt).toContain('not a valid url')
+    expect(prompt).toContain('NEVER answer from your own knowledge')
+  })
+
   it('detects auth schemes', () => {
     const specWithAuth: ApiSpec = {
       ...minimalSpec,

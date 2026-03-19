@@ -3,7 +3,6 @@
  *
  * Builds LLM tool definitions and system prompts from API specs,
  * enrichment plugins, and workflow inference data.
- *
  */
 
 import type { Tool, ApiSpec, ApiOperation, ChatEngineContext } from './types'
@@ -244,8 +243,9 @@ function detectResponseSemantics(spec: ApiSpec): string | null {
         properties = items.properties as Record<string, Record<string, unknown>>
       }
     }
-    // If the response is a thin wrapper (<=4 fields), drill into the first nested
-    // array's items to find the actual entity fields. Handles the common { count, results: [...] } pattern.
+    // If the response is a thin wrapper (<=4 fields, covering common envelopes like
+    // { count, next, previous, results }), drill into the first nested array's items
+    // to find the actual entity fields.
     if (properties && Object.keys(properties).length <= 4) {
       for (const prop of Object.values(properties)) {
         if (prop.type === 'array' && prop.items && typeof prop.items === 'object') {

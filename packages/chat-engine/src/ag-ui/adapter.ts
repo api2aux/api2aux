@@ -9,18 +9,21 @@
 import type { ChatEngine } from '../engine'
 import type { ChatEngineEvent } from '../types'
 import { ChatEventType } from '../types'
-import type { AgUiEvent, AgUiRunInput } from './types'
+import { TRUNCATION_LIMIT } from '../defaults'
+import type {
+  AgUiEvent,
+  AgUiRunInput,
+  AgUiStateSnapshot,
+  AgUiRunStartedEvent,
+  AgUiRunFinishedEvent,
+  AgUiRunErrorEvent,
+  AgUiTextMessageEndEvent,
+} from './types'
 import { AgUiEventType, AgUiRole } from './types'
 
-// Module-scoped counter for generating unique message IDs within a page/session lifetime.
-let idCounter = 0
-function nextId(): string {
-  return `msg_${Date.now()}_${++idCounter}`
-}
-
-/** Reset the ID counter (for tests only). */
-export function _resetIdCounter(): void {
-  idCounter = 0
+/** Generate a unique message ID scoped to a single adapter run. */
+function nextId(state: AdapterState): string {
+  return `msg_${Date.now()}_${++state.idCounter}`
 }
 
 function now(): number {
@@ -32,10 +35,11 @@ export interface AdapterState {
   messageId: string | null
   toolCallCounter: number
   toolCallIdMap: Map<string, string>
+  idCounter: number
 }
 
 export function createAdapterState(): AdapterState {
-  return { messageId: null, toolCallCounter: 0, toolCallIdMap: new Map() }
+  return { messageId: null, toolCallCounter: 0, toolCallIdMap: new Map(), idCounter: 0 }
 }
 
 /**
@@ -54,7 +58,7 @@ export function mapEvent(
   switch (event.type) {
     case ChatEventType.Token: {
       if (!state.messageId) {
-        state.messageId = nextId()
+        state.messageId = nextId(state)
         events.push({
           type: AgUiEventType.TextMessageStart,
           messageId: state.messageId,
@@ -104,18 +108,23 @@ export function mapEvent(
     }
 
     case ChatEventType.ToolCallResult: {
-      const toolCallId = state.toolCallIdMap.get(event.toolCallId) ?? `tc_${state.toolCallCounter}`
+      let toolCallId = state.toolCallIdMap.get(event.toolCallId)
+      if (!toolCallId) {
+        console.warn('[chat-engine] AG-UI adapter: no mapping for toolCallId', event.toolCallId, '— using fallback')
+        toolCallId = `tc_${state.toolCallCounter}`
+      }
       let content: string
       try {
         const s = JSON.stringify(event.data)
-        content = s.length <= 8000 ? s : s.slice(0, 8000) + '... [truncated]'
+        // AG-UI transport truncation (independent of engine's truncationLimit, which controls what the LLM sees)
+        content = s.length <= TRUNCATION_LIMIT ? s : s.slice(0, TRUNCATION_LIMIT) + '... [truncated]'
       } catch (err) {
         console.warn('[chat-engine] Failed to serialize tool result data:', err instanceof Error ? err.message : String(err))
         content = '[Unserializable data]'
       }
       events.push({
         type: AgUiEventType.ToolCallResult,
-        messageId: nextId(),
+        messageId: nextId(state),
         toolCallId,
         content,
         role: AgUiRole.Tool,
@@ -125,10 +134,14 @@ export function mapEvent(
     }
 
     case ChatEventType.ToolCallError: {
-      const toolCallId = state.toolCallIdMap.get(event.toolCallId) ?? `tc_${state.toolCallCounter}`
+      let toolCallId = state.toolCallIdMap.get(event.toolCallId)
+      if (!toolCallId) {
+        console.warn('[chat-engine] AG-UI adapter: no mapping for toolCallId', event.toolCallId, '— using fallback')
+        toolCallId = `tc_${state.toolCallCounter}`
+      }
       events.push({
         type: AgUiEventType.ToolCallResult,
-        messageId: nextId(),
+        messageId: nextId(state),
         toolCallId,
         content: `Error: ${event.error}`,
         role: AgUiRole.Tool,
@@ -147,13 +160,13 @@ export function mapEvent(
       }
 
       // Serialization guard: ensure snapshot data is JSON-safe for transport
-      let snapshot: Record<string, unknown>
+      let snapshot: AgUiStateSnapshot
       try {
         snapshot = JSON.parse(JSON.stringify({
           text: event.text,
           toolResults: event.toolResults,
           structured: event.structured,
-        })) as Record<string, unknown>
+        })) as AgUiStateSnapshot
       } catch (err) {
         console.warn('[chat-engine] Failed to serialize state snapshot:', err instanceof Error ? err.message : String(err))
         snapshot = { text: event.text, toolResults: [], structured: { strategy: 'array', sources: [], data: [] } }
@@ -239,7 +252,8 @@ function createEventQueue<T>() {
 /**
  * Create an AG-UI compatible agent from a ChatEngine.
  *
- * If the AG-UI input provides tools, they replace the engine's current tool set (via setContext).
+ * If the AG-UI input provides tools, they permanently replace the engine's
+ * current tool set (via setContext). This affects all subsequent runs, not just the current one.
  */
 export function createAgent(engine: ChatEngine): AgUiAgent {
   return {
@@ -259,23 +273,26 @@ export function createAgent(engine: ChatEngine): AgUiAgent {
       if (!userMessage) {
         return {
           async *[Symbol.asyncIterator]() {
-            yield {
+            const started: AgUiRunStartedEvent = {
               type: AgUiEventType.RunStarted,
               threadId,
               runId,
               timestamp: now(),
-            } as AgUiEvent
-            yield {
+            }
+            yield started
+            const error: AgUiRunErrorEvent = {
               type: AgUiEventType.RunError,
               message: 'No user message found in AG-UI input',
               timestamp: now(),
-            } as AgUiEvent
-            yield {
+            }
+            yield error
+            const finished: AgUiRunFinishedEvent = {
               type: AgUiEventType.RunFinished,
               threadId,
               runId,
               timestamp: now(),
-            } as AgUiEvent
+            }
+            yield finished
           },
         }
       }
@@ -284,12 +301,13 @@ export function createAgent(engine: ChatEngine): AgUiAgent {
 
       const state = createAdapterState()
 
-      queue.push({
+      const runStarted: AgUiRunStartedEvent = {
         type: AgUiEventType.RunStarted,
         threadId,
         runId,
         timestamp: now(),
-      } as AgUiEvent)
+      }
+      queue.push(runStarted)
 
       let errorEmitted = false
       engine.sendMessage(userMessage, (event) => {
@@ -301,26 +319,29 @@ export function createAgent(engine: ChatEngine): AgUiAgent {
       }).catch((err) => {
         // Only emit RunError if the engine didn't already emit one via ChatEventType.Error
         if (!errorEmitted) {
-          queue.push({
+          const runError: AgUiRunErrorEvent = {
             type: AgUiEventType.RunError,
             message: err instanceof Error ? err.message : String(err),
             timestamp: now(),
-          } as AgUiEvent)
+          }
+          queue.push(runError)
         }
         // Close any in-progress text message
         if (state.messageId) {
-          queue.push({
+          const msgEnd: AgUiTextMessageEndEvent = {
             type: AgUiEventType.TextMessageEnd,
             messageId: state.messageId,
             timestamp: now(),
-          } as AgUiEvent)
+          }
+          queue.push(msgEnd)
         }
-        queue.push({
+        const runFinished: AgUiRunFinishedEvent = {
           type: AgUiEventType.RunFinished,
           threadId,
           runId,
           timestamp: now(),
-        } as AgUiEvent)
+        }
+        queue.push(runFinished)
         queue.finish()
       })
 

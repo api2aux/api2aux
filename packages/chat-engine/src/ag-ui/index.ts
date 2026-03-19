@@ -16,6 +16,7 @@ export type {
   AgUiToolCallArgsEvent,
   AgUiToolCallEndEvent,
   AgUiToolCallResultEvent,
+  AgUiStateSnapshot,
   AgUiStateSnapshotEvent,
   AgUiEvent,
   AgUiRunInput,

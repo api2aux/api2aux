@@ -275,6 +275,47 @@ describe('mapEvent', () => {
       expect(events[0]!.message).toBe('Rate limited')
     }
   })
+
+  it('handles unserializable toolArgs gracefully', () => {
+    const state = makeState()
+
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+
+    const events = mapEvent(
+      { type: ChatEventType.ToolCallStart, toolCallId: 'call_circ_args', toolName: 'list_users', toolArgs: circular, parallelCount: 1 },
+      state,
+      threadId,
+      runId,
+    )
+
+    expect(events).toHaveLength(3)
+    expect(events[0]!.type).toBe(AgUiEventType.ToolCallStart)
+    // Should fall back to '{}' for unserializable args
+    if (events[1]!.type === AgUiEventType.ToolCallArgs) {
+      expect(events[1]!.delta).toBe('{}')
+    }
+  })
+
+  it('warns on missing toolCallId mapping for ToolCallResult', () => {
+    const state = makeState()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const events = mapEvent(
+      { type: ChatEventType.ToolCallResult, toolCallId: 'unknown_id', toolName: 'list_users', toolArgs: {}, data: { ok: true }, summary: 'ok' },
+      state,
+      threadId,
+      runId,
+    )
+
+    expect(events).toHaveLength(1)
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('no mapping for toolCallId'),
+      'unknown_id',
+      expect.any(String),
+    )
+    warnSpy.mockRestore()
+  })
 })
 
 describe('createAgent', () => {
@@ -478,6 +519,42 @@ describe('createAgent', () => {
 
     // Verify the custom tool was used
     expect(executor).toHaveBeenCalledWith('custom_tool', {})
+  })
+
+  it('handles unserializable snapshot data gracefully', async () => {
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+
+    const llm: LLMCompletionFn = vi.fn()
+      .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+      .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+        onToken('ok')
+        return textResponse('ok')
+      })
+
+    // Return circular data that can't be JSON-serialized
+    const executor: ToolExecutorFn = vi.fn().mockResolvedValue(circular)
+
+    const engine = new ChatEngine(llm, executor, testContext, {
+      mergeStrategy: MergeStrategy.Array,
+    })
+    const agent = createAgent(engine)
+
+    const events: AgUiEvent[] = []
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    for await (const event of agent.run({
+      threadId: 't',
+      runId: 'r',
+      messages: [{ role: AgUiRole.User, content: 'test' }],
+    })) {
+      events.push(event)
+    }
+
+    // Should still complete successfully with a fallback snapshot
+    const types = events.map(e => e.type)
+    expect(types).toContain(AgUiEventType.StateSnapshot)
+    expect(types[types.length - 1]).toBe(AgUiEventType.RunFinished)
+    warnSpy.mockRestore()
   })
 
   it('extracts user message from AG-UI messages', async () => {

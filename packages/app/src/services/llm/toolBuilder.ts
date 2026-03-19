@@ -1,8 +1,9 @@
 /**
- * Re-exports context building functions from @api2aux/chat-engine.
+ * Wrappers around @api2aux/chat-engine context building functions.
  *
- * The app's useChat hook and other consumers continue to import from here,
- * but the actual implementation now lives in the chat-engine package.
+ * Not currently imported by any consumer — the app's useChat hook imports
+ * buildChatContext from the engine directly. Retained for standalone usage
+ * outside the chat flow (e.g. building tools without a full ChatEngineContext).
  *
  * buildToolsFromUrl is wrapped to auto-parse URL parameters (since
  * parseUrlParameters lives in the app, not the engine).

@@ -121,15 +121,15 @@ export const ApiParamIn = {
 } as const
 export type ApiParamIn = typeof ApiParamIn[keyof typeof ApiParamIn]
 
-/** HTTP methods. */
+/** HTTP methods (uppercase to match api-invoke parser output and cross-package conventions). */
 export const HttpMethod = {
-  Get: 'get',
-  Post: 'post',
-  Put: 'put',
-  Delete: 'delete',
-  Patch: 'patch',
-  Options: 'options',
-  Head: 'head',
+  Get: 'GET',
+  Post: 'POST',
+  Put: 'PUT',
+  Delete: 'DELETE',
+  Patch: 'PATCH',
+  Options: 'OPTIONS',
+  Head: 'HEAD',
 } as const
 export type HttpMethod = typeof HttpMethod[keyof typeof HttpMethod]
 
@@ -182,7 +182,7 @@ export interface ChatEngineContext {
   /** Parsed OpenAPI spec, if available. Null for raw URL mode. */
   readonly spec: ApiSpec | null
   /** Pre-built tools (from buildToolsFromSpec/Url). */
-  readonly tools: Tool[]
+  readonly tools: readonly Tool[]
   /** Base system prompt (from buildSystemPrompt). May be modified by plugins before each LLM call. */
   readonly systemPrompt: string
 }
@@ -230,8 +230,6 @@ export type ChatEngineEventHandler = (event: ChatEngineEvent) => void
 interface StructuredResponseBase {
   /** Source API calls that produced the data. */
   sources: Array<{ toolName: string; args: Record<string, unknown> }>
-  /** Field metadata for UI rendering hints. Reserved for future enrichment; not yet populated by the engine. */
-  fields?: Array<{ name: string; type: string; semantic?: string }>
 }
 
 /** Discriminated union — narrow on `strategy` to get a typed `data` shape. */

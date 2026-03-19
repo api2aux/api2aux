@@ -744,6 +744,15 @@ describe('ChatEngine', () => {
       const history = engine.getHistory()
       expect(history[0]!.content).toBe('hello')
     })
+
+    it('rejects empty message text', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      await expect(engine.sendMessage('', onEvent)).rejects.toThrow('message text must not be empty')
+      await expect(engine.sendMessage('   ', onEvent)).rejects.toThrow('message text must not be empty')
+    })
   })
 
   describe('getConfig', () => {
@@ -879,6 +888,44 @@ describe('ChatEngine', () => {
       // Plugin should receive NO_DATA_MESSAGE, not the LLM's original text
       expect(receivedText).toEqual([NO_DATA_MESSAGE])
       expect(result.text).toBe(`[modified] ${NO_DATA_MESSAGE}`)
+    })
+  })
+
+  describe('non-Error rejection', () => {
+    it('handles non-Error thrown from LLM', async () => {
+      const llm: LLMCompletionFn = vi.fn().mockRejectedValue('string rejection')
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      await expect(engine.sendMessage('test', onEvent)).rejects.toBe('string rejection')
+
+      const errorEvent = events.find(e => e.type === ChatEventType.Error)
+      expect(errorEvent).toBeDefined()
+      if (errorEvent?.type === ChatEventType.Error) {
+        expect(errorEvent.error).toBe('string rejection')
+      }
+    })
+  })
+
+  describe('setExecutor', () => {
+    it('uses the new executor after setExecutor', async () => {
+      const oldExecutor: ToolExecutorFn = vi.fn().mockResolvedValue({ old: true })
+      const newExecutor: ToolExecutorFn = vi.fn().mockResolvedValue({ new: true })
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const engine = new ChatEngine(llm, oldExecutor, testContext)
+      engine.setExecutor(newExecutor)
+      const result = await engine.sendMessage('test', onEvent)
+
+      expect(oldExecutor).not.toHaveBeenCalled()
+      expect(newExecutor).toHaveBeenCalledWith('list_users', {})
+      expect(result.toolResults[0]!.data).toEqual({ new: true })
     })
   })
 

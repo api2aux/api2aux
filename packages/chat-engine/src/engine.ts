@@ -3,8 +3,7 @@
  *
  * Manages multi-round LLM tool calling, event emission, plugin hooks,
  * and a no-knowledge guardrail (replaces the LLM's response with a fallback
- * message when no tool calls produced results — either because none were
- * attempted or because all attempts failed).
+ * message when no tool calls returned usable data during the turn).
  */
 
 import type {
@@ -68,12 +67,11 @@ export class ChatEngine {
     }
   }
 
-  /** Get a snapshot of the current conversation history. */
+  /** Get a shallow copy of the current conversation history. Message objects are shared references; do not mutate them. */
   getHistory(): readonly ChatMessage[] {
     return [...this.history]
   }
 
-  /** Get current context. */
   getContext(): ChatEngineContext {
     return this.context
   }
@@ -97,7 +95,6 @@ export class ChatEngine {
     this.executor = executor
   }
 
-  /** Clear conversation history. */
   clearHistory(): void {
     this.history = []
   }
@@ -142,11 +139,13 @@ export class ChatEngine {
     // Wrap the event handler to prevent callback errors from crashing the engine loop
     const emit: ChatEngineEventHandler = (event) => {
       try { onEvent(event) } catch (err) {
-        console.error('[chat-engine] onEvent handler threw:', err instanceof Error ? err.message : String(err))
+        console.error('[chat-engine] onEvent handler threw:', err instanceof Error ? err.stack ?? err.message : String(err))
       }
     }
 
-    this.history.push({ role: MessageRole.User, content: text.trim() })
+    const trimmed = text.trim()
+    if (trimmed.length === 0) throw new Error('ChatEngine: message text must not be empty')
+    this.history.push({ role: MessageRole.User, content: trimmed })
 
     let systemPrompt = this.context.systemPrompt
     for (const plugin of this.plugins ?? []) {
@@ -177,6 +176,7 @@ export class ChatEngine {
     let roundCount = 0
     const collectedResults: ToolResultEntry[] = []
 
+    // Loop until the LLM produces a text response (no tool calls)
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const llmMessages: ChatMessage[] = [
@@ -207,7 +207,7 @@ export class ChatEngine {
       if (streamResult.tool_calls.length === 0) {
         let responseText = streamResult.content || 'Done.'
 
-        // Guardrail: override response when no tool calls succeeded
+        // No-knowledge guardrail: no tool call returned usable data this turn
         if (collectedResults.length === 0) {
           responseText = NO_DATA_MESSAGE
         }

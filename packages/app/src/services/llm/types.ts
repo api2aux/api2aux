@@ -17,7 +17,7 @@ export type {
 
 import type { ToolResultEntry } from '@api2aux/chat-engine'
 
-/** A message in the chat UI (extends LLM message with UI-specific fields) */
+/** A message in the chat UI. Analogous to ChatMessage but with a UI-oriented shape (text instead of content, tool-result role, loading/error states). */
 export interface UIMessage {
   id: string
   role: 'user' | 'assistant' | 'tool-result'

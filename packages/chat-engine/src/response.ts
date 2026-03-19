@@ -112,7 +112,8 @@ async function mergeLlmGuided(
       let dataStr: string
       try {
         dataStr = JSON.stringify(r.data, null, 2).slice(0, 4000)
-      } catch {
+      } catch (err) {
+        console.warn('[chat-engine] Failed to serialize tool result for merge prompt:', err instanceof Error ? err.message : String(err))
         dataStr = '[Unserializable data]'
       }
       return `Result ${i + 1} (from ${r.toolName}):\n${dataStr}`
@@ -147,7 +148,9 @@ async function mergeLlmGuided(
  * Format a structured response from collected tool results.
  *
  * The response's `strategy` reflects what was actually applied, which may
- * differ from the requested strategy if a fallback occurred.
+ * differ from the requested strategy if a fallback occurred:
+ * - LlmGuided falls back to Array on LLM failure or when toolResults.length <= 1
+ * - SchemaBased falls back to Array when no entities with ID fields are detected
  */
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
