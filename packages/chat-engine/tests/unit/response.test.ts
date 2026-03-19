@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { formatStructuredResponse } from '../../src/response'
-import { MergeStrategy } from '../../src/types'
+import { MergeStrategy, FinishReason } from '../../src/types'
 import type { ToolResultEntry, LLMCompletionFn } from '../../src/types'
 
 const singleResult: ToolResultEntry[] = [
@@ -119,7 +119,7 @@ describe('formatStructuredResponse', () => {
       const mockLlm: LLMCompletionFn = vi.fn().mockResolvedValue({
         content: JSON.stringify({ users: [{ id: 1, name: 'Alice', orders: 2 }] }),
         tool_calls: [],
-        finish_reason: 'stop',
+        finish_reason: FinishReason.Stop,
       })
 
       const resp = await formatStructuredResponse(
@@ -174,7 +174,7 @@ describe('formatStructuredResponse', () => {
       const mockLlm: LLMCompletionFn = vi.fn().mockResolvedValue({
         content: 'This is not valid JSON',
         tool_calls: [],
-        finish_reason: 'stop',
+        finish_reason: FinishReason.Stop,
       })
 
       const resp = await formatStructuredResponse(

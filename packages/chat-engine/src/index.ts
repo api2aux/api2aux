@@ -27,7 +27,7 @@ export type {
   StructuredResponse,
 } from './types'
 
-export { MessageRole, ToolType, ApiParamIn, MergeStrategy, ChatEventType } from './types'
+export { MessageRole, ToolType, ApiParamIn, MergeStrategy, ChatEventType, HttpMethod, FinishReason } from './types'
 
 // === Defaults ===
 export { MAX_ROUNDS, TRUNCATION_LIMIT, NO_DATA_MESSAGE } from './defaults'

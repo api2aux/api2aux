@@ -102,7 +102,7 @@ async function mergeLlmGuided(
   userMessage: string,
   llm: LLMCompletionFn,
 ): Promise<StructuredResponse> {
-  // For single results, no merge needed
+  // No merge needed for 0 or 1 results
   if (toolResults.length <= 1) {
     return mergeArray(toolResults)
   }
@@ -150,11 +150,7 @@ export async function formatStructuredResponse(
   llm?: LLMCompletionFn,
 ): Promise<StructuredResponse> {
   if (toolResults.length === 0) {
-    return {
-      strategy,
-      sources: [],
-      data: [],
-    }
+    return mergeArray(toolResults)
   }
 
   switch (strategy) {

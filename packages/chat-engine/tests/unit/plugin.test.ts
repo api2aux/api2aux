@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { ChatEngine } from '../../src/engine'
-import { ChatEventType, MergeStrategy } from '../../src/types'
+import { ChatEventType, MergeStrategy, FinishReason } from '../../src/types'
 import { NO_DATA_MESSAGE } from '../../src/defaults'
 import type {
   ChatEnginePlugin,
@@ -47,12 +47,12 @@ function toolCallResponse(name: string, args: Record<string, unknown>): StreamRe
       type: 'function',
       function: { name, arguments: JSON.stringify(args) },
     }],
-    finish_reason: 'tool_calls',
+    finish_reason: FinishReason.ToolCalls,
   }
 }
 
 function textResponse(text: string): StreamResult {
-  return { content: text, tool_calls: [], finish_reason: 'stop' }
+  return { content: text, tool_calls: [], finish_reason: FinishReason.Stop }
 }
 
 // ── Example domain plugins ──

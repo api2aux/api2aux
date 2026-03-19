@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { loadSpec, buildTestEngine, collectEvents } from '../helpers/setup'
 import { createScriptedLlm } from '../helpers/mock-llm'
 import { createMockExecutor, createFailingExecutor } from '../helpers/mock-executor'
-import { ChatEventType } from '../../src/types'
+import { ChatEventType, FinishReason } from '../../src/types'
 import { NO_DATA_MESSAGE } from '../../src/defaults'
 
 describe('Error recovery: D&D 5e API', () => {
@@ -66,11 +66,11 @@ describe('Error recovery: D&D 5e API', () => {
             type: 'function' as const,
             function: { name: 'get_api', arguments: '{invalid json!' },
           }],
-          finish_reason: 'tool_calls',
+          finish_reason: FinishReason.ToolCalls,
         }
       }
       onToken('Recovered from error.')
-      return { content: 'Recovered from error.', tool_calls: [], finish_reason: 'stop' }
+      return { content: 'Recovered from error.', tool_calls: [], finish_reason: FinishReason.Stop }
     }
 
     const executor = createMockExecutor({})

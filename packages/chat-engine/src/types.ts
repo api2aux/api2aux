@@ -58,11 +58,20 @@ export interface ToolParameter {
   default?: unknown
 }
 
+/** LLM completion finish reasons. */
+export const FinishReason = {
+  Stop: 'stop',
+  ToolCalls: 'tool_calls',
+  Length: 'length',
+  ContentFilter: 'content_filter',
+} as const
+export type FinishReason = typeof FinishReason[keyof typeof FinishReason]
+
 /** The result of a streaming completion: either streamed text or accumulated tool calls. */
 export interface StreamResult {
   content: string
   tool_calls: ToolCall[]
-  finish_reason: string
+  finish_reason: FinishReason
 }
 
 /** A collected tool result from a single API call within a turn. */
@@ -108,11 +117,23 @@ export const ApiParamIn = {
 } as const
 export type ApiParamIn = typeof ApiParamIn[keyof typeof ApiParamIn]
 
+/** HTTP methods. */
+export const HttpMethod = {
+  Get: 'get',
+  Post: 'post',
+  Put: 'put',
+  Delete: 'delete',
+  Patch: 'patch',
+  Options: 'options',
+  Head: 'head',
+} as const
+export type HttpMethod = typeof HttpMethod[keyof typeof HttpMethod]
+
 /** Minimal operation shape needed by the engine. */
 export interface ApiOperation {
   id: string
   path: string
-  method: string
+  method: HttpMethod
   summary?: string
   description?: string
   tags: string[]
@@ -134,8 +155,6 @@ export interface ApiOperation {
   }>
   responseSchema?: unknown
   requestBody?: { description?: string; required: boolean }
-  buildBody?: unknown
-  errorHints?: Record<string, string>
 }
 
 // ── Merge Strategy ──
@@ -152,16 +171,16 @@ export type MergeStrategy = typeof MergeStrategy[keyof typeof MergeStrategy]
 
 // ── Engine Context & Config ──
 
-/** Full context the engine needs to operate. */
+/** Full context the engine needs to operate. Replace wholesale via setContext(). */
 export interface ChatEngineContext {
   /** Raw API URL (used for raw-URL mode and fallbacks). */
-  url: string
+  readonly url: string
   /** Parsed OpenAPI spec, if available. Null for raw URL mode. */
-  spec: ApiSpec | null
+  readonly spec: ApiSpec | null
   /** Pre-built tools (from buildToolsFromSpec/Url). */
-  tools: Tool[]
+  readonly tools: Tool[]
   /** Pre-built system prompt (from buildSystemPrompt). */
-  systemPrompt: string
+  readonly systemPrompt: string
 }
 
 /** Engine configuration. */
@@ -204,16 +223,18 @@ export type ChatEngineEventHandler = (event: ChatEngineEvent) => void
 
 // ── Structured Response ──
 
-export interface StructuredResponse {
-  /** Which merge strategy was used. */
-  strategy: MergeStrategy
+interface StructuredResponseBase {
   /** Source API calls that produced the data. */
   sources: Array<{ toolName: string; args: Record<string, unknown> }>
-  /** Merged/selected data (shape depends on strategy). */
-  data: unknown
   /** Field metadata for UI rendering hints. */
   fields?: Array<{ name: string; type: string; semantic?: string }>
 }
+
+/** Discriminated union — narrow on `strategy` to get a typed `data` shape. */
+export type StructuredResponse =
+  | StructuredResponseBase & { strategy: typeof MergeStrategy.Array; data: unknown[] }
+  | StructuredResponseBase & { strategy: typeof MergeStrategy.SchemaBased; data: Record<string, unknown>[] }
+  | StructuredResponseBase & { strategy: typeof MergeStrategy.LlmGuided; data: unknown }
 
 // ── Engine Response ──
 

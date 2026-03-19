@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest'
 import { loadSpec, buildTestEngine, collectEvents } from '../helpers/setup'
 import { createScriptedLlm } from '../helpers/mock-llm'
 import { createMockExecutor } from '../helpers/mock-executor'
-import { ChatEventType } from '../../src/types'
+import { ChatEventType, FinishReason } from '../../src/types'
 
 // ── Mock data for D&D 5e API ──
 
@@ -376,12 +376,12 @@ describe('Conversation continuity', () => {
               arguments: JSON.stringify({ index: 'wizard', spell_level: '3' }),
             },
           }],
-          finish_reason: 'tool_calls',
+          finish_reason: FinishReason.ToolCalls,
         }
       }
       const text = 'At level 3, wizards can cast Fireball, Counterspell, and Fly.'
       onToken(text)
-      return { content: text, tool_calls: [], finish_reason: 'stop' }
+      return { content: text, tool_calls: [], finish_reason: FinishReason.Stop }
     }
 
     engine.setLlm(secondLlm)
@@ -416,11 +416,11 @@ describe('Conversation continuity', () => {
             type: 'function' as const,
             function: { name: 'get_api', arguments: '{}' },
           }],
-          finish_reason: 'tool_calls',
+          finish_reason: FinishReason.ToolCalls,
         }
       }
       onToken(`Response for turn ${Math.ceil(turnCount / 2)}.`)
-      return { content: `Response for turn ${Math.ceil(turnCount / 2)}.`, tool_calls: [], finish_reason: 'stop' }
+      return { content: `Response for turn ${Math.ceil(turnCount / 2)}.`, tool_calls: [], finish_reason: FinishReason.Stop }
     }
 
     const engine = buildTestEngine(spec, multiTurnLlm as never, executor)

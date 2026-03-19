@@ -21,6 +21,7 @@ export const AgUiEventType = {
   ToolCallEnd: 'TOOL_CALL_END',
   ToolCallResult: 'TOOL_CALL_RESULT',
   StateSnapshot: 'STATE_SNAPSHOT',
+  /** Defined for AG-UI spec completeness; not currently emitted by this adapter. */
   StateDelta: 'STATE_DELTA',
 } as const
 export type AgUiEventType = typeof AgUiEventType[keyof typeof AgUiEventType]

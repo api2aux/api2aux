@@ -179,6 +179,10 @@ export function useChat() {
         mergeStrategy: MergeStrategy.Array, // UI handles rendering; array is simplest
       })
     } else {
+      // Clear stale history when switching to a different API
+      if (engineRef.current.getContext().url !== context.url) {
+        engineRef.current.clearHistory()
+      }
       engineRef.current.setContext(context)
       engineRef.current.setLlm(llmFn)
       engineRef.current.setExecutor(createToolExecutor(url))
@@ -207,12 +211,10 @@ export function useChat() {
     const engine = getEngine()
     if (!engine) return
 
-    // Track which API this chat belongs to
-    if (messages.length === 0) {
+    if (useChatStore.getState().messages.length === 0) {
       setChatApiUrl(url?.split('?')[0] ?? '')
     }
 
-    // Add user message to UI
     const userMsg: UIMessage = {
       id: nextId(),
       role: 'user',
@@ -221,7 +223,6 @@ export function useChat() {
     }
     addMessage(userMsg)
 
-    // Add placeholder assistant message
     const assistantId = nextId()
     addMessage({
       id: assistantId,
@@ -252,8 +253,12 @@ export function useChat() {
             break
 
           case ChatEventType.ToolCallResult: {
-            const toolSchema = inferSchema(event.data, url)
-            useAppStore.getState().fetchSuccess(event.data, toolSchema)
+            try {
+              const toolSchema = inferSchema(event.data, url)
+              useAppStore.getState().fetchSuccess(event.data, toolSchema)
+            } catch (err) {
+              console.error('[useChat] Failed to update main view:', err instanceof Error ? err.message : String(err))
+            }
 
             addMessage({
               id: nextId(),
@@ -299,7 +304,7 @@ export function useChat() {
     } finally {
       setSending(false)
     }
-  }, [url, parsedSpec, messages, config, sending, addMessage, updateMessage, setSending, getEngine])
+  }, [url, config, sending, addMessage, updateMessage, setSending, setChatApiUrl, getEngine])
 
   // Approximate context size for the UI indicator
   const history = engineRef.current?.getHistory() ?? []

@@ -244,6 +244,8 @@ function detectResponseSemantics(spec: ApiSpec): string | null {
         properties = items.properties as Record<string, Record<string, unknown>>
       }
     }
+    // If the response is a thin wrapper (<=4 fields), drill into the first nested
+    // array's items to find the actual entity fields. Handles the common { count, results: [...] } pattern.
     if (properties && Object.keys(properties).length <= 4) {
       for (const prop of Object.values(properties)) {
         if (prop.type === 'array' && prop.items && typeof prop.items === 'object') {

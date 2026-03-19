@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mapEvent, createAgent } from '../../../src/ag-ui/adapter'
 import { AgUiEventType, AgUiRole } from '../../../src/ag-ui/types'
-import { ChatEventType, MergeStrategy } from '../../../src/types'
+import { ChatEventType, FinishReason, MergeStrategy } from '../../../src/types'
 import { ChatEngine } from '../../../src/engine'
 import type {
   LLMCompletionFn,
@@ -31,7 +31,7 @@ const testContext: ChatEngineContext = {
 }
 
 function textResponse(text: string): StreamResult {
-  return { content: text, tool_calls: [], finish_reason: 'stop' }
+  return { content: text, tool_calls: [], finish_reason: FinishReason.Stop }
 }
 
 function toolCallResponse(name: string, args: Record<string, unknown>): StreamResult {
@@ -42,7 +42,7 @@ function toolCallResponse(name: string, args: Record<string, unknown>): StreamRe
       type: 'function',
       function: { name, arguments: JSON.stringify(args) },
     }],
-    finish_reason: 'tool_calls',
+    finish_reason: FinishReason.ToolCalls,
   }
 }
 
@@ -135,6 +135,57 @@ describe('mapEvent', () => {
     if (events[0]!.type === AgUiEventType.ToolCallResult) {
       expect(events[0]!.role).toBe(AgUiRole.Tool)
       expect(events[0]!.toolCallId).toBe('tc_1')
+    }
+  })
+
+  it('truncates large tool result content at 8000 chars', () => {
+    const state = makeState()
+
+    mapEvent(
+      { type: ChatEventType.ToolCallStart, toolCallId: 'call_big', toolName: 'list_users', toolArgs: {}, parallelCount: 1 },
+      state,
+      threadId,
+      runId,
+    )
+
+    const largeData = { payload: 'x'.repeat(9000) }
+    const events = mapEvent(
+      { type: ChatEventType.ToolCallResult, toolCallId: 'call_big', toolName: 'list_users', toolArgs: {}, data: largeData, summary: 'ok' },
+      state,
+      threadId,
+      runId,
+    )
+
+    expect(events).toHaveLength(1)
+    if (events[0]!.type === AgUiEventType.ToolCallResult) {
+      expect(events[0]!.content.length).toBeLessThanOrEqual(8000 + 20) // 8000 + truncation marker
+      expect(events[0]!.content).toContain('... [truncated]')
+    }
+  })
+
+  it('handles unserializable tool result data gracefully', () => {
+    const state = makeState()
+
+    mapEvent(
+      { type: ChatEventType.ToolCallStart, toolCallId: 'call_circ', toolName: 'list_users', toolArgs: {}, parallelCount: 1 },
+      state,
+      threadId,
+      runId,
+    )
+
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+
+    const events = mapEvent(
+      { type: ChatEventType.ToolCallResult, toolCallId: 'call_circ', toolName: 'list_users', toolArgs: {}, data: circular, summary: 'ok' },
+      state,
+      threadId,
+      runId,
+    )
+
+    expect(events).toHaveLength(1)
+    if (events[0]!.type === AgUiEventType.ToolCallResult) {
+      expect(events[0]!.content).toBe('[Unserializable data]')
     }
   })
 

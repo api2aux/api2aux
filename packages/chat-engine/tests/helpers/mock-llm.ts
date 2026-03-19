@@ -7,7 +7,7 @@
  */
 
 import type { LLMCompletionFn, Tool, StreamResult, ChatMessage } from '../../src/types'
-import { MessageRole } from '../../src/types'
+import { MessageRole, FinishReason } from '../../src/types'
 
 // ── Scripted Mock ──
 
@@ -52,14 +52,14 @@ export function createScriptedLlm(steps: ScriptedStep[]): LLMCompletionFn {
             arguments: JSON.stringify(tc.args),
           },
         })),
-        finish_reason: 'tool_calls',
+        finish_reason: FinishReason.ToolCalls,
       }
     }
 
     const text = step.text ?? 'Done.'
     // Simulate streaming by emitting the full text as one token
     onToken(text)
-    return { content: text, tool_calls: [], finish_reason: 'stop' }
+    return { content: text, tool_calls: [], finish_reason: FinishReason.Stop }
   }
 }
 
@@ -144,7 +144,7 @@ export function createHeuristicLlm(): LLMCompletionFn {
     if (hasCalledTool || tools.length === 0) {
       const text = 'Based on the API data, here are the results.'
       onToken(text)
-      return { content: text, tool_calls: [], finish_reason: 'stop' }
+      return { content: text, tool_calls: [], finish_reason: FinishReason.Stop }
     }
 
     // Find the latest user message
@@ -166,7 +166,7 @@ export function createHeuristicLlm(): LLMCompletionFn {
     if (!best) {
       const text = 'No matching tools found.'
       onToken(text)
-      return { content: text, tool_calls: [], finish_reason: 'stop' }
+      return { content: text, tool_calls: [], finish_reason: FinishReason.Stop }
     }
 
     hasCalledTool = true
@@ -182,7 +182,7 @@ export function createHeuristicLlm(): LLMCompletionFn {
           arguments: JSON.stringify(args),
         },
       }],
-      finish_reason: 'tool_calls',
+      finish_reason: FinishReason.ToolCalls,
     }
   }
 }

@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ChatEngine } from '../../src/engine'
-import { ChatEventType, MergeStrategy, MessageRole } from '../../src/types'
+import * as responseModule from '../../src/response'
+import { ChatEventType, FinishReason, MergeStrategy, MessageRole } from '../../src/types'
 import { NO_DATA_MESSAGE } from '../../src/defaults'
 import type {
+  ChatMessage,
   LLMCompletionFn,
   ToolExecutorFn,
   ChatEngineContext,
@@ -32,7 +34,7 @@ const testContext: ChatEngineContext = {
 }
 
 function textResponse(text: string): StreamResult {
-  return { content: text, tool_calls: [], finish_reason: 'stop' }
+  return { content: text, tool_calls: [], finish_reason: FinishReason.Stop }
 }
 
 function toolCallResponse(name: string, args: Record<string, unknown>): StreamResult {
@@ -43,7 +45,7 @@ function toolCallResponse(name: string, args: Record<string, unknown>): StreamRe
       type: 'function',
       function: { name, arguments: JSON.stringify(args) },
     }],
-    finish_reason: 'tool_calls',
+    finish_reason: FinishReason.ToolCalls,
   }
 }
 
@@ -118,6 +120,34 @@ describe('ChatEngine', () => {
 
       const resultEvent = events.find(e => e.type === ChatEventType.ToolCallResult)
       expect(resultEvent).toBeDefined()
+    })
+
+    it('passes correct message structure to LLM after tool execution', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', { limit: '5' }))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      await engine.sendMessage('Show users', onEvent)
+
+      // Inspect messages sent to LLM on the second call
+      const secondCall = (llm as ReturnType<typeof vi.fn>).mock.calls[1]!
+      const messages = secondCall[0] as ChatMessage[]
+
+      // Structure: system, user, assistant (with tool_calls), tool (with tool_call_id)
+      expect(messages[0]!.role).toBe(MessageRole.System)
+      expect(messages[1]!.role).toBe(MessageRole.User)
+      expect(messages[1]!.content).toBe('Show users')
+      expect(messages[2]!.role).toBe(MessageRole.Assistant)
+      expect(messages[2]!.tool_calls).toHaveLength(1)
+      expect(messages[2]!.tool_calls![0]!.function.name).toBe('list_users')
+      expect(messages[3]!.role).toBe(MessageRole.Tool)
+      expect(messages[3]!.tool_call_id).toBe(messages[2]!.tool_calls![0]!.id)
     })
   })
 
@@ -225,7 +255,7 @@ describe('ChatEngine', () => {
             type: 'function' as const,
             function: { name: 'list_users', arguments: 'not valid json{' },
           }],
-          finish_reason: 'tool_calls',
+          finish_reason: FinishReason.ToolCalls,
         }))
         .mockImplementationOnce(async (_msgs, _tools, onToken) => {
           onToken('Failed.')
@@ -247,6 +277,30 @@ describe('ChatEngine', () => {
   })
 
   describe('plugin hooks', () => {
+    it('preserves original prompt when modifySystemPrompt returns null', async () => {
+      const plugin: ChatEnginePlugin = {
+        id: 'noop-prompt',
+        modifySystemPrompt: vi.fn().mockReturnValue(null),
+      }
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+
+      const engine = new ChatEngine(llm, executor, testContext, undefined, [plugin])
+      await engine.sendMessage('test', onEvent)
+
+      // Verify the original prompt was passed (not "null")
+      const firstCall = (llm as ReturnType<typeof vi.fn>).mock.calls[0]!
+      const messages = firstCall[0] as Array<{ role: string; content: string | null }>
+      expect(messages[0]!.content).toBe(testContext.systemPrompt)
+    })
+
     it('calls modifySystemPrompt before LLM call', async () => {
       const plugin: ChatEnginePlugin = {
         id: 'test-prompt',
@@ -538,6 +592,27 @@ describe('ChatEngine', () => {
       expect(result.structured).toBeDefined()
       expect(result.structured.strategy).toBe(MergeStrategy.Array)
       expect(result.structured.sources).toHaveLength(1)
+    })
+
+    it('falls back to array strategy when formatStructuredResponse throws', async () => {
+      const spy = vi.spyOn(responseModule, 'formatStructuredResponse')
+        .mockRejectedValueOnce(new Error('merge exploded'))
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      const engine = new ChatEngine(llm, executor, testContext)
+      const result = await engine.sendMessage('test', onEvent)
+
+      expect(result.structured.strategy).toBe(MergeStrategy.Array)
+      expect(Array.isArray(result.structured.data)).toBe(true)
+      spy.mockRestore()
     })
   })
 })

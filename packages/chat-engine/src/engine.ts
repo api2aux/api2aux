@@ -2,7 +2,8 @@
  * ChatEngine — the core conversation loop.
  *
  * Manages multi-round LLM tool calling, event emission, plugin hooks,
- * and the no-LLM-knowledge guardrail.
+ * and a guardrail that forces API-sourced answers (overrides the LLM
+ * when no tool calls succeeded).
  */
 
 import type {
@@ -57,7 +58,7 @@ export class ChatEngine {
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
   }
 
-  /** Get current conversation history (read-only view of the live array). */
+  /** Get current conversation history (typed as readonly; backed by the live mutable array). */
   getHistory(): readonly ChatMessage[] {
     return this.history
   }
@@ -101,10 +102,15 @@ export class ChatEngine {
     text: string,
     onEvent: ChatEngineEventHandler,
   ): Promise<ChatEngineResponse> {
-    // Push user message to history
+    // Wrap the event handler to prevent callback errors from crashing the engine loop
+    const emit: ChatEngineEventHandler = (event) => {
+      try { onEvent(event) } catch (err) {
+        console.error('[chat-engine] onEvent handler threw:', err instanceof Error ? err.message : String(err))
+      }
+    }
+
     this.history.push({ role: MessageRole.User, content: text.trim() })
 
-    // Apply plugin hooks
     let systemPrompt = this.context.systemPrompt
     for (const plugin of this.plugins ?? []) {
       if (plugin.modifySystemPrompt) {
@@ -128,7 +134,6 @@ export class ChatEngine {
       }
     }
 
-    // Tool-calling loop
     let roundCount = 0
     const collectedResults: ToolResultEntry[] = []
 
@@ -142,7 +147,6 @@ export class ChatEngine {
       // On last allowed round, send no tools to force a text response
       const roundTools = roundCount >= this.maxRounds ? [] : tools
 
-      // Stream the response
       let streamedText = ''
       let streamResult
       try {
@@ -151,16 +155,15 @@ export class ChatEngine {
           roundTools,
           (token) => {
             streamedText += token
-            onEvent({ type: ChatEventType.Token, token })
+            emit({ type: ChatEventType.Token, token })
           },
         )
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err)
-        onEvent({ type: ChatEventType.Error, error: errorMsg })
+        emit({ type: ChatEventType.Error, error: errorMsg })
         throw err
       }
 
-      // If no tool calls, this was the final text response
       if (streamResult.tool_calls.length === 0) {
         let responseText = streamResult.content || 'Done.'
 
@@ -169,7 +172,6 @@ export class ChatEngine {
           responseText = NO_DATA_MESSAGE
         }
 
-        // Apply plugin processResponse hooks
         for (const plugin of this.plugins ?? []) {
           if (plugin.processResponse) {
             try {
@@ -182,7 +184,6 @@ export class ChatEngine {
 
         this.history.push({ role: MessageRole.Assistant, content: responseText })
 
-        // Format structured response
         let structured: StructuredResponse
         try {
           structured = await this.buildStructuredResponse(collectedResults, text)
@@ -195,7 +196,7 @@ export class ChatEngine {
           }
         }
 
-        onEvent({
+        emit({
           type: ChatEventType.TurnComplete,
           text: responseText,
           toolResults: collectedResults,
@@ -210,18 +211,15 @@ export class ChatEngine {
         }
       }
 
-      // Tool calls returned — execute them, then loop
       roundCount++
       const allToolCalls = streamResult.tool_calls
 
-      // Track assistant message with tool_calls in history
       this.history.push({
         role: MessageRole.Assistant,
         content: null,
         tool_calls: allToolCalls,
       })
 
-      // Execute all tool calls
       for (const toolCall of allToolCalls) {
         let toolArgs: Record<string, unknown>
         try {
@@ -234,7 +232,7 @@ export class ChatEngine {
             content: `Error: ${errorMsg}`,
             tool_call_id: toolCall.id,
           })
-          onEvent({
+          emit({
             type: ChatEventType.ToolCallError,
             toolCallId: toolCall.id,
             toolName: toolCall.function.name,
@@ -244,7 +242,7 @@ export class ChatEngine {
           continue
         }
 
-        onEvent({
+        emit({
           type: ChatEventType.ToolCallStart,
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
@@ -262,7 +260,7 @@ export class ChatEngine {
             content: `Error: ${errorMsg}`,
             tool_call_id: toolCall.id,
           })
-          onEvent({
+          emit({
             type: ChatEventType.ToolCallError,
             toolCallId: toolCall.id,
             toolName: toolCall.function.name,
@@ -272,7 +270,8 @@ export class ChatEngine {
           continue
         }
 
-        // Apply plugin processToolResult hooks
+        // Note: if a plugin throws here, the original (untransformed) data is used.
+        // For safety-critical plugins (e.g. PII redaction), plugins should catch internally.
         for (const plugin of this.plugins ?? []) {
           if (plugin.processToolResult) {
             try {
@@ -291,7 +290,7 @@ export class ChatEngine {
           summary,
         })
 
-        onEvent({
+        emit({
           type: ChatEventType.ToolCallResult,
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
