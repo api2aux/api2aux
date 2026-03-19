@@ -259,6 +259,32 @@ describe('mapEvent', () => {
     expect(events[1]!.type).toBe(AgUiEventType.RunFinished)
   })
 
+  it('maps StructuredReady to early STATE_SNAPSHOT', () => {
+    const state = makeState()
+
+    const events = mapEvent(
+      {
+        type: ChatEventType.StructuredReady,
+        structured: {
+          strategy: MergeStrategy.LlmGuided,
+          sources: [{ toolName: 'list_users', args: {} }],
+          data: { focused: true },
+        },
+      },
+      state,
+      threadId,
+      runId,
+    )
+
+    expect(events).toHaveLength(1)
+    expect(events[0]!.type).toBe(AgUiEventType.StateSnapshot)
+    if (events[0]!.type === AgUiEventType.StateSnapshot) {
+      expect(events[0]!.snapshot.text).toBe('')
+      expect(events[0]!.snapshot.toolResults).toEqual([])
+      expect(events[0]!.snapshot.structured.data).toEqual({ focused: true })
+    }
+  })
+
   it('maps Error to RunError', () => {
     const state = makeState()
 

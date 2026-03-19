@@ -19,7 +19,7 @@ import type {
   StructuredResponse,
 } from './types'
 import { ChatEventType, MergeStrategy, MessageRole } from './types'
-import { MAX_ROUNDS, TRUNCATION_LIMIT, NO_DATA_MESSAGE } from './defaults'
+import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from './defaults'
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
 
@@ -33,6 +33,7 @@ export class ChatEngine {
   private readonly maxRounds: number
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
+  private readonly parallelMerge: boolean
 
   constructor(
     llm: LLMCompletionFn,
@@ -57,6 +58,7 @@ export class ChatEngine {
     }
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
+    this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
 
     // Validate resolved config values
     if (!Number.isFinite(this.maxRounds) || this.maxRounds < 1) {
@@ -82,6 +84,7 @@ export class ChatEngine {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
       mergeStrategy: this.mergeStrategy,
+      parallelMerge: this.parallelMerge,
     }
   }
 
@@ -175,6 +178,7 @@ export class ChatEngine {
 
     let roundCount = 0
     const collectedResults: ToolResultEntry[] = []
+    let mergePromise: Promise<StructuredResponse> | null = null
 
     // Loop until the LLM produces a text response (no tool calls)
     // eslint-disable-next-line no-constant-condition
@@ -188,6 +192,7 @@ export class ChatEngine {
       const roundTools = roundCount >= this.maxRounds ? [] : tools
 
       let streamedText = ''
+      let mergeStarted = false
       let streamResult
       try {
         streamResult = await this.llm(
@@ -196,6 +201,16 @@ export class ChatEngine {
           (token) => {
             streamedText += token
             emit({ type: ChatEventType.Token, token })
+
+            // On first token: confirmed this is a text response (not tool calls).
+            // Start merge/focus in parallel while text continues streaming.
+            if (!mergeStarted && this.parallelMerge && collectedResults.length > 0) {
+              mergeStarted = true
+              mergePromise = this.buildStructuredResponse(collectedResults, text)
+              mergePromise.then(structured => {
+                emit({ type: ChatEventType.StructuredReady, structured })
+              }).catch(() => {}) // errors handled when awaited below
+            }
           },
         )
       } catch (err) {
@@ -224,9 +239,10 @@ export class ChatEngine {
 
         this.history.push({ role: MessageRole.Assistant, content: responseText })
 
+        // Await the parallel merge (already in-flight) or run sequentially
         let structured: StructuredResponse
         try {
-          structured = await this.buildStructuredResponse(collectedResults, text)
+          structured = await (mergePromise ?? this.buildStructuredResponse(collectedResults, text))
         } catch (err) {
           console.error('[chat-engine] buildStructuredResponse failed:', err instanceof Error ? err.message : String(err))
           structured = {

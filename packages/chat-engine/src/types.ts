@@ -195,6 +195,8 @@ export interface ChatEngineConfig {
   truncationLimit?: number
   /** Strategy for merging/focusing tool results. Default: MergeStrategy.LlmGuided. */
   mergeStrategy?: MergeStrategy
+  /** Run merge/focus LLM call in parallel with text response. Default: true. */
+  parallelMerge?: boolean
 }
 
 // ── Events ──
@@ -208,6 +210,8 @@ export const ChatEventType = {
   ToolCallResult: 'tool_call_result',
   /** A tool call failed. */
   ToolCallError: 'tool_call_error',
+  /** Structured data is ready (may arrive before text finishes when parallelMerge is enabled). */
+  StructuredReady: 'structured_ready',
   /** The full turn is complete. */
   TurnComplete: 'turn_complete',
   /** An unrecoverable error occurred. */
@@ -220,6 +224,7 @@ export type ChatEngineEvent =
   | { type: typeof ChatEventType.ToolCallStart; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; parallelCount: number }
   | { type: typeof ChatEventType.ToolCallResult; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; data: unknown; summary: string }
   | { type: typeof ChatEventType.ToolCallError; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; error: string }
+  | { type: typeof ChatEventType.StructuredReady; structured: StructuredResponse }
   | { type: typeof ChatEventType.TurnComplete; text: string; toolResults: ToolResultEntry[]; structured: StructuredResponse }
   | { type: typeof ChatEventType.Error; error: string }
 

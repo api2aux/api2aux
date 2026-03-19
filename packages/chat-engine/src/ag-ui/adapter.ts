@@ -150,6 +150,25 @@ export function mapEvent(
       break
     }
 
+    case ChatEventType.StructuredReady: {
+      // Early STATE_SNAPSHOT with structured data only (text still streaming)
+      try {
+        const snapshot = JSON.parse(JSON.stringify({
+          text: '',
+          toolResults: [],
+          structured: event.structured,
+        })) as AgUiStateSnapshot
+        events.push({
+          type: AgUiEventType.StateSnapshot,
+          snapshot,
+          timestamp: now(),
+        })
+      } catch (err) {
+        console.warn('[chat-engine] Failed to serialize early state snapshot:', err instanceof Error ? err.message : String(err))
+      }
+      break
+    }
+
     case ChatEventType.TurnComplete: {
       if (state.messageId) {
         events.push({

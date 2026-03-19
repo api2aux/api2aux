@@ -89,6 +89,18 @@ function autoSelectTab(data: unknown, responseText: string) {
   }
 }
 
+/** Scroll the response data panel into view with a highlight flash. */
+function scrollToResponseData() {
+  setTimeout(() => {
+    const el = document.getElementById('response-data')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      el.classList.add('highlight-flash')
+      setTimeout(() => el.classList.remove('highlight-flash'), 1500)
+    }
+  }, 50)
+}
+
 /** True when structured data is non-empty and came from a real merge/focus (not Array fallback). */
 function hasUsableData(s: StructuredResponse): boolean {
   if (s.strategy === MergeStrategy.Array) return false
@@ -275,6 +287,7 @@ export function useChat() {
 
     setSending(true)
     let streamedText = ''
+    let mainPanelUpdated = false
 
     try {
       const result = await engine.sendMessage(text.trim(), (event: ChatEngineEvent) => {
@@ -308,6 +321,16 @@ export function useChat() {
             updateMessage(assistantId, { text: streamedText, loading: false })
             break
           }
+
+          case ChatEventType.StructuredReady:
+            // Parallel merge finished — update main panel while text is still streaming
+            if (hasUsableData(event.structured)) {
+              mainPanelUpdated = true
+              updateMainView(event.structured.data, url)
+              autoSelectTab(event.structured.data, '')
+              scrollToResponseData()
+            }
+            break
         }
       })
 
@@ -320,22 +343,15 @@ export function useChat() {
         ...(structuredUsable ? { structured: result.structured } : {}),
       })
 
-      // Update main panel once — prefer structured (merged/focused) data; fall back to last raw tool result
-      const lastToolResult = result.toolResults.at(-1)
-      const viewData = structuredUsable ? result.structured.data : lastToolResult?.data
-      if (viewData !== undefined) {
-        updateMainView(viewData, url)
-        autoSelectTab(viewData, result.text)
-
-        // Scroll to results and flash highlight so the user notices the update
-        setTimeout(() => {
-          const el = document.getElementById('response-data')
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            el.classList.add('highlight-flash')
-            setTimeout(() => el.classList.remove('highlight-flash'), 1500)
-          }
-        }, 50)
+      // Fallback: update main panel if StructuredReady didn't fire (sequential mode or merge failed)
+      if (!mainPanelUpdated) {
+        const lastToolResult = result.toolResults.at(-1)
+        const viewData = structuredUsable ? result.structured.data : lastToolResult?.data
+        if (viewData !== undefined) {
+          updateMainView(viewData, url)
+          autoSelectTab(viewData, result.text)
+          scrollToResponseData()
+        }
       }
     } catch (err) {
       updateMessage(assistantId, {

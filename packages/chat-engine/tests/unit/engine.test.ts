@@ -929,6 +929,97 @@ describe('ChatEngine', () => {
     })
   })
 
+  describe('parallelMerge', () => {
+    it('emits StructuredReady before TurnComplete when parallelMerge is true', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        // Text response — simulate slow streaming so merge has time to complete
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('Found ')
+          await new Promise(r => setTimeout(r, 50))
+          onToken('users.')
+          return textResponse('Found users.')
+        })
+        // Merge call — returns immediately
+        .mockImplementationOnce(async () => ({
+          content: JSON.stringify({ focused: true }),
+          tool_calls: [],
+          finish_reason: FinishReason.Stop,
+        }))
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: MergeStrategy.LlmGuided,
+        parallelMerge: true,
+      })
+      const result = await engine.sendMessage('test', onEvent)
+
+      const eventTypes = events.map(e => e.type)
+      expect(eventTypes).toContain(ChatEventType.StructuredReady)
+      expect(eventTypes).toContain(ChatEventType.TurnComplete)
+
+      // StructuredReady should come before TurnComplete
+      const srIdx = eventTypes.indexOf(ChatEventType.StructuredReady)
+      const tcIdx = eventTypes.indexOf(ChatEventType.TurnComplete)
+      expect(srIdx).toBeLessThan(tcIdx)
+
+      // Result should have the merged structured data
+      expect(result.structured.strategy).toBe(MergeStrategy.LlmGuided)
+      expect(result.structured.data).toEqual({ focused: true })
+    })
+
+    it('does not emit StructuredReady when parallelMerge is false', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: MergeStrategy.Array,
+        parallelMerge: false,
+      })
+      await engine.sendMessage('test', onEvent)
+
+      const eventTypes = events.map(e => e.type)
+      expect(eventTypes).not.toContain(ChatEventType.StructuredReady)
+      expect(eventTypes).toContain(ChatEventType.TurnComplete)
+    })
+
+    it('does not fire merge when no tool calls were made', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('Hello')
+          return textResponse('Hello')
+        })
+
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        parallelMerge: true,
+      })
+      await engine.sendMessage('test', onEvent)
+
+      const eventTypes = events.map(e => e.type)
+      expect(eventTypes).not.toContain(ChatEventType.StructuredReady)
+    })
+
+    it('includes parallelMerge in getConfig', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+
+      const engine = new ChatEngine(llm, executor, testContext, { parallelMerge: false })
+      expect(engine.getConfig().parallelMerge).toBe(false)
+
+      const engine2 = new ChatEngine(llm, executor, testContext)
+      expect(engine2.getConfig().parallelMerge).toBe(true) // default
+    })
+  })
+
   describe('setContext', () => {
     it('uses new context tools and prompt after setContext', async () => {
       const newTool: Tool = {
