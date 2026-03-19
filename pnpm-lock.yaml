@@ -111,6 +111,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.78.0
         version: 0.78.0(zod@3.25.76)
+      '@api2aux/chat-engine':
+        specifier: workspace:*
+        version: link:../chat-engine
       '@api2aux/semantic-analysis':
         specifier: workspace:*
         version: link:../semantic-analysis
@@ -280,6 +283,31 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@24.10.13)(jiti@2.6.1)(jsdom@27.4.0(@noble/hashes@2.0.1))(lightningcss@1.30.2)(msw@2.12.10(@types/node@24.10.13)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/chat-engine:
+    dependencies:
+      '@api2aux/semantic-analysis':
+        specifier: workspace:*
+        version: link:../semantic-analysis
+      '@api2aux/tool-utils':
+        specifier: workspace:*
+        version: link:../tool-utils
+      '@api2aux/workflow-inference':
+        specifier: workspace:*
+        version: link:../workflow-inference
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.15
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@22.19.15)(jiti@2.6.1)(jsdom@27.4.0(@noble/hashes@2.0.1))(lightningcss@1.30.2)(msw@2.12.10(@types/node@22.19.15)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.2)
 
   packages/mcp-server:
     dependencies:

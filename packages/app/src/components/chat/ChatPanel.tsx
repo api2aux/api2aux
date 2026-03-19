@@ -248,33 +248,37 @@ function ContextDialog({ history, onClose }: { history: LLMMessage[]; onClose: (
           {history.length === 0 ? (
             <p className="text-sm text-muted-foreground">No messages in context yet.</p>
           ) : (
-            history.map((msg, i) => (
-              <div key={i} className="text-xs space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${roleBadge(msg.role)}`}>
-                    {msg.role}
-                  </span>
-                  {msg.tool_call_id && (
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                      id: {msg.tool_call_id}
+            history.map((msg, i) => {
+              const toolCallId = msg.role === 'tool' ? msg.tool_call_id : undefined
+              const toolCalls = msg.role === 'assistant' && msg.content === null ? msg.tool_calls : undefined
+              return (
+                <div key={i} className="text-xs space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${roleBadge(msg.role)}`}>
+                      {msg.role}
                     </span>
+                    {toolCallId && (
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        id: {toolCallId}
+                      </span>
+                    )}
+                  </div>
+                  {toolCalls && toolCalls.length > 0 ? (
+                    <div className="space-y-1">
+                      {toolCalls.map((tc, j) => (
+                        <pre key={j} className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
+                          {tc.function.name}({formatContent(tc.function.arguments)})
+                        </pre>
+                      ))}
+                    </div>
+                  ) : (
+                    <pre className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
+                      {formatContent(msg.content)}
+                    </pre>
                   )}
                 </div>
-                {msg.tool_calls && msg.tool_calls.length > 0 ? (
-                  <div className="space-y-1">
-                    {msg.tool_calls.map((tc, j) => (
-                      <pre key={j} className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
-                        {tc.function.name}({formatContent(tc.function.arguments)})
-                      </pre>
-                    ))}
-                  </div>
-                ) : (
-                  <pre className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
-                    {formatContent(msg.content)}
-                  </pre>
-                )}
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>

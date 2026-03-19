@@ -19,7 +19,8 @@
 
 ## Testing
 
-- **Always run both unit and functional tests before committing.** Use `pnpm --filter workflow-inference test` and `pnpm --filter app test` to run all tests across both packages. This includes the functional tests in `packages/workflow-inference/src/functional/` that validate against real API specs (Spotify, GitHub, Stripe, etc.).
+- **Always run both unit and functional tests before committing.** Use `pnpm --filter workflow-inference test`, `pnpm --filter chat-engine test`, and `pnpm --filter app test` to run all tests across all packages. This includes the functional tests in `packages/workflow-inference/src/functional/` that validate against real API specs (Spotify, GitHub, Stripe, etc.).
+- **Always run `pnpm -r build` before committing.** CI runs `tsc -b` (strict type-checking) then `vite build` for each package. Vitest strips types at runtime, so tests can pass while the build fails due to type errors. The build step catches discriminated union narrowing issues, cross-package type mismatches, and other errors invisible to vitest.
 
 ## Local Development
 
