@@ -259,48 +259,33 @@ export function useChat() {
         switch (event.type) {
           case ChatEventType.Token:
             streamedText += event.token
-            updateMessage(assistantId, { text: streamedText })
+            updateMessage(assistantId, { text: streamedText, loading: false })
             break
 
           case ChatEventType.ToolCallStart:
-            streamedText = '' // Reset for next round to prevent cross-round text accumulation
+            streamedText = ''
             updateMessage(assistantId, {
-              text: `Calling ${event.toolName}...${event.parallelCount > 1 ? ` (${event.parallelCount} parallel calls)` : ''}`,
-              toolName: event.toolName,
-              toolArgs: event.toolArgs,
+              text: event.parallelCount > 1
+                ? `Querying ${event.parallelCount} endpoints...`
+                : 'Querying API...',
+              loading: true,
             })
             syncOperationUI(event.toolName, event.toolArgs)
             break
 
-          case ChatEventType.ToolCallResult: {
-            try {
-              const toolSchema = inferSchema(event.data, url)
-              useAppStore.getState().fetchSuccess(event.data, toolSchema)
-            } catch (err) {
-              console.error('[useChat] Failed to update main view:', err instanceof Error ? err.message : String(err))
-            }
-
-            addMessage({
-              id: nextId(),
-              role: 'tool-result',
-              text: `${event.summary} — updated main view`,
-              toolName: event.toolName,
-              toolArgs: event.toolArgs,
-              timestamp: Date.now(),
+          case ChatEventType.ToolCallResult:
+            updateMessage(assistantId, {
+              text: 'Generating response...',
+              loading: true,
             })
+            break
+
+          case ChatEventType.ToolCallError: {
+            const errorText = `${event.toolName} failed: ${event.error}`
+            streamedText += (streamedText ? '\n' : '') + errorText
+            updateMessage(assistantId, { text: streamedText })
             break
           }
-
-          case ChatEventType.ToolCallError:
-            addMessage({
-              id: nextId(),
-              role: 'tool-result',
-              text: `${event.toolName} failed: ${event.error}`,
-              toolName: event.toolName,
-              toolArgs: event.toolArgs,
-              timestamp: Date.now(),
-            })
-            break
         }
       })
 
@@ -314,8 +299,28 @@ export function useChat() {
         ...(hasStructuredData ? { structured: result.structured } : {}),
       })
 
+      // Update main panel once with structured/focused data
+      if (hasStructuredData) {
+        try {
+          const schema = inferSchema(result.structured.data, url || '')
+          useAppStore.getState().fetchSuccess(result.structured.data, schema)
+        } catch (err) {
+          console.error('[useChat] Failed to update main view with structured data:', err instanceof Error ? err.message : String(err))
+        }
+      } else if (result.toolResults.length > 0) {
+        const last = result.toolResults[result.toolResults.length - 1]!
+        try {
+          const schema = inferSchema(last.data, url || '')
+          useAppStore.getState().fetchSuccess(last.data, schema)
+        } catch (err) {
+          console.error('[useChat] Failed to update main view:', err instanceof Error ? err.message : String(err))
+        }
+      }
+
       // Auto-select the most relevant tab based on the response text
-      if (result.toolResults.length > 0) {
+      if (hasStructuredData) {
+        autoSelectTab(result.structured.data, result.text)
+      } else if (result.toolResults.length > 0) {
         const lastData = result.toolResults[result.toolResults.length - 1]!.data
         autoSelectTab(lastData, result.text)
       }

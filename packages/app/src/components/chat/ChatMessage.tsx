@@ -127,18 +127,19 @@ function MergedDataButton({ structured }: { structured: StructuredResponse }) {
   }
 
   const sourceCount = structured.sources.length
+  const label = sourceCount === 1 ? 'Focused data' : `Merged data (${sourceCount} sources)`
 
   return (
     <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border/50">
       <button
         onClick={handleClick}
         className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-accent text-accent-foreground hover:bg-accent/80 transition-colors cursor-pointer"
-        title="Show merged data from all API calls in the main view"
+        title={sourceCount === 1 ? 'Show focused data in the main view' : 'Show merged data from all API calls in the main view'}
       >
         <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
         </svg>
-        {`Merged data (${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'})`}
+        {label}
       </button>
     </div>
   )
@@ -169,19 +170,22 @@ export function ChatMessage({ message }: ChatMessageProps) {
   return (
     <div className="flex justify-start px-4 py-2">
       <div className="max-w-[85%] rounded-lg bg-muted text-foreground px-3 py-2 text-sm">
-        {message.loading && !message.text ? (
-          <span className="inline-flex items-center gap-1">
-            <span className="animate-pulse">Thinking</span>
-            <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-            <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-            <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
-          </span>
+        {message.loading ? (
+          <div className="space-y-2">
+            <span className="text-muted-foreground text-xs">
+              {message.text || 'Thinking...'}
+            </span>
+            <div className="flex flex-col gap-1.5">
+              <div className="h-3 w-3/4 rounded bg-muted-foreground/10 animate-shimmer" />
+              <div className="h-3 w-1/2 rounded bg-muted-foreground/10 animate-shimmer [animation-delay:150ms]" />
+            </div>
+          </div>
         ) : message.error && !message.text?.startsWith('Error:') ? (
           <span className="text-destructive">{message.text || message.error}</span>
         ) : (
           <>
             <span className="whitespace-pre-wrap">{message.text}</span>
-            {message.structured && message.toolResults && message.toolResults.length >= 2 && (
+            {message.structured && message.toolResults && message.toolResults.length > 0 && (
               <MergedDataButton structured={message.structured} />
             )}
             {message.toolResults && message.toolResults.length > 0 && (

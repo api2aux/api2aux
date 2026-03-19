@@ -91,7 +91,7 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
   }
 }
 
-const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document that best answers the user's question. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
+const FOCUS_PROMPT = `You are a data extraction assistant. Given API results and the user's question, extract ONLY the fields and entities that are relevant to what the user asked for. If there are multiple results, merge them into a single document. Return ONLY valid JSON, nothing else.`
 
 /**
  * LLM-guided strategy: use an extra LLM call to merge results.
@@ -102,8 +102,7 @@ async function mergeLlmGuided(
   userMessage: string,
   llm: LLMCompletionFn,
 ): Promise<StructuredResponse> {
-  // No merge needed for 0 or 1 results
-  if (toolResults.length <= 1) {
+  if (toolResults.length === 0) {
     return mergeArray(toolResults)
   }
 
@@ -121,7 +120,7 @@ async function mergeLlmGuided(
     .join('\n\n')
 
   const messages: ChatMessage[] = [
-    { role: MessageRole.System, content: MERGE_PROMPT },
+    { role: MessageRole.System, content: FOCUS_PROMPT },
     { role: MessageRole.User, content: `User's question: ${userMessage}\n\n${resultsText}` },
   ]
 
@@ -149,7 +148,7 @@ async function mergeLlmGuided(
  *
  * The response's `strategy` reflects what was actually applied, which may
  * differ from the requested strategy if a fallback occurred:
- * - LlmGuided falls back to Array on LLM failure or when toolResults.length <= 1
+ * - LlmGuided falls back to Array on LLM failure
  * - SchemaBased falls back to Array when no entities with ID fields are detected
  */
 export async function formatStructuredResponse(

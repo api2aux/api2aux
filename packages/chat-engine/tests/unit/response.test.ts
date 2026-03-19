@@ -159,8 +159,12 @@ describe('formatStructuredResponse', () => {
       expect(resp.data).toEqual({ users: [{ id: 1, name: 'Alice', orders: 2 }] })
     })
 
-    it('falls back to array for single result', async () => {
-      const mockLlm: LLMCompletionFn = vi.fn()
+    it('focuses single result via LLM call', async () => {
+      const mockLlm: LLMCompletionFn = vi.fn().mockResolvedValue({
+        content: JSON.stringify([{ name: 'Alice' }]),
+        tool_calls: [],
+        finish_reason: 'stop',
+      })
 
       const resp = await formatStructuredResponse(
         singleResult,
@@ -169,9 +173,9 @@ describe('formatStructuredResponse', () => {
         mockLlm,
       )
 
-      // Single result, no need to merge
-      expect(resp.strategy).toBe(MergeStrategy.Array)
-      expect(mockLlm).not.toHaveBeenCalled()
+      expect(resp.strategy).toBe(MergeStrategy.LlmGuided)
+      expect(mockLlm).toHaveBeenCalledOnce()
+      expect(resp.data).toEqual([{ name: 'Alice' }])
     })
 
     it('falls back to array when LLM is not provided', async () => {
