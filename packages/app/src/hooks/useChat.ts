@@ -325,11 +325,17 @@ export function useChat() {
       const viewData = structuredUsable ? result.structured.data : lastToolResult?.data
       if (viewData !== undefined) {
         updateMainView(viewData, url)
-      }
-
-      // Auto-select the most relevant tab based on the response text
-      if (viewData !== undefined) {
         autoSelectTab(viewData, result.text)
+
+        // Scroll to results and flash highlight so the user notices the update
+        setTimeout(() => {
+          const el = document.getElementById('response-data')
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            el.classList.add('highlight-flash')
+            setTimeout(() => el.classList.remove('highlight-flash'), 1500)
+          }
+        }, 50)
       }
     } catch (err) {
       updateMessage(assistantId, {
