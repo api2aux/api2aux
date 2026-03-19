@@ -1,4 +1,5 @@
 import type { UIMessage, ToolResultEntry } from '../../services/llm/types'
+import type { StructuredResponse } from '@api2aux/chat-engine'
 import { useAppStore } from '../../store/appStore'
 import { useParameterStore } from '../../store/parameterStore'
 import { generateToolName } from '@api2aux/tool-utils'
@@ -6,6 +7,18 @@ import { inferSchema } from '../../services/schema/inferrer'
 
 interface ChatMessageProps {
   message: UIMessage
+}
+
+/** Scroll the response data panel into view with a highlight flash. */
+function scrollToResponseData() {
+  setTimeout(() => {
+    const el = document.getElementById('response-data')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      el.classList.add('highlight-flash')
+      setTimeout(() => el.classList.remove('highlight-flash'), 1500)
+    }
+  }, 50)
 }
 
 /** Turn a tool name + args into a short, human-readable label */
@@ -80,15 +93,7 @@ function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[],
       }
     }
 
-    // Scroll the data into view and flash highlight after React commits
-    setTimeout(() => {
-      const el = document.getElementById('response-data')
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        el.classList.add('highlight-flash')
-        setTimeout(() => el.classList.remove('highlight-flash'), 1500)
-      }
-    }, 50)
+    scrollToResponseData()
   }
 
   return (
@@ -108,6 +113,33 @@ function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[],
           {friendlyLabel(entry)}
         </button>
       ))}
+    </div>
+  )
+}
+
+function MergedDataButton({ structured }: { structured: StructuredResponse }) {
+  const url = useAppStore((s) => s.url)
+
+  const handleClick = () => {
+    const schema = inferSchema(structured.data, url || '')
+    useAppStore.getState().fetchSuccess(structured.data, schema)
+    scrollToResponseData()
+  }
+
+  const sourceCount = structured.sources.length
+
+  return (
+    <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border/50">
+      <button
+        onClick={handleClick}
+        className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-accent text-accent-foreground hover:bg-accent/80 transition-colors cursor-pointer"
+        title="Show merged data from all API calls in the main view"
+      >
+        <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+        </svg>
+        {`Merged data (${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'})`}
+      </button>
     </div>
   )
 }
@@ -149,6 +181,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
         ) : (
           <>
             <span className="whitespace-pre-wrap">{message.text}</span>
+            {message.structured && message.toolResults && message.toolResults.length >= 2 && (
+              <MergedDataButton structured={message.structured} />
+            )}
             {message.toolResults && message.toolResults.length > 0 && (
               <ToolResultLinks results={message.toolResults} contextText={message.text || undefined} />
             )}

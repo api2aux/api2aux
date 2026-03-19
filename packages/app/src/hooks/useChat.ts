@@ -186,7 +186,7 @@ export function useChat() {
     if (!engineRef.current) {
       const executor = createToolExecutor(url)
       engineRef.current = new ChatEngine(llmFn, executor, context, {
-        mergeStrategy: MergeStrategy.Array, // UI handles rendering; array is simplest
+        mergeStrategy: MergeStrategy.LlmGuided,
       })
     } else {
       // Clear stale history when switching to a different API
@@ -304,10 +304,14 @@ export function useChat() {
         }
       })
 
+      const hasStructuredData = result.structured?.data != null
+        && (!Array.isArray(result.structured.data) || result.structured.data.length > 0)
+
       updateMessage(assistantId, {
         text: result.text,
         loading: false,
         ...(result.toolResults.length > 0 ? { toolResults: result.toolResults } : {}),
+        ...(hasStructuredData ? { structured: result.structured } : {}),
       })
 
       // Auto-select the most relevant tab based on the response text
