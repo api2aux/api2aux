@@ -91,7 +91,7 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
   }
 }
 
-const FOCUS_PROMPT = `You are a data extraction assistant. Given API results and the user's question, extract ONLY the fields and entities that are relevant to what the user asked for. If there are multiple results, merge them into a single document. Return ONLY valid JSON, nothing else.`
+const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document that best answers the user's question. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
 
 /**
  * LLM-guided strategy: use an extra LLM call to merge results.
@@ -120,7 +120,7 @@ async function mergeLlmGuided(
     .join('\n\n')
 
   const messages: ChatMessage[] = [
-    { role: MessageRole.System, content: FOCUS_PROMPT },
+    { role: MessageRole.System, content: MERGE_PROMPT },
     { role: MessageRole.User, content: `User's question: ${userMessage}\n\n${resultsText}` },
   ]
 
