@@ -1,0 +1,1 @@
+export { detectFieldType } from './type'
