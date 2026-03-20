@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Tech News</title>
+    <link>https://technews.example.com</link>
+    <description>Latest technology news</description>
+    <item>
+      <title>New AI Model Released</title>
+      <link>https://technews.example.com/ai-model</link>
+      <description>A groundbreaking AI model was released today</description>
+      <pubDate>2024-03-15T10:00:00Z</pubDate>
+      <author>editor@technews.example.com</author>
+    </item>
+    <item>
+      <title>Quantum Computing Breakthrough</title>
+      <link>https://technews.example.com/quantum</link>
+      <description>Researchers achieve new milestone in quantum computing</description>
+      <pubDate>2024-03-14T14:30:00Z</pubDate>
+      <author>science@technews.example.com</author>
+    </item>
+    <item>
+      <title>Open Source Project Surpasses 100K Stars</title>
+      <link>https://technews.example.com/open-source</link>
+      <description>Popular open source project reaches milestone</description>
+      <pubDate>2024-03-13T09:15:00Z</pubDate>
+      <author>oss@technews.example.com</author>
+    </item>
+  </channel>
+</rss>

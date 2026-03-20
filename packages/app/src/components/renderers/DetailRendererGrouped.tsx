@@ -9,7 +9,7 @@ import type { ImportanceScore } from '../../services/analysis/types'
 import type { FieldGroup, FieldInfo } from '../../services/analysis/types'
 import { FieldRow } from './FieldRow'
 import { DynamicRenderer } from '../DynamicRenderer'
-import { isImageUrl } from '../../utils/imageDetection'
+import { isImageUrl } from '@api2aux/data2ui'
 
 export interface DetailRendererGroupedProps {
   data: Record<string, unknown>

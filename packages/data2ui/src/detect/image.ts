@@ -1,4 +1,4 @@
-import type { FieldDefinition } from '../types/schema'
+import type { FieldDefinition } from '@api2aux/semantic-analysis'
 
 /** Get the first image URL field from an object item for hero/gallery display */
 export function getHeroImageField(
@@ -33,9 +33,9 @@ export function isImageUrl(value: unknown): boolean {
     const url = new URL(value)
     const pathname = url.pathname.toLowerCase()
     return imageExtensions.some(ext => pathname.endsWith(ext))
-  } catch {
-    // If URL parsing fails, fall back to checking the raw string
-    // Extract the portion before query params
+  } catch (_urlParseError: unknown) {
+    // new URL() failed despite the string matching ^https?://.
+    // Fall back to simple string splitting — acceptable for a non-throwing detection utility.
     const beforeQuery = value.split('?')[0]?.toLowerCase() ?? ''
     return imageExtensions.some(ext => beforeQuery.endsWith(ext))
   }

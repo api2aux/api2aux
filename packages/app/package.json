@@ -15,6 +15,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@api2aux/chat-engine": "workspace:*",
+    "@api2aux/data2ui": "workspace:*",
     "@api2aux/semantic-analysis": "workspace:*",
     "@api2aux/tool-utils": "workspace:*",
     "@api2aux/workflow-inference": "workspace:*",

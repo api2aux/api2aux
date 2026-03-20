@@ -3,7 +3,7 @@ import type { RendererProps } from '../../types/components'
 import type { TypeSignature } from '../../types/schema'
 import { PrimitiveRenderer } from './PrimitiveRenderer'
 import { DynamicRenderer } from '../DynamicRenderer'
-import { isImageUrl } from '../../utils/imageDetection'
+import { isImageUrl } from '@api2aux/data2ui'
 import { formatLabel } from '../../utils/formatLabel'
 
 /** Classify a nested object to decide rendering approach */

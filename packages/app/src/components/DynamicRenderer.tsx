@@ -11,7 +11,7 @@ import { DrilldownModeToggle } from './navigation/DrilldownModeToggle'
 import { ShareButton } from './ShareButton'
 import { MCPButton } from './MCPExportDialog'
 import { ChatButton } from './chat/ChatPanel'
-import { getDefaultTypeName } from '../services/selection'
+import { getDefaultTypeName } from '@api2aux/data2ui'
 
 /** Normalize indexed array paths to generic paths for cache lookup.
  *  e.g. "$[0].tags" → "$[].tags", "$[2].reviews[1]" → "$[].reviews[]" */

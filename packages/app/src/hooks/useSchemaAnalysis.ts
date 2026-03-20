@@ -7,10 +7,10 @@ import { useEffect, useRef } from 'react'
 import { useAppStore } from '../store/appStore'
 import { detectSemantics, getBestMatch } from '../services/semantic'
 import { analyzeFields } from '../services/analysis'
-import { selectComponent, selectObjectComponent, selectPrimitiveArrayComponent } from '../services/selection'
+import { selectComponent, selectObjectComponent, selectPrimitiveArrayComponent } from '@api2aux/data2ui'
 import type { UnifiedSchema, TypeSignature, SemanticMetadata } from '../types/schema'
 import type { FieldInfo } from '../services/analysis/types'
-import type { SelectionContext } from '../services/selection/types'
+import type { SelectionContext } from '@api2aux/data2ui'
 
 /**
  * Extract sample values from data for a given field path.

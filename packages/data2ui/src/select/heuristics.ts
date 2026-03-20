@@ -1,11 +1,15 @@
 /**
  * Heuristic functions for pattern-based component selection.
  * Each heuristic returns null or a ComponentSelection with confidence score.
+ *
+ * Moved from app/src/services/selection/heuristics.ts — same algorithm,
+ * reason strings consolidated to SelectionReason enum.
  */
 
-import type { TypeSignature } from '@/types/schema'
+import type { TypeSignature, FieldDefinition } from '@api2aux/semantic-analysis'
 import type { ComponentSelection, SelectionContext } from './types'
-import { isImageUrl } from '@/utils/imageDetection'
+import { isImageUrl } from '../detect/image'
+import { ComponentType, SelectionReason } from '../types'
 
 /**
  * Helper to extract field entries from array-of-objects schema.
@@ -18,18 +22,14 @@ function getArrayItemFields(schema: TypeSignature): Array<[string, TypeSignature
 
 /**
  * Helper to extract field entries from object schema.
- * Returns array of [fieldName, FieldDefinition] tuples.
  */
-function getObjectFields(schema: TypeSignature): Array<[string, import('@/types/schema').FieldDefinition]> | null {
+function getObjectFields(schema: TypeSignature): Array<[string, FieldDefinition]> | null {
   if (schema.kind !== 'object') return null
   return Array.from(schema.fields.entries())
 }
 
 /**
  * Detects review pattern: rating + comment/review fields.
- * User decision: Star ratings as default display.
- *
- * @returns card-list with 0.85 confidence when both rating and review/description fields present
  */
 export function checkReviewPattern(
   schema: TypeSignature,
@@ -38,20 +38,15 @@ export function checkReviewPattern(
   const fields = getArrayItemFields(schema)
   if (!fields) return null
 
-  // Check for rating field - iterate over semantics map since paths vary
   const hasRating = Array.from(context.semantics.values()).some(
     semantic => semantic.detectedCategory === 'rating'
   )
 
-  // Check for comment/review/description field with primary or secondary tier
-  // Look for semantic category OR field name pattern
   const hasReview = fields.some(([name]) => {
-    // Check semantic category from any matching path
     const hasDescSemantic = Array.from(context.semantics.values()).some(
       semantic => semantic.detectedCategory === 'reviews' || semantic.detectedCategory === 'description'
     )
 
-    // Check importance tier for this field (find by name suffix)
     const importanceEntry = Array.from(context.importance.entries()).find(([path]) =>
       path.endsWith(`].${name}`)
     )
@@ -65,9 +60,9 @@ export function checkReviewPattern(
 
   if (hasRating && hasReview) {
     return {
-      componentType: 'card-list',
+      componentType: ComponentType.CardList,
       confidence: 0.85,
-      reason: 'review-pattern-detected',
+      reason: SelectionReason.ReviewPattern,
     }
   }
 
@@ -76,10 +71,6 @@ export function checkReviewPattern(
 
 /**
  * Detects image-heavy arrays.
- * User decision: Fixed-column grid layout.
- *
- * @returns gallery with 0.9 confidence when image fields present AND <=4 total fields
- * @returns card-list with 0.75 confidence when images mixed with >4 other fields
  */
 export function checkImageGalleryPattern(
   schema: TypeSignature,
@@ -88,7 +79,6 @@ export function checkImageGalleryPattern(
   const fields = getArrayItemFields(schema)
   if (!fields) return null
 
-  // Count image fields - check by semantic category
   const imageCategories = new Set(['image', 'thumbnail', 'avatar'])
   const imageFieldCount = Array.from(context.semantics.values()).filter(
     semantic => imageCategories.has(semantic.detectedCategory ?? '')
@@ -96,28 +86,23 @@ export function checkImageGalleryPattern(
 
   if (imageFieldCount === 0) return null
 
-  // Pure gallery: image fields with <=4 total fields
   if (fields.length <= 4) {
     return {
-      componentType: 'gallery',
+      componentType: ComponentType.Gallery,
       confidence: 0.9,
-      reason: 'image-heavy-content',
+      reason: SelectionReason.ImageGallery,
     }
   }
 
-  // Images mixed with other fields: use cards
   return {
-    componentType: 'card-list',
+    componentType: ComponentType.CardList,
     confidence: 0.75,
-    reason: 'images-with-other-fields',
+    reason: SelectionReason.ImageWithFields,
   }
 }
 
 /**
  * Detects event-like arrays (timeline pattern).
- * User decision: Requires event-like semantics (NOT just chronological ordering).
- *
- * @returns timeline with 0.8 confidence when date/timestamp + title/description present
  */
 export function checkTimelinePattern(
   schema: TypeSignature,
@@ -126,13 +111,11 @@ export function checkTimelinePattern(
   const fields = getArrayItemFields(schema)
   if (!fields) return null
 
-  // Check for date/timestamp field
   const dateCategories = new Set(['date', 'timestamp'])
   const hasDate = Array.from(context.semantics.values()).some(
     semantic => dateCategories.has(semantic.detectedCategory ?? '')
   )
 
-  // Check for title OR description field (event-like semantics)
   const narrativeCategories = new Set(['title', 'description'])
   const hasNarrative = Array.from(context.semantics.values()).some(
     semantic => narrativeCategories.has(semantic.detectedCategory ?? '')
@@ -140,9 +123,9 @@ export function checkTimelinePattern(
 
   if (hasDate && hasNarrative) {
     return {
-      componentType: 'timeline',
+      componentType: ComponentType.Timeline,
       confidence: 0.8,
-      reason: 'event-timeline-pattern',
+      reason: SelectionReason.TimelinePattern,
     }
   }
 
@@ -151,13 +134,6 @@ export function checkTimelinePattern(
 
 /**
  * Default card vs table heuristic based on content richness and field count.
- * User decision: Content richness trumps field count.
- *
- * Rich content categories: description, reviews, image, title
- *
- * @returns card-list with 0.75 confidence when rich content AND <=8 visible fields
- * @returns table with 0.8 confidence when >=10 visible fields
- * @returns table with 0.5 confidence for ambiguous cases
  */
 export function selectCardOrTable(
   schema: TypeSignature,
@@ -166,16 +142,14 @@ export function selectCardOrTable(
   const fields = getArrayItemFields(schema)
   if (!fields) {
     return {
-      componentType: 'table',
+      componentType: ComponentType.Table,
       confidence: 0.5,
-      reason: 'fallback-to-table',
+      reason: SelectionReason.FallbackToDefault,
     }
   }
 
-  // Count primary + secondary tier fields (ignore tertiary for visible field count)
   let visibleFieldCount = 0
   for (const [name] of fields) {
-    // Find importance entry by field name suffix
     const importanceEntry = Array.from(context.importance.entries()).find(([path]) =>
       path.endsWith(`].${name}`)
     )
@@ -186,46 +160,36 @@ export function selectCardOrTable(
     }
   }
 
-  // Check for rich content types from semantics
   const richCategories = new Set(['description', 'reviews', 'image', 'title'])
   const hasRichContent = Array.from(context.semantics.values()).some(
     semantic => richCategories.has(semantic.detectedCategory ?? '')
   )
 
-  // User decision: Content richness trumps field count
   if (hasRichContent && visibleFieldCount <= 8) {
     return {
-      componentType: 'card-list',
+      componentType: ComponentType.CardList,
       confidence: 0.75,
-      reason: 'rich-content-low-field-count',
+      reason: SelectionReason.CardHeuristic,
     }
   }
 
-  // High field count: table for scannability
   if (visibleFieldCount >= 10) {
     return {
-      componentType: 'table',
+      componentType: ComponentType.Table,
       confidence: 0.8,
-      reason: 'high-field-count',
+      reason: SelectionReason.HighFieldCount,
     }
   }
 
-  // Ambiguous case: default to table
   return {
-    componentType: 'table',
+    componentType: ComponentType.Table,
     confidence: 0.5,
-    reason: 'ambiguous-default-table',
+    reason: SelectionReason.FallbackToDefault,
   }
 }
 
 /**
  * Detects profile/person pattern: name field + 2+ contact fields.
- * User decision: Hero component for user profiles and contact cards.
- *
- * Contact categories: email, phone, address, url
- *
- * @returns hero with 0.85 confidence when name + 2+ contacts
- * @returns null when below threshold or non-object schema
  */
 export function checkProfilePattern(
   schema: TypeSignature,
@@ -234,20 +198,15 @@ export function checkProfilePattern(
   const fields = getObjectFields(schema)
   if (!fields) return null
 
-  // Check for name field via semantic category or field name regex
   const hasName = fields.some(([fieldName]) => {
-    // Check semantic category
     const semanticPath = `$.${fieldName}`
     const semantic = context.semantics.get(semanticPath)
     if (semantic?.detectedCategory === 'name') return true
-
-    // Fallback to field name regex
     return /^(name|title|full_?name)$/i.test(fieldName)
   })
 
   if (!hasName) return null
 
-  // Count contact fields (semantic match OR field name fallback)
   const contactCategories = new Set(['email', 'phone', 'address', 'url'])
   const contactNameRegex = /^(email|e_?mail|phone|tel|telephone|mobile|cell|address|website|url|homepage|web)\b/i
   let contactCount = 0
@@ -262,12 +221,11 @@ export function checkProfilePattern(
     }
   }
 
-  // Need 2+ contact fields for profile pattern
   if (contactCount >= 2) {
     return {
-      componentType: 'hero',
+      componentType: ComponentType.Hero,
       confidence: 0.85,
-      reason: 'profile-pattern-detected',
+      reason: SelectionReason.ProfilePattern,
     }
   }
 
@@ -276,10 +234,6 @@ export function checkProfilePattern(
 
 /**
  * Detects complex nested objects with 3+ nested structures.
- * User decision: Tabs component for organizing nested content.
- *
- * @returns tabs with 0.8 confidence when 3+ nested object/array fields
- * @returns null when below threshold or non-object schema
  */
 export function checkComplexObjectPattern(
   schema: TypeSignature,
@@ -288,7 +242,6 @@ export function checkComplexObjectPattern(
   const fields = getObjectFields(schema)
   if (!fields) return null
 
-  // Count fields whose type is object or array
   let nestedCount = 0
 
   for (const [, fieldDef] of fields) {
@@ -298,12 +251,11 @@ export function checkComplexObjectPattern(
     }
   }
 
-  // Need 3+ nested structures for tabs
   if (nestedCount >= 3) {
     return {
-      componentType: 'tabs',
+      componentType: ComponentType.Tabs,
       confidence: 0.8,
-      reason: 'complex-nested-structure',
+      reason: SelectionReason.ComplexObject,
     }
   }
 
@@ -312,15 +264,6 @@ export function checkComplexObjectPattern(
 
 /**
  * Detects content + metadata split pattern.
- * User decision: Split component for content-heavy objects with metadata.
- *
- * Requirements:
- * - Exactly 1 primary-tier content field (description semantic OR name matches content regex)
- * - 3+ metadata fields (tertiary tier OR name matches metadata regex)
- * - 5+ total fields
- *
- * @returns split with 0.75 confidence when pattern matches
- * @returns null otherwise
  */
 export function checkSplitPattern(
   schema: TypeSignature,
@@ -329,7 +272,6 @@ export function checkSplitPattern(
   const fields = getObjectFields(schema)
   if (!fields) return null
 
-  // Need 5+ total fields
   if (fields.length < 5) return null
 
   const contentNameRegex = /^(description|content|body|summary|text)$/i
@@ -343,7 +285,6 @@ export function checkSplitPattern(
     const semantic = context.semantics.get(semanticPath)
     const importance = context.importance.get(semanticPath)
 
-    // Check for primary content field
     const isDescriptionSemantic = semantic?.detectedCategory === 'description'
     const isContentName = contentNameRegex.test(fieldName)
     const isPrimaryTier = importance?.tier === 'primary'
@@ -352,7 +293,6 @@ export function checkSplitPattern(
       primaryContentCount++
     }
 
-    // Check for metadata field
     const isTertiaryTier = importance?.tier === 'tertiary'
     const isMetadataName = metadataNameRegex.test(fieldName)
 
@@ -361,12 +301,11 @@ export function checkSplitPattern(
     }
   }
 
-  // Need exactly 1 primary content field and 3+ metadata fields
   if (primaryContentCount === 1 && metadataCount >= 3) {
     return {
-      componentType: 'split',
+      componentType: ComponentType.Split,
       confidence: 0.75,
-      reason: 'content-metadata-split-detected',
+      reason: SelectionReason.SplitPattern,
     }
   }
 
@@ -375,46 +314,31 @@ export function checkSplitPattern(
 
 /**
  * Detects chips pattern for primitive string arrays.
- * User decision: Chips component for tags, statuses, and short enum-like values.
- *
- * Heuristics:
- * 1. Semantic category 'tags' or 'status' → 0.9 confidence
- * 2. String values with avg length <=20, max <=30, array length <=10 → 0.8 confidence
- *
- * @param data - The actual array data (needed for value length analysis)
- * @param schema - Type signature (must be array of primitive strings)
- * @param context - Selection context with semantic metadata
- * @returns chips with 0.8-0.9 confidence when pattern matches, null otherwise
  */
 export function checkChipsPattern(
   data: unknown,
   schema: TypeSignature,
   context: SelectionContext
 ): ComponentSelection | null {
-  // Must be array of primitive strings
   if (schema.kind !== 'array') return null
   if (schema.items.kind !== 'primitive') return null
   if (schema.items.type !== 'string') return null
 
-  // Check for semantic tags or status category
-  // Iterate over all semantics since path varies (could be $.tags, $.statuses, etc.)
   const hasTagsOrStatus = Array.from(context.semantics.values()).some(
     semantic => semantic.detectedCategory === 'tags' || semantic.detectedCategory === 'status'
   )
 
   if (hasTagsOrStatus) {
     return {
-      componentType: 'chips',
+      componentType: ComponentType.Chips,
       confidence: 0.9,
-      reason: 'semantic-tags-or-status',
+      reason: SelectionReason.ChipsPattern,
     }
   }
 
-  // Check value-based heuristics
   if (!Array.isArray(data) || data.length === 0) return null
   if (data.length > 10) return null
 
-  // Calculate string length statistics
   let totalLength = 0
   let maxLength = 0
 
@@ -426,12 +350,11 @@ export function checkChipsPattern(
 
   const avgLength = totalLength / data.length
 
-  // Short enum-like values: avg <=20, max <=30
   if (avgLength <= 20 && maxLength <= 30) {
     return {
-      componentType: 'chips',
+      componentType: ComponentType.Chips,
       confidence: 0.8,
-      reason: 'short-enum-like-values',
+      reason: SelectionReason.ChipsPattern,
     }
   }
 
@@ -440,22 +363,17 @@ export function checkChipsPattern(
 
 /**
  * Detects primitive arrays of image URLs for grid display.
- *
- * @returns grid with 0.85 confidence when majority of values are image URLs
- * @returns null when not an image array
  */
 export function checkImageGridPattern(
   data: unknown,
   schema: TypeSignature
 ): ComponentSelection | null {
-  // Must be array of primitive strings
   if (schema.kind !== 'array') return null
   if (schema.items.kind !== 'primitive') return null
   if (schema.items.type !== 'string') return null
 
   if (!Array.isArray(data) || data.length === 0) return null
 
-  // Check if majority of values are image URLs
   let imageCount = 0
   for (const item of data) {
     if (typeof item === 'string' && isImageUrl(item)) {
@@ -463,12 +381,11 @@ export function checkImageGridPattern(
     }
   }
 
-  // At least 50% must be image URLs (handles mixed arrays gracefully)
   if (imageCount / data.length >= 0.5) {
     return {
-      componentType: 'grid',
+      componentType: ComponentType.Grid,
       confidence: 0.85,
-      reason: 'image-url-array',
+      reason: SelectionReason.ImageGrid,
     }
   }
 
