@@ -49,7 +49,7 @@ function normalizeToArray(data: unknown): Record<string, unknown>[] {
 function mergeArray(toolResults: ToolResultEntry[]): StructuredResponse {
   return {
     strategy: MergeStrategy.Array,
-    sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+    sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
     data: toolResults.map(r => r.data),
   }
 }
@@ -86,7 +86,7 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
 
   return {
     strategy: MergeStrategy.SchemaBased,
-    sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+    sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
     data: [...entityMap.values()],
   }
 }
@@ -97,7 +97,8 @@ const FOCUS_PROMPT = `You are a data formatting assistant. Given the following A
 
 /**
  * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
- * Falls back to array strategy if the LLM call fails or returns invalid JSON.
+ * LLM infrastructure errors (network, auth, rate limit) propagate to the caller.
+ * Falls back to array strategy if the LLM returns invalid JSON.
  */
 async function mergeLlmGuided(
   toolResults: ToolResultEntry[],
@@ -139,7 +140,7 @@ async function mergeLlmGuided(
     const parsed = JSON.parse(content)
     return {
       strategy: MergeStrategy.LlmGuided,
-      sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+      sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
       data: parsed,
     }
   } catch {
@@ -155,7 +156,7 @@ async function mergeLlmGuided(
  *
  * The response's `strategy` reflects what was actually applied, which may
  * differ from the requested strategy if a fallback occurred:
- * - LlmGuided falls back to Array on LLM failure
+ * - LlmGuided falls back to Array on invalid JSON from the LLM
  * - SchemaBased falls back to Array when no entities with ID fields are detected
  */
 export async function formatStructuredResponse(
@@ -209,7 +210,9 @@ export async function formatStructuredResponse(
 }
 
 /** True when structured data used a non-Array strategy and the resulting data is non-empty. */
-export function hasUsableStructuredData(s: StructuredResponse): boolean {
+export function hasUsableStructuredData(
+  s: StructuredResponse,
+): s is Exclude<StructuredResponse, { strategy: typeof MergeStrategy.Array }> {
   if (s.strategy === MergeStrategy.Array) return false
   const { data } = s
   if (data == null) return false

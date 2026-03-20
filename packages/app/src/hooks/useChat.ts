@@ -288,12 +288,12 @@ export function useChat() {
             })
             break
 
-          case ChatEventType.ToolCallError: {
-            const errorText = `${event.toolName} failed: ${event.error}`
-            streamedText += (streamedText ? '\n' : '') + errorText
-            updateMessage(assistantId, { text: streamedText, loading: false })
+          case ChatEventType.ToolCallError:
+            updateMessage(assistantId, {
+              text: `${event.toolName} failed: ${event.error}`,
+              loading: false,
+            })
             break
-          }
 
           case ChatEventType.StructuredReady:
             // Parallel merge finished — update main panel while text is still streaming
@@ -305,6 +305,9 @@ export function useChat() {
                 scrollToResponseData()
               }
             }
+            break
+
+          default:
             break
         }
       })

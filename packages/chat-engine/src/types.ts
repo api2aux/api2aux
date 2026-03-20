@@ -241,7 +241,7 @@ export type ChatEngineEventHandler = (event: ChatEngineEvent) => void
 
 interface StructuredResponseBase {
   /** Source API calls that produced the data. */
-  sources: Array<{ toolName: string; args: Record<string, unknown> }>
+  sources: Array<{ toolName: string; toolArgs: Record<string, unknown> }>
 }
 
 /** Discriminated union — narrow on `strategy` to get a typed `data` shape. */

@@ -53,16 +53,19 @@ describe('ChatEngine', () => {
   let events: ChatEngineEvent[]
   let onEvent: ChatEngineEventHandler
   let warnSpy: ReturnType<typeof vi.spyOn>
+  let errorSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
     events = []
     onEvent = (event: ChatEngineEvent) => { events.push(event) }
-    // Suppress expected warning about parallelMerge without llmText in tests
+    // Suppress expected warnings and merge fallback errors in tests
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {
     warnSpy.mockRestore()
+    errorSpy.mockRestore()
   })
 
   describe('single-round text response', () => {
@@ -1042,7 +1045,6 @@ describe('ChatEngine', () => {
       // mergeLlmGuided and are caught by engine's outer catch block
       const llmText = vi.fn().mockRejectedValue(new Error('Rate limited'))
 
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
         parallelMerge: true,
@@ -1062,7 +1064,6 @@ describe('ChatEngine', () => {
         expect.stringContaining('buildStructuredResponse failed'),
         'Rate limited',
       )
-      errorSpy.mockRestore()
     })
 
     it('uses llmText when provided instead of streaming llm for merge', async () => {
@@ -1180,7 +1181,6 @@ describe('ChatEngine', () => {
         parallelMerge: false,
       })
 
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const result = await engine.sendMessage('test', onEvent)
 
       // Should produce a valid result with Array fallback
@@ -1198,7 +1198,6 @@ describe('ChatEngine', () => {
       )
 
       spy.mockRestore()
-      errorSpy.mockRestore()
     })
 
     it('emits StructuredReady before TurnComplete using deferred promise', async () => {

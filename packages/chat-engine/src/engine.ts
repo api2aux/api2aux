@@ -227,10 +227,8 @@ export class ChatEngine {
                 if (gen === mergeGeneration) {
                   emit({ type: ChatEventType.StructuredReady, structured })
                 }
-              }).catch((err) => {
-                // buildStructuredResponse failures are handled when mergePromise is awaited below.
-                // This catch prevents unhandled-rejection warnings from the .then() chain.
-                console.error('[chat-engine] Parallel merge failed:', err instanceof Error ? err.message : String(err))
+              }).catch(() => {
+                // Handled when mergePromise is awaited below; this prevents unhandled-rejection warnings.
               })
             }
           },
@@ -269,7 +267,7 @@ export class ChatEngine {
           console.error('[chat-engine] buildStructuredResponse failed:', err instanceof Error ? err.message : String(err))
           structured = {
             strategy: MergeStrategy.Array,
-            sources: collectedResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+            sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
             data: collectedResults.map(r => r.data),
           }
         }

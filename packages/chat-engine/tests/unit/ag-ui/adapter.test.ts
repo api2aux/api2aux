@@ -267,7 +267,7 @@ describe('mapEvent', () => {
         type: ChatEventType.StructuredReady,
         structured: {
           strategy: MergeStrategy.LlmGuided,
-          sources: [{ toolName: 'list_users', args: {} }],
+          sources: [{ toolName: 'list_users', toolArgs: {} }],
           data: { focused: true },
         },
       },
@@ -297,7 +297,7 @@ describe('mapEvent', () => {
         type: ChatEventType.StructuredReady,
         structured: {
           strategy: MergeStrategy.LlmGuided,
-          sources: [{ toolName: 'list_users', args: {} }],
+          sources: [{ toolName: 'list_users', toolArgs: {} }],
           data: circular,
         },
       },
