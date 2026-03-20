@@ -1262,6 +1262,170 @@ describe('ChatEngine', () => {
     })
   })
 
+  describe('context compression', () => {
+    it('compresses tool messages in history after successful LLM-guided merge', async () => {
+      const llmText = vi.fn().mockResolvedValue(JSON.stringify({ focused: true }))
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1, name: 'Alice' }])
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: 'llm-guided',
+        llmText,
+        parallelMerge: false,
+      })
+      const result = await engine.sendMessage('list users', onEvent)
+
+      // UI toolResults should have full raw data
+      expect(result.toolResults[0]!.data).toEqual([{ id: 1, name: 'Alice' }])
+
+      // History tool messages should be compressed
+      const history = engine.getHistory()
+      const toolMsgs = history.filter(m => m.role === 'tool')
+      expect(toolMsgs).toHaveLength(1)
+
+      const compressed = JSON.parse(toolMsgs[0]!.content!)
+      expect(compressed._compressed).toBe(true)
+      expect(compressed.focused).toEqual({ focused: true })
+      expect(compressed.calls).toHaveLength(1)
+      expect(compressed.calls[0].tool).toBe('list_users')
+    })
+
+    it('does not compress on Array fallback', async () => {
+      const llmText = vi.fn().mockResolvedValue('not valid json at all')
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue({ users: [] })
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: 'llm-guided',
+        llmText,
+        parallelMerge: false,
+      })
+      await engine.sendMessage('test', onEvent)
+
+      const history = engine.getHistory()
+      const toolMsgs = history.filter(m => m.role === 'tool')
+      expect(toolMsgs).toHaveLength(1)
+
+      // Should NOT be compressed — original truncated data
+      const content = JSON.parse(toolMsgs[0]!.content!)
+      expect(content._compressed).toBeUndefined()
+      expect(content.users).toEqual([])
+    })
+
+    it('compresses multi-tool turns with first containing focused data and rest containing refs', async () => {
+      const multiTool: Tool = {
+        type: 'function',
+        function: {
+          name: 'get_orders',
+          description: 'Get orders',
+          parameters: { type: 'object', properties: {}, required: [] },
+        },
+      }
+
+      const multiContext: ChatEngineContext = {
+        ...testContext,
+        tools: [testTool, multiTool],
+      }
+
+      const llmText = vi.fn().mockResolvedValue(JSON.stringify({ merged: true }))
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => ({
+          content: '',
+          tool_calls: [
+            { id: 'call_1', type: 'function' as const, function: { name: 'list_users', arguments: '{}' } },
+            { id: 'call_2', type: 'function' as const, function: { name: 'get_orders', arguments: '{}' } },
+          ],
+          finish_reason: 'tool_calls' as const,
+        }))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn()
+        .mockResolvedValueOnce([{ id: 1 }])
+        .mockResolvedValueOnce([{ orderId: 100 }])
+
+      const engine = new ChatEngine(llm, executor, multiContext, {
+        mergeStrategy: 'llm-guided',
+        llmText,
+        parallelMerge: false,
+      })
+      await engine.sendMessage('show users and orders', onEvent)
+
+      const history = engine.getHistory()
+      const toolMsgs = history.filter(m => m.role === 'tool')
+      expect(toolMsgs).toHaveLength(2)
+
+      // First tool message: compressed with focused data
+      const first = JSON.parse(toolMsgs[0]!.content!)
+      expect(first._compressed).toBe(true)
+      expect(first.focused).toEqual({ merged: true })
+      expect(first.calls).toHaveLength(2)
+
+      // Second tool message: ref pointer
+      const second = JSON.parse(toolMsgs[1]!.content!)
+      expect(second._ref).toBeDefined()
+    })
+
+    it('subsequent turns see compressed history in LLM input', async () => {
+      const llmText = vi.fn().mockResolvedValue(JSON.stringify({ focused: true }))
+
+      const llm: LLMCompletionFn = vi.fn()
+        // Turn 1: tool call → text
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('first response')
+          return textResponse('first response')
+        })
+        // Turn 2: direct text (no tool call, will hit guardrail)
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('second response')
+          return textResponse('second response')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: 'llm-guided',
+        llmText,
+        parallelMerge: false,
+      })
+
+      await engine.sendMessage('first question', onEvent)
+      await engine.sendMessage('second question', onEvent)
+
+      // Check the LLM input for the third call (turn 2, first LLM call)
+      // It should contain compressed history from turn 1
+      const thirdCall = (llm as ReturnType<typeof vi.fn>).mock.calls[2]!
+      const messages = thirdCall[0] as ChatMessage[]
+
+      // Find the tool message from turn 1
+      const toolMsg = messages.find(m => m.role === 'tool')
+      expect(toolMsg).toBeDefined()
+
+      const content = JSON.parse(toolMsg!.content!)
+      expect(content._compressed).toBe(true)
+      expect(content.focused).toEqual({ focused: true })
+    })
+  })
+
   describe('setContext', () => {
     it('uses new context tools and prompt after setContext', async () => {
       const newTool: Tool = {

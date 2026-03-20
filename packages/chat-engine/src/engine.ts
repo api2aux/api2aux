@@ -272,6 +272,9 @@ export class ChatEngine {
           }
         }
 
+        // Compress tool results in history now that we have focused data
+        this.compressToolHistory(collectedResults, structured)
+
         emit({
           type: ChatEventType.TurnComplete,
           text: responseText,
@@ -390,6 +393,59 @@ export class ChatEngine {
           content: truncatedResult,
           tool_call_id: toolCall.id,
         })
+      }
+    }
+  }
+
+  /**
+   * Replace raw tool result messages in history with compact focused data + endpoint metadata.
+   * Only compresses when focus/merge succeeded (non-Array strategy).
+   * The full raw data remains in collectedResults for UI consumption.
+   */
+  private compressToolHistory(
+    collectedResults: ToolResultEntry[],
+    structured: StructuredResponse,
+  ): void {
+    if (structured.strategy === MergeStrategy.Array) return
+
+    const metadata = collectedResults.map(r => ({
+      tool: r.toolName,
+      args: r.toolArgs,
+      summary: r.summary,
+    }))
+
+    const compressed = JSON.stringify({
+      _compressed: true,
+      focused: structured.data,
+      calls: metadata,
+    })
+
+    // Find tool_call_ids from the most recent assistant tool_calls message
+    const toolCallIds = new Set<string>()
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      const msg = this.history[i]!
+      if (msg.role === MessageRole.Assistant && msg.tool_calls) {
+        for (const tc of msg.tool_calls) toolCallIds.add(tc.id)
+        break
+      }
+    }
+
+    // Replace tool messages: first gets compressed content,
+    // rest get minimal refs (OpenAI format requires one tool msg per tool_call_id)
+    let first = true
+    for (let i = 0; i < this.history.length; i++) {
+      const msg = this.history[i]!
+      if (msg.role === MessageRole.Tool && msg.tool_call_id && toolCallIds.has(msg.tool_call_id)) {
+        if (first) {
+          this.history[i] = { role: MessageRole.Tool, content: compressed, tool_call_id: msg.tool_call_id }
+          first = false
+        } else {
+          this.history[i] = {
+            role: MessageRole.Tool,
+            content: JSON.stringify({ _ref: 'see first tool result for focused data' }),
+            tool_call_id: msg.tool_call_id,
+          }
+        }
       }
     }
   }

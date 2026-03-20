@@ -10,6 +10,36 @@
 import type { ToolResultEntry, StructuredResponse, LLMTextFn, ChatMessage } from './types'
 import { MergeStrategy, MessageRole } from './types'
 
+// ── JSON extraction helper ──
+
+/**
+ * Attempt to extract valid JSON from LLM output that may contain
+ * markdown code blocks, surrounding text, or other formatting.
+ * Returns the parsed value on success, null if no valid JSON found.
+ */
+export function extractJson(raw: string): unknown | null {
+  const trimmed = raw.trim()
+  try { return JSON.parse(trimmed) } catch {}
+
+  // Markdown code block: ```json ... ```
+  const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1]!) } catch {}
+  }
+
+  // Outermost { } or [ ]
+  const start = trimmed.search(/[{[]/)
+  if (start >= 0) {
+    const closer = trimmed[start] === '{' ? '}' : ']'
+    const end = trimmed.lastIndexOf(closer)
+    if (end > start) {
+      try { return JSON.parse(trimmed.slice(start, end + 1)) } catch {}
+    }
+  }
+
+  return null
+}
+
 // ── ID field detection for schema-based merge ──
 
 const ID_FIELD_PATTERNS = new Set(['id', '_id', 'uuid', 'slug', 'key', 'identifier'])
@@ -111,7 +141,7 @@ async function mergeLlmGuided(
     .map((r, i) => {
       let dataStr: string
       try {
-        dataStr = JSON.stringify(r.data, null, 2).slice(0, 4000)
+        dataStr = JSON.stringify(r.data)
       } catch (err) {
         console.warn('[chat-engine] Failed to serialize tool result for merge prompt:', err instanceof Error ? err.message : String(err))
         dataStr = '[Unserializable data]'
@@ -136,17 +166,17 @@ async function mergeLlmGuided(
     throw err
   }
 
-  try {
-    const parsed = JSON.parse(content)
+  const parsed = extractJson(content)
+  if (parsed !== null) {
     return {
       strategy: MergeStrategy.LlmGuided,
       sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
       data: parsed,
     }
-  } catch {
-    console.warn('[chat-engine] LLM merge returned invalid JSON, falling back to array strategy')
-    return mergeArray(toolResults)
   }
+
+  console.warn('[chat-engine] LLM merge returned unparseable content, falling back to array strategy')
+  return mergeArray(toolResults)
 }
 
 // ── Public API ──
