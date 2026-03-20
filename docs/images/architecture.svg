@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="inputGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="engineGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="humanGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="agentGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="520" fill="#0f172a" rx="12"/>
+
+  <!-- Title -->
+  <text x="450" y="38" text-anchor="middle" fill="#e2e8f0" font-size="18" font-weight="700">api2aux Architecture</text>
+  <text x="450" y="58" text-anchor="middle" fill="#94a3b8" font-size="12">One semantic engine, two audiences</text>
+
+  <!-- INPUT LAYER -->
+  <text x="80" y="100" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1.5">INPUT</text>
+
+  <rect x="30" y="112" width="120" height="44" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="90" y="130" text-anchor="middle" fill="#93c5fd" font-size="11" font-weight="600">API Response</text>
+  <text x="90" y="146" text-anchor="middle" fill="#64748b" font-size="10">JSON / YAML / XML</text>
+
+  <rect x="30" y="168" width="120" height="44" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="90" y="186" text-anchor="middle" fill="#93c5fd" font-size="11" font-weight="600">OpenAPI Spec</text>
+  <text x="90" y="202" text-anchor="middle" fill="#64748b" font-size="10">2.0 / 3.x / GraphQL</text>
+
+  <!-- Arrow from input to engine -->
+  <path d="M 155 156 L 195 156" stroke="#475569" stroke-width="1.5" fill="none" marker-end="url(#arrowGray)"/>
+  <defs><marker id="arrowGray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/></marker></defs>
+
+  <!-- SEMANTIC ENGINE (center) -->
+  <text x="380" y="100" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1.5">SEMANTIC ENGINE</text>
+
+  <rect x="200" y="112" width="370" height="180" rx="12" fill="#1a1a2e" stroke="#f59e0b" stroke-width="1" stroke-opacity="0.4" filter="url(#shadow)"/>
+
+  <!-- Engine steps -->
+  <rect x="220" y="126" width="155" height="34" rx="6" fill="#292524" stroke="#f59e0b" stroke-width="1"/>
+  <text x="297" y="148" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">Schema Inference</text>
+
+  <rect x="395" y="126" width="155" height="34" rx="6" fill="#292524" stroke="#f59e0b" stroke-width="1"/>
+  <text x="472" y="148" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">Semantic Detection</text>
+
+  <rect x="220" y="172" width="155" height="34" rx="6" fill="#292524" stroke="#ef4444" stroke-width="1"/>
+  <text x="297" y="194" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="600">Importance Scoring</text>
+
+  <rect x="395" y="172" width="155" height="34" rx="6" fill="#292524" stroke="#ef4444" stroke-width="1"/>
+  <text x="472" y="194" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="600">Workflow Inference</text>
+
+  <rect x="220" y="218" width="155" height="34" rx="6" fill="#292524" stroke="#f97316" stroke-width="1"/>
+  <text x="297" y="240" text-anchor="middle" fill="#fdba74" font-size="11" font-weight="600">Component Selection</text>
+
+  <rect x="395" y="218" width="155" height="34" rx="6" fill="#292524" stroke="#f97316" stroke-width="1"/>
+  <text x="472" y="240" text-anchor="middle" fill="#fdba74" font-size="11" font-weight="600">Plugin Resolution</text>
+
+  <!-- UIPlan output -->
+  <rect x="260" y="262" width="250" height="22" rx="4" fill="#451a03" stroke="#f59e0b" stroke-width="1"/>
+  <text x="385" y="278" text-anchor="middle" fill="#fde68a" font-size="11" font-weight="700">UIPlan descriptor tree</text>
+
+  <!-- Arrows down from engine to outputs -->
+  <!-- To Human -->
+  <path d="M 320 296 L 320 330 Q 320 340 310 340 L 200 340" stroke="#10b981" stroke-width="2" fill="none" marker-end="url(#arrowGreen)"/>
+  <defs><marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981"/></marker></defs>
+
+  <!-- To Agent -->
+  <path d="M 450 296 L 450 330 Q 450 340 460 340 L 570 340" stroke="#8b5cf6" stroke-width="2" fill="none" marker-end="url(#arrowPurple)"/>
+  <defs><marker id="arrowPurple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6"/></marker></defs>
+
+  <!-- HUMAN INTERFACE (bottom left) -->
+  <text x="80" y="335" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1.5">HUMAN INTERFACE</text>
+
+  <rect x="30" y="348" width="165" height="150" rx="10" fill="#0f2922" stroke="#10b981" stroke-width="1.5" filter="url(#shadow)"/>
+
+  <rect x="46" y="362" width="133" height="30" rx="5" fill="#064e3b"/>
+  <text x="112" y="382" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">Smart UI</text>
+
+  <rect x="46" y="400" width="133" height="30" rx="5" fill="#064e3b"/>
+  <text x="112" y="420" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">AI Chat</text>
+
+  <rect x="46" y="438" width="133" height="30" rx="5" fill="#064e3b"/>
+  <text x="112" y="458" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">Share / Embed</text>
+
+  <text x="112" y="488" text-anchor="middle" fill="#4ade80" font-size="10">React + Zustand + Tailwind</text>
+
+  <!-- AGENT INTERFACE (bottom right) -->
+  <text x="640" y="335" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1.5">AGENT INTERFACE</text>
+
+  <rect x="575" y="348" width="165" height="150" rx="10" fill="#1e1033" stroke="#8b5cf6" stroke-width="1.5" filter="url(#shadow)"/>
+
+  <rect x="591" y="362" width="133" height="30" rx="5" fill="#3b0764"/>
+  <text x="657" y="382" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600">MCP Tools</text>
+
+  <rect x="591" y="400" width="133" height="30" rx="5" fill="#3b0764"/>
+  <text x="657" y="420" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600">A2A Agent Cards</text>
+
+  <rect x="591" y="438" width="133" height="30" rx="5" fill="#3b0764"/>
+  <text x="657" y="458" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600">A2UI / json-render</text>
+
+  <text x="657" y="488" text-anchor="middle" fill="#a78bfa" font-size="10">Claude Desktop + Cursor + SDK</text>
+
+  <!-- INTEROP (bottom center) -->
+  <rect x="220" y="370" width="140" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1" stroke-dasharray="4 2"/>
+  <text x="290" y="386" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">Serializers</text>
+  <text x="290" y="400" text-anchor="middle" fill="#64748b" font-size="9">A2UI / json-render / AG-UI</text>
+
+  <rect x="385" y="370" width="165" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1" stroke-dasharray="4 2"/>
+  <text x="467" y="386" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">Dynamic MCP Server</text>
+  <text x="467" y="400" text-anchor="middle" fill="#64748b" font-size="9">semantic tool generation</text>
+
+  <!-- Legend -->
+  <rect x="770" y="112" width="110" height="110" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="825" y="132" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">Packages</text>
+  <circle cx="785" cy="148" r="4" fill="#f59e0b"/>
+  <text x="795" y="152" fill="#cbd5e1" font-size="9">data2ui</text>
+  <circle cx="785" cy="166" r="4" fill="#ef4444"/>
+  <text x="795" y="170" fill="#cbd5e1" font-size="9">semantic-analysis</text>
+  <circle cx="785" cy="184" r="4" fill="#10b981"/>
+  <text x="795" y="188" fill="#cbd5e1" font-size="9">app</text>
+  <circle cx="785" cy="202" r="4" fill="#8b5cf6"/>
+  <text x="795" y="206" fill="#cbd5e1" font-size="9">mcp-server</text>
+</svg>
