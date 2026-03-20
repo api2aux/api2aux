@@ -20,9 +20,8 @@ The same underlying architecture — semantic enrichment of API specs, dynamic M
 |----------|-----------|---------------|
 | **Humans** | Smart UI + Chat | Auto-rendered data with semantic detection, natural language queries |
 | **AI Agents** | MCP Tools | Discoverable, typed tools with semantic naming and workflow awareness |
-| **Agent ecosystems** | A2A-compatible | Agent Cards, capability descriptions, cross-organization agent communication |
 
-The end-to-end pipeline from raw API spec to agent-tradeable capability doesn't exist elsewhere at the semantic level. Individual pieces exist — but the integrated path from spec to smart UI to MCP tools to agent exposure is unique.
+The end-to-end pipeline from raw API spec to agent-ready capability doesn't exist elsewhere at the semantic level. Individual pieces exist — but the integrated path from spec to smart UI to MCP tools is unique.
 
 ## How it works
 
@@ -38,13 +37,10 @@ The core inference engine (`@api2aux/data2ui`) is framework-agnostic and produce
 
 ### Where api2aux fits in the protocol stack
 
-Three open protocols are becoming foundational for agentic applications:
-
 - **MCP** (Model Context Protocol) — how agents access tools and data
-- **A2A** (Agent-to-Agent) — how agents discover and communicate with each other
 - **AG-UI** / **A2UI** — how agents push UI updates to frontends
 
-api2aux connects these layers: it takes raw OpenAPI specs, enriches them semantically, generates MCP servers dynamically, and exposes capabilities that both humans and agents can consume. The future is composable — an agent might use MCP to call tools, A2UI to describe UI, and AG-UI to push updates to the frontend. api2aux is the semantic layer that makes this pipeline intelligent.
+api2aux connects these layers: it takes raw OpenAPI specs, enriches them semantically, generates MCP servers dynamically, and exposes capabilities that both humans and agents can consume. The UIPlan output can be serialized to A2UI or json-render for interop with agentic UI protocols.
 
 ## Quick Start
 
