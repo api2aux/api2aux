@@ -102,11 +102,13 @@ export interface AgUiToolCallResultEvent extends AgUiBaseEvent {
   role?: AgUiRole
 }
 
-/** Snapshot of the engine's turn-end state, sent as the final data event before RunFinished. */
+/** Snapshot of the engine's turn state. Emitted mid-turn when structured data is ready (via StructuredReady) and at turn end (via TurnComplete) before RunFinished. */
 export interface AgUiStateSnapshot {
   text: string
   toolResults: ToolResultEntry[]
   structured: StructuredResponse
+  /** True when the snapshot contains fallback data due to a JSON serialization failure (e.g., circular references in tool results). */
+  degraded?: boolean
 }
 
 export interface AgUiStateSnapshotEvent extends AgUiBaseEvent {

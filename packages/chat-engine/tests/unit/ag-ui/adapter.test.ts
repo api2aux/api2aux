@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mapEvent, createAgent, createAdapterState } from '../../../src/ag-ui/adapter'
 import { AgUiEventType, AgUiRole } from '../../../src/ag-ui/types'
 import { ChatEventType, FinishReason, MergeStrategy } from '../../../src/types'
@@ -259,6 +259,65 @@ describe('mapEvent', () => {
     expect(events[1]!.type).toBe(AgUiEventType.RunFinished)
   })
 
+  it('maps StructuredReady to early STATE_SNAPSHOT', () => {
+    const state = makeState()
+
+    const events = mapEvent(
+      {
+        type: ChatEventType.StructuredReady,
+        structured: {
+          strategy: MergeStrategy.LlmGuided,
+          sources: [{ toolName: 'list_users', toolArgs: {} }],
+          data: { focused: true },
+        },
+      },
+      state,
+      threadId,
+      runId,
+    )
+
+    expect(events).toHaveLength(1)
+    expect(events[0]!.type).toBe(AgUiEventType.StateSnapshot)
+    if (events[0]!.type === AgUiEventType.StateSnapshot) {
+      expect(events[0]!.snapshot.text).toBe('')
+      expect(events[0]!.snapshot.toolResults).toEqual([])
+      expect(events[0]!.snapshot.structured.data).toEqual({ focused: true })
+    }
+  })
+
+  it('maps StructuredReady with fallback snapshot on serialization failure', () => {
+    const state = makeState()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+
+    const events = mapEvent(
+      {
+        type: ChatEventType.StructuredReady,
+        structured: {
+          strategy: MergeStrategy.LlmGuided,
+          sources: [{ toolName: 'list_users', toolArgs: {} }],
+          data: circular,
+        },
+      },
+      state,
+      threadId,
+      runId,
+    )
+
+    // Should still emit a snapshot (with fallback data)
+    expect(events).toHaveLength(1)
+    expect(events[0]!.type).toBe(AgUiEventType.StateSnapshot)
+    if (events[0]!.type === AgUiEventType.StateSnapshot) {
+      expect(events[0]!.snapshot.structured.strategy).toBe(MergeStrategy.Array)
+      expect(events[0]!.snapshot.structured.data).toEqual([])
+      expect(events[0]!.snapshot.degraded).toBe(true)
+    }
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
   it('maps Error to RunError', () => {
     const state = makeState()
 
@@ -319,6 +378,17 @@ describe('mapEvent', () => {
 })
 
 describe('createAgent', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    // Suppress expected warning about parallelMerge without llmText
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
   it('produces complete AG-UI event sequence for tool call flow', async () => {
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('list_users', {}))

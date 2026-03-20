@@ -15,6 +15,7 @@ export type {
   StreamResult,
   ToolResultEntry,
   LLMCompletionFn,
+  LLMTextFn,
   ToolExecutorFn,
   ApiSpec,
   ApiOperation,
@@ -39,7 +40,7 @@ export { truncateToolResult, summarizeToolResult } from './truncation'
 export { buildToolsFromSpec, buildToolsFromUrl, buildSystemPrompt, buildChatContext } from './context'
 
 // === Response Formatting ===
-export { formatStructuredResponse } from './response'
+export { formatStructuredResponse, hasUsableStructuredData } from './response'
 
 // === Engine ===
 export { ChatEngine } from './engine'

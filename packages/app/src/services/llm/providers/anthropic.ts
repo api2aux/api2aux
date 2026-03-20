@@ -152,4 +152,30 @@ export const anthropicProvider: LLMProvider = {
       finish_reason: finalMessage.stop_reason === 'tool_use' ? 'tool_calls' : 'stop',
     }
   },
+
+  async complete(
+    messages: ChatMessage[],
+    config: { apiKey: string; model: string },
+  ): Promise<string> {
+    const client = new Anthropic({
+      apiKey: config.apiKey,
+      dangerouslyAllowBrowser: true,
+    })
+
+    const { system, messages: anthropicMsgs } = toAnthropicMessages(messages)
+
+    const response = await client.messages.create({
+      model: config.model,
+      system,
+      messages: anthropicMsgs,
+      max_tokens: 4096,
+      stream: false,
+    })
+
+    const textBlock = response.content.find(b => b.type === 'text')
+    if (!textBlock || textBlock.type !== 'text' || !textBlock.text) {
+      throw new Error(`[anthropic] complete() received no text content (stop_reason: ${response.stop_reason})`)
+    }
+    return textBlock.text
+  },
 }

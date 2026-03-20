@@ -1,8 +1,8 @@
-import type { UIMessage, ToolResultEntry } from '../../services/llm/types'
+import type { UIMessage, ToolResultEntry, StructuredResponse } from '../../services/llm/types'
 import { useAppStore } from '../../store/appStore'
 import { useParameterStore } from '../../store/parameterStore'
 import { generateToolName } from '@api2aux/tool-utils'
-import { inferSchema } from '../../services/schema/inferrer'
+import { updateMainView, scrollToResponseData } from '../../utils/chatViewHelpers'
 
 interface ChatMessageProps {
   message: UIMessage
@@ -36,7 +36,7 @@ function friendlyLabel(entry: ToolResultEntry): string {
   return `${resource}${countInfo}`
 }
 
-function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[], contextText?: string }) {
+function ToolResultLinks({ results, contextText, hideBorder }: { results: ToolResultEntry[], contextText?: string, hideBorder?: boolean }) {
   const url = useAppStore((s) => s.url)
 
   const handleClick = (entry: ToolResultEntry) => {
@@ -59,11 +59,10 @@ function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[],
       }
     }
 
-    const schema = inferSchema(entry.data, url || '')
-    useAppStore.getState().fetchSuccess(entry.data, schema)
+    const ok = updateMainView(entry.data, url)
 
     // Auto-select the most relevant tab based on the surrounding message text
-    if (contextText && entry.data && typeof entry.data === 'object' && !Array.isArray(entry.data)) {
+    if (ok && contextText && entry.data && typeof entry.data === 'object' && !Array.isArray(entry.data)) {
       const fields = Object.entries(entry.data as Record<string, unknown>)
         .filter(([, v]) => v !== null && typeof v === 'object')
         .map(([k]) => k)
@@ -80,19 +79,11 @@ function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[],
       }
     }
 
-    // Scroll the data into view and flash highlight after React commits
-    setTimeout(() => {
-      const el = document.getElementById('response-data')
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        el.classList.add('highlight-flash')
-        setTimeout(() => el.classList.remove('highlight-flash'), 1500)
-      }
-    }, 50)
+    if (ok) scrollToResponseData()
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1 mt-2 pt-2 border-t border-border/50">
+    <div className={`flex flex-wrap items-center justify-end gap-1 mt-2 pt-2 ${hideBorder ? '' : 'border-t border-border/50'}`}>
       <span className="text-[10px] text-muted-foreground">Sources:</span>
       {results.map((entry, i) => (
         <button
@@ -108,6 +99,33 @@ function ToolResultLinks({ results, contextText }: { results: ToolResultEntry[],
           {friendlyLabel(entry)}
         </button>
       ))}
+    </div>
+  )
+}
+
+function MergedDataButton({ structured }: { structured: StructuredResponse }) {
+  const url = useAppStore((s) => s.url)
+
+  const handleClick = () => {
+    const ok = updateMainView(structured.data, url)
+    if (ok) scrollToResponseData()
+  }
+
+  const sourceCount = structured.sources.length
+  const label = sourceCount === 1 ? 'Focused data' : `Merged data (${sourceCount} sources)`
+
+  return (
+    <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border/50">
+      <button
+        onClick={handleClick}
+        className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-accent text-accent-foreground hover:bg-accent/80 transition-colors cursor-pointer"
+        title={sourceCount === 1 ? 'Show focused data in the main view' : 'Show merged data from all API calls in the main view'}
+      >
+        <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+        </svg>
+        {label}
+      </button>
     </div>
   )
 }
@@ -137,20 +155,26 @@ export function ChatMessage({ message }: ChatMessageProps) {
   return (
     <div className="flex justify-start px-4 py-2">
       <div className="max-w-[85%] rounded-lg bg-muted text-foreground px-3 py-2 text-sm">
-        {message.loading && !message.text ? (
-          <span className="inline-flex items-center gap-1">
-            <span className="animate-pulse">Thinking</span>
-            <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-            <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-            <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
-          </span>
+        {message.loading ? (
+          <div className="space-y-2">
+            <span className="text-muted-foreground text-xs">
+              {message.text || 'Thinking...'}
+            </span>
+            <div className="flex flex-col gap-1.5">
+              <div className="h-3 w-3/4 rounded bg-muted-foreground/10 animate-shimmer" />
+              <div className="h-3 w-1/2 rounded bg-muted-foreground/10 animate-shimmer [animation-delay:150ms]" />
+            </div>
+          </div>
         ) : message.error && !message.text?.startsWith('Error:') ? (
           <span className="text-destructive">{message.text || message.error}</span>
         ) : (
           <>
             <span className="whitespace-pre-wrap">{message.text}</span>
+            {message.structured && message.toolResults && message.toolResults.length > 0 && (
+              <MergedDataButton structured={message.structured} />
+            )}
             {message.toolResults && message.toolResults.length > 0 && (
-              <ToolResultLinks results={message.toolResults} contextText={message.text || undefined} />
+              <ToolResultLinks results={message.toolResults} contextText={message.text || undefined} hideBorder={!!message.structured} />
             )}
           </>
         )}

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { formatStructuredResponse } from '../../src/response'
-import { MergeStrategy, FinishReason } from '../../src/types'
-import type { ToolResultEntry, LLMCompletionFn } from '../../src/types'
+import { formatStructuredResponse, hasUsableStructuredData } from '../../src/response'
+import { MergeStrategy } from '../../src/types'
+import type { ToolResultEntry, LLMTextFn, StructuredResponse } from '../../src/types'
 
 const singleResult: ToolResultEntry[] = [
   {
@@ -141,11 +141,9 @@ describe('formatStructuredResponse', () => {
 
   describe('LLM-guided strategy', () => {
     it('calls LLM to merge multiple results', async () => {
-      const mockLlm: LLMCompletionFn = vi.fn().mockResolvedValue({
-        content: JSON.stringify({ users: [{ id: 1, name: 'Alice', orders: 2 }] }),
-        tool_calls: [],
-        finish_reason: FinishReason.Stop,
-      })
+      const mockLlm: LLMTextFn = vi.fn().mockResolvedValue(
+        JSON.stringify({ users: [{ id: 1, name: 'Alice', orders: 2 }] }),
+      )
 
       const resp = await formatStructuredResponse(
         multipleResults,
@@ -159,8 +157,29 @@ describe('formatStructuredResponse', () => {
       expect(resp.data).toEqual({ users: [{ id: 1, name: 'Alice', orders: 2 }] })
     })
 
-    it('falls back to array for single result', async () => {
-      const mockLlm: LLMCompletionFn = vi.fn()
+    it('uses MERGE_PROMPT for multiple results', async () => {
+      let capturedMessages: unknown[] = []
+      const mockLlm: LLMTextFn = vi.fn().mockImplementation(async (msgs) => {
+        capturedMessages = msgs
+        return JSON.stringify({ merged: true })
+      })
+
+      await formatStructuredResponse(
+        multipleResults,
+        MergeStrategy.LlmGuided,
+        'merge data',
+        mockLlm,
+      )
+
+      const systemMsg = (capturedMessages as Array<{ role: string; content: string }>).find(m => m.role === 'system')
+      expect(systemMsg?.content).toContain('data merging assistant')
+      expect(systemMsg?.content).not.toContain('data formatting assistant')
+    })
+
+    it('focuses single result via LLM call', async () => {
+      const mockLlm: LLMTextFn = vi.fn().mockResolvedValue(
+        JSON.stringify([{ name: 'Alice' }]),
+      )
 
       const resp = await formatStructuredResponse(
         singleResult,
@@ -169,38 +188,53 @@ describe('formatStructuredResponse', () => {
         mockLlm,
       )
 
-      // Single result, no need to merge
-      expect(resp.strategy).toBe(MergeStrategy.Array)
-      expect(mockLlm).not.toHaveBeenCalled()
+      expect(resp.strategy).toBe(MergeStrategy.LlmGuided)
+      expect(mockLlm).toHaveBeenCalledOnce()
+      expect(resp.data).toEqual([{ name: 'Alice' }])
+    })
+
+    it('uses FOCUS_PROMPT for single result', async () => {
+      let capturedMessages: unknown[] = []
+      const mockLlm: LLMTextFn = vi.fn().mockImplementation(async (msgs) => {
+        capturedMessages = msgs
+        return JSON.stringify({ focused: true })
+      })
+
+      await formatStructuredResponse(
+        singleResult,
+        MergeStrategy.LlmGuided,
+        'list users',
+        mockLlm,
+      )
+
+      const systemMsg = (capturedMessages as Array<{ role: string; content: string }>).find(m => m.role === 'system')
+      expect(systemMsg?.content).toContain('data formatting assistant')
+      expect(systemMsg?.content).not.toContain('data merging assistant')
     })
 
     it('falls back to array when LLM is not provided', async () => {
       const resp = await formatStructuredResponse(
         multipleResults,
         MergeStrategy.LlmGuided,
+        'merge data',
+        undefined as unknown as LLMTextFn,
       )
       expect(resp.strategy).toBe(MergeStrategy.Array)
     })
 
-    it('falls back to array on LLM error', async () => {
-      const mockLlm: LLMCompletionFn = vi.fn().mockRejectedValue(new Error('API error'))
+    it('propagates LLM infrastructure errors', async () => {
+      const mockLlm: LLMTextFn = vi.fn().mockRejectedValue(new Error('API error'))
 
-      const resp = await formatStructuredResponse(
+      await expect(formatStructuredResponse(
         multipleResults,
         MergeStrategy.LlmGuided,
         'merge data',
         mockLlm,
-      )
-
-      expect(resp.strategy).toBe(MergeStrategy.Array)
+      )).rejects.toThrow('API error')
     })
 
     it('falls back to array on invalid JSON from LLM', async () => {
-      const mockLlm: LLMCompletionFn = vi.fn().mockResolvedValue({
-        content: 'This is not valid JSON',
-        tool_calls: [],
-        finish_reason: FinishReason.Stop,
-      })
+      const mockLlm: LLMTextFn = vi.fn().mockResolvedValue('This is not valid JSON')
 
       const resp = await formatStructuredResponse(
         multipleResults,
@@ -220,13 +254,9 @@ describe('formatStructuredResponse', () => {
       ]
 
       let capturedMessages: unknown[] = []
-      const mockLlm: LLMCompletionFn = vi.fn().mockImplementation(async (msgs) => {
+      const mockLlm: LLMTextFn = vi.fn().mockImplementation(async (msgs) => {
         capturedMessages = msgs
-        return {
-          content: JSON.stringify({ merged: true }),
-          tool_calls: [],
-          finish_reason: FinishReason.Stop,
-        }
+        return JSON.stringify({ merged: true })
       })
 
       await formatStructuredResponse(results, MergeStrategy.LlmGuided, 'merge', mockLlm)
@@ -241,5 +271,57 @@ describe('formatStructuredResponse', () => {
       // Should contain the truncated version
       expect(userMsg!.content.length).toBeLessThan(fullJson.length + 200)
     })
+  })
+})
+
+describe('hasUsableStructuredData', () => {
+  it('returns false for Array strategy', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.Array, sources: [], data: [] }
+    expect(hasUsableStructuredData(s)).toBe(false)
+  })
+
+  it('returns false for null data', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: null }
+    expect(hasUsableStructuredData(s)).toBe(false)
+  })
+
+  it('returns false for undefined data', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: undefined }
+    expect(hasUsableStructuredData(s)).toBe(false)
+  })
+
+  it('returns false for empty array', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: [] }
+    expect(hasUsableStructuredData(s)).toBe(false)
+  })
+
+  it('returns false for empty object', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: {} }
+    expect(hasUsableStructuredData(s)).toBe(false)
+  })
+
+  it('returns true for non-empty object', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: { name: 'Alice' } }
+    expect(hasUsableStructuredData(s)).toBe(true)
+  })
+
+  it('returns true for non-empty array', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: [1, 2, 3] }
+    expect(hasUsableStructuredData(s)).toBe(true)
+  })
+
+  it('returns true for SchemaBased strategy with data', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.SchemaBased, sources: [], data: [{ id: 1 }] }
+    expect(hasUsableStructuredData(s)).toBe(true)
+  })
+
+  it('returns true for falsy but valid data (number 0)', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: 0 }
+    expect(hasUsableStructuredData(s)).toBe(true)
+  })
+
+  it('returns true for falsy but valid data (empty string)', () => {
+    const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: '' }
+    expect(hasUsableStructuredData(s)).toBe(true)
   })
 })

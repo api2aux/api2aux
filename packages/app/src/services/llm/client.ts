@@ -27,3 +27,20 @@ export async function chatCompletionStream(
 
   return provider.streamCompletion(messages, tools, config, onToken)
 }
+
+/**
+ * Send a non-streaming chat completion request.
+ * Used for merge/focus calls that don't need token-by-token output.
+ * Creates a separate HTTP request from the streaming call, enabling concurrent I/O.
+ */
+export async function chatCompletion(
+  messages: ChatMessage[],
+  config: ChatConfig,
+): Promise<string> {
+  const provider = getProvider(config.provider)
+  if (!provider) {
+    throw new Error(`Unknown LLM provider: ${config.provider}`)
+  }
+
+  return provider.complete(messages, config)
+}

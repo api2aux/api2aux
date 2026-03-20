@@ -24,6 +24,14 @@ export function ChatPanel() {
     prevMessageCount.current = messages.length
   }, [messages.length])
 
+  // Auto-scroll during streaming and when chips are added at the end
+  const lastMessage = messages[messages.length - 1]
+  useEffect(() => {
+    if (lastMessage?.role === 'assistant') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [lastMessage?.text, lastMessage?.toolResults, lastMessage?.role])
+
   // Show settings by default when no API key
   useEffect(() => {
     if (!hasApiKey) {

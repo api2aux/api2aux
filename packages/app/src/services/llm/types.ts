@@ -13,9 +13,10 @@ export type {
   ToolParameter,
   StreamResult,
   ToolResultEntry,
+  StructuredResponse,
 } from '@api2aux/chat-engine'
 
-import type { ToolResultEntry } from '@api2aux/chat-engine'
+import type { ToolResultEntry, StructuredResponse } from '@api2aux/chat-engine'
 
 /** A message in the chat UI. Analogous to ChatMessage but with a UI-oriented shape (text instead of content, tool-result role, loading/error states). */
 export interface UIMessage {
@@ -30,6 +31,8 @@ export interface UIMessage {
   toolArgs?: Record<string, unknown>
   /** All tool results from this turn (for "view result" links) */
   toolResults?: ToolResultEntry[]
+  /** Structured response from the chat engine — merged when multiple sources, focused when single source. */
+  structured?: StructuredResponse
   /** Is this message still streaming/loading */
   loading?: boolean
   /** Error message if something went wrong */

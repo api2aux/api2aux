@@ -95,6 +95,11 @@ export type LLMCompletionFn = (
   onToken: (token: string) => void,
 ) => Promise<StreamResult>
 
+/** Non-streaming LLM text completion for merge/focus calls. Runs independently of the streaming context. */
+export type LLMTextFn = (
+  messages: ChatMessage[],
+) => Promise<string>
+
 /** Executes a tool call and returns raw API response data. */
 export type ToolExecutorFn = (
   toolName: string,
@@ -166,7 +171,7 @@ export interface ApiOperation {
 export const MergeStrategy = {
   /** Return each tool result separately with source metadata. */
   Array: 'array',
-  /** Use an extra LLM call to merge results into a single document. */
+  /** Use an extra LLM call to merge or focus results into a single document. */
   LlmGuided: 'llm-guided',
   /** Merge results deterministically by detecting shared entity IDs. */
   SchemaBased: 'schema-based',
@@ -193,8 +198,12 @@ export interface ChatEngineConfig {
   maxRounds?: number
   /** Maximum characters of tool result to feed back to LLM. Default: 8000. */
   truncationLimit?: number
-  /** Strategy for merging multiple tool results. Default: MergeStrategy.LlmGuided. */
+  /** Strategy for merging/focusing tool results. Default: MergeStrategy.LlmGuided. */
   mergeStrategy?: MergeStrategy
+  /** Run merge/focus in parallel with text response streaming. Default: true. Has no practical effect when mergeStrategy is Array (the merge is instantaneous). */
+  parallelMerge?: boolean
+  /** Non-streaming LLM for merge/focus calls. When provided, runs in a separate async context from the streaming LLM. Falls back to the streaming LLM with a no-op token handler if not set. */
+  llmText?: LLMTextFn
 }
 
 // ── Events ──
@@ -208,6 +217,8 @@ export const ChatEventType = {
   ToolCallResult: 'tool_call_result',
   /** A tool call failed. */
   ToolCallError: 'tool_call_error',
+  /** Structured data is ready (may arrive before text finishes when parallelMerge is enabled). TurnComplete carries the same resolved object; consumers should avoid processing it twice. */
+  StructuredReady: 'structured_ready',
   /** The full turn is complete. */
   TurnComplete: 'turn_complete',
   /** An unrecoverable error occurred. */
@@ -220,6 +231,7 @@ export type ChatEngineEvent =
   | { type: typeof ChatEventType.ToolCallStart; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; parallelCount: number }
   | { type: typeof ChatEventType.ToolCallResult; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; data: unknown; summary: string }
   | { type: typeof ChatEventType.ToolCallError; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; error: string }
+  | { type: typeof ChatEventType.StructuredReady; structured: StructuredResponse }
   | { type: typeof ChatEventType.TurnComplete; text: string; toolResults: ToolResultEntry[]; structured: StructuredResponse }
   | { type: typeof ChatEventType.Error; error: string }
 
@@ -229,7 +241,7 @@ export type ChatEngineEventHandler = (event: ChatEngineEvent) => void
 
 interface StructuredResponseBase {
   /** Source API calls that produced the data. */
-  sources: Array<{ toolName: string; args: Record<string, unknown> }>
+  sources: Array<{ toolName: string; toolArgs: Record<string, unknown> }>
 }
 
 /** Discriminated union — narrow on `strategy` to get a typed `data` shape. */

@@ -9,6 +9,7 @@
 import type {
   ChatMessage,
   LLMCompletionFn,
+  LLMTextFn,
   ToolExecutorFn,
   ChatEngineContext,
   ChatEngineConfig,
@@ -19,7 +20,7 @@ import type {
   StructuredResponse,
 } from './types'
 import { ChatEventType, MergeStrategy, MessageRole } from './types'
-import { MAX_ROUNDS, TRUNCATION_LIMIT, NO_DATA_MESSAGE } from './defaults'
+import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from './defaults'
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
 
@@ -33,6 +34,8 @@ export class ChatEngine {
   private readonly maxRounds: number
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
+  private readonly parallelMerge: boolean
+  private llmText: LLMTextFn | undefined
 
   constructor(
     llm: LLMCompletionFn,
@@ -57,6 +60,12 @@ export class ChatEngine {
     }
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
+    this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
+    this.llmText = config?.llmText
+
+    if (this.parallelMerge && !this.llmText && this.mergeStrategy === MergeStrategy.LlmGuided) {
+      console.warn('[chat-engine] parallelMerge is enabled with LlmGuided strategy but llmText is not provided — merge calls will reuse the streaming LLM with a no-op token handler')
+    }
 
     // Validate resolved config values
     if (!Number.isFinite(this.maxRounds) || this.maxRounds < 1) {
@@ -77,17 +86,23 @@ export class ChatEngine {
   }
 
   /** Get the resolved engine configuration. */
-  getConfig(): Readonly<Required<ChatEngineConfig>> {
+  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText'>>> {
     return {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
       mergeStrategy: this.mergeStrategy,
+      parallelMerge: this.parallelMerge,
     }
   }
 
   /** Update the LLM function (e.g., when user changes model/provider/API key). */
   setLlm(llm: LLMCompletionFn): void {
     this.llm = llm
+  }
+
+  /** Update the non-streaming LLM function used for merge/focus calls. */
+  setLlmText(llmText: LLMTextFn | undefined): void {
+    this.llmText = llmText
   }
 
   /** Update the tool executor (e.g., when user changes API URL). */
@@ -175,6 +190,9 @@ export class ChatEngine {
 
     let roundCount = 0
     const collectedResults: ToolResultEntry[] = []
+    let mergePromise: Promise<StructuredResponse> | null = null
+    // Generation counter: prevents stale merge promises from emitting StructuredReady
+    let mergeGeneration = 0
 
     // Loop until the LLM produces a text response (no tool calls)
     // eslint-disable-next-line no-constant-condition
@@ -188,6 +206,7 @@ export class ChatEngine {
       const roundTools = roundCount >= this.maxRounds ? [] : tools
 
       let streamedText = ''
+      let mergeStarted = false
       let streamResult
       try {
         streamResult = await this.llm(
@@ -196,6 +215,22 @@ export class ChatEngine {
           (token) => {
             streamedText += token
             emit({ type: ChatEventType.Token, token })
+
+            // On first token: confirmed this is a text response (not tool calls).
+            // Start merge/focus in parallel while text continues streaming.
+            if (!mergeStarted && this.parallelMerge && collectedResults.length > 0) {
+              mergeStarted = true
+              const gen = ++mergeGeneration
+              mergePromise = this.buildStructuredResponse(collectedResults, text)
+              mergePromise.then(structured => {
+                // Only emit if this is still the latest merge (not superseded by a later round)
+                if (gen === mergeGeneration) {
+                  emit({ type: ChatEventType.StructuredReady, structured })
+                }
+              }).catch(() => {
+                // Handled when mergePromise is awaited below; this prevents unhandled-rejection warnings.
+              })
+            }
           },
         )
       } catch (err) {
@@ -224,14 +259,15 @@ export class ChatEngine {
 
         this.history.push({ role: MessageRole.Assistant, content: responseText })
 
+        // Await the parallel merge (already in-flight) or run sequentially
         let structured: StructuredResponse
         try {
-          structured = await this.buildStructuredResponse(collectedResults, text)
+          structured = await (mergePromise ?? this.buildStructuredResponse(collectedResults, text))
         } catch (err) {
           console.error('[chat-engine] buildStructuredResponse failed:', err instanceof Error ? err.message : String(err))
           structured = {
             strategy: MergeStrategy.Array,
-            sources: collectedResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+            sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
             data: collectedResults.map(r => r.data),
           }
         }
@@ -363,11 +399,20 @@ export class ChatEngine {
     toolResults: ToolResultEntry[],
     userMessage: string,
   ): Promise<StructuredResponse> {
+    // Prefer non-streaming LLM for merge/focus — creates a separate HTTP request
+    // that resolves independently of the streaming SSE connection.
+    // Falls back to wrapping the streaming LLM with a no-op token handler.
+    const mergeLlm: LLMTextFn = this.llmText
+      ?? (async (messages) => {
+          const result = await this.llm(messages, [], () => {})
+          return result.content
+        })
+
     return formatStructuredResponse(
       toolResults,
       this.mergeStrategy,
       userMessage,
-      this.llm,
+      mergeLlm,
     )
   }
 }

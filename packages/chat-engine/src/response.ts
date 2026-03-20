@@ -3,11 +3,11 @@
  *
  * Three strategies for combining tool results into a structured response:
  * - Array: Return each result separately (simplest)
- * - LLM-guided: Use an extra LLM call to merge (most intelligent)
+ * - LLM-guided: Use an extra LLM call to merge or focus results (most flexible)
  * - Schema-based: Merge deterministically by shared entity IDs (no LLM call)
  */
 
-import type { ToolResultEntry, StructuredResponse, LLMCompletionFn, ChatMessage } from './types'
+import type { ToolResultEntry, StructuredResponse, LLMTextFn, ChatMessage } from './types'
 import { MergeStrategy, MessageRole } from './types'
 
 // ── ID field detection for schema-based merge ──
@@ -49,7 +49,7 @@ function normalizeToArray(data: unknown): Record<string, unknown>[] {
 function mergeArray(toolResults: ToolResultEntry[]): StructuredResponse {
   return {
     strategy: MergeStrategy.Array,
-    sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+    sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
     data: toolResults.map(r => r.data),
   }
 }
@@ -86,26 +86,26 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
 
   return {
     strategy: MergeStrategy.SchemaBased,
-    sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+    sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
     data: [...entityMap.values()],
   }
 }
 
 const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document that best answers the user's question. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
 
+const FOCUS_PROMPT = `You are a data formatting assistant. Given the following API result, extract and organize the data that best answers the user's question into a single JSON document. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
+
 /**
- * LLM-guided strategy: use an extra LLM call to merge results.
- * Falls back to array strategy if the LLM call fails or returns invalid JSON.
+ * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
+ * LLM infrastructure errors (network, auth, rate limit) propagate to the caller.
+ * Falls back to array strategy if the LLM returns invalid JSON.
  */
 async function mergeLlmGuided(
   toolResults: ToolResultEntry[],
   userMessage: string,
-  llm: LLMCompletionFn,
+  llm: LLMTextFn,
 ): Promise<StructuredResponse> {
-  // No merge needed for 0 or 1 results
-  if (toolResults.length <= 1) {
-    return mergeArray(toolResults)
-  }
+  const prompt = toolResults.length === 1 ? FOCUS_PROMPT : MERGE_PROMPT
 
   const resultsText = toolResults
     .map((r, i) => {
@@ -121,23 +121,30 @@ async function mergeLlmGuided(
     .join('\n\n')
 
   const messages: ChatMessage[] = [
-    { role: MessageRole.System, content: MERGE_PROMPT },
+    { role: MessageRole.System, content: prompt },
     { role: MessageRole.User, content: `User's question: ${userMessage}\n\n${resultsText}` },
   ]
 
+  // Separate LLM call from JSON parse so infrastructure errors propagate
+  // while malformed LLM output falls back gracefully.
+  let content: string
   try {
-    const result = await llm(messages, [], () => {})
-    const parsed = JSON.parse(result.content)
+    content = await llm(messages)
+  } catch (err) {
+    // LLM infrastructure error (network, auth, rate limit) — let it propagate
+    // so the caller can handle it visibly rather than silently degrading.
+    throw err
+  }
+
+  try {
+    const parsed = JSON.parse(content)
     return {
       strategy: MergeStrategy.LlmGuided,
-      sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
+      sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
       data: parsed,
     }
-  } catch (err) {
-    console.warn(
-      '[chat-engine] LLM-guided merge failed, falling back to array strategy:',
-      err instanceof Error ? err.message : String(err),
-    )
+  } catch {
+    console.warn('[chat-engine] LLM merge returned invalid JSON, falling back to array strategy')
     return mergeArray(toolResults)
   }
 }
@@ -149,14 +156,14 @@ async function mergeLlmGuided(
  *
  * The response's `strategy` reflects what was actually applied, which may
  * differ from the requested strategy if a fallback occurred:
- * - LlmGuided falls back to Array on LLM failure or when toolResults.length <= 1
+ * - LlmGuided falls back to Array on invalid JSON from the LLM
  * - SchemaBased falls back to Array when no entities with ID fields are detected
  */
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: typeof MergeStrategy.LlmGuided,
   userMessage: string,
-  llm: LLMCompletionFn,
+  llm: LLMTextFn,
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
@@ -166,13 +173,13 @@ export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: MergeStrategy,
   userMessage: string,
-  llm: LLMCompletionFn,
+  llm: LLMTextFn,
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: MergeStrategy = MergeStrategy.LlmGuided,
   userMessage?: string,
-  llm?: LLMCompletionFn,
+  llm?: LLMTextFn,
 ): Promise<StructuredResponse> {
   if (toolResults.length === 0) {
     return mergeArray(toolResults)
@@ -194,7 +201,22 @@ export async function formatStructuredResponse(
       )
       return mergeArray(toolResults)
 
-    default:
+    default: {
+      const _exhaustive: never = strategy
+      console.error('[chat-engine] Unknown merge strategy:', _exhaustive)
       return mergeArray(toolResults)
+    }
   }
+}
+
+/** True when structured data used a non-Array strategy and the resulting data is non-empty. */
+export function hasUsableStructuredData(
+  s: StructuredResponse,
+): s is Exclude<StructuredResponse, { strategy: typeof MergeStrategy.Array }> {
+  if (s.strategy === MergeStrategy.Array) return false
+  const { data } = s
+  if (data == null) return false
+  if (Array.isArray(data) && data.length === 0) return false
+  if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data as object).length === 0) return false
+  return true
 }
