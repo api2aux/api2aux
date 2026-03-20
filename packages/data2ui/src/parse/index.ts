@@ -38,7 +38,8 @@ export function detectFormat(input: string): InputFormat {
  * Parse raw input into a JS value.
  *
  * - If input is a string, auto-detects format (or uses forced format) and parses.
- * - If input is already a non-string value, returns it directly as JSON format.
+ * - If input is already a non-string value, returns it directly (format defaults
+ *   to JSON unless overridden via options).
  */
 export function parseInput(input: string | unknown, options?: ParseOptions): ParseResult {
   // Already parsed data (object, array, number, etc.)
@@ -47,6 +48,10 @@ export function parseInput(input: string | unknown, options?: ParseOptions): Par
       data: input,
       inputFormat: options?.inputFormat ?? InputFormat.JSON,
     }
+  }
+
+  if (input.trim().length === 0) {
+    throw new Error('Cannot parse empty input')
   }
 
   const format = options?.inputFormat ?? detectFormat(input)

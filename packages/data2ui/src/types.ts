@@ -1,5 +1,5 @@
 /**
- * Const enums for data2ui.
+ * Const objects (as const) for data2ui.
  * Internal logic references these consts — interfaces stay open (string)
  * so consumers can extend without modifying this package.
  */
@@ -43,6 +43,8 @@ export const SelectionReason = {
   ImageGallery: 'image-gallery',
   TimelinePattern: 'timeline-pattern',
   CardHeuristic: 'card-heuristic',
+  HighFieldCount: 'high-field-count',
+  ImageWithFields: 'image-with-fields',
   ProfilePattern: 'profile-pattern',
   ComplexObject: 'complex-object',
   SplitPattern: 'split-pattern',

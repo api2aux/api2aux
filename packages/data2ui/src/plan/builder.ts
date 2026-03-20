@@ -4,9 +4,7 @@
  * Pipeline:
  * 1. Parse input (JSON/YAML/XML → JS object)
  * 2. Analyze (schema inference, semantic detection, importance, grouping)
- * 3. Select components (layout + field level)
- * 4. Resolve field plugins
- * 5. Assemble UINode tree
+ * 3. Recursively build UINode tree (component selection + plugin resolution at each node)
  */
 import { analyzeApiResponse } from '@api2aux/semantic-analysis'
 import type { TypeSignature, SemanticMetadata, PathAnalysis } from '@api2aux/semantic-analysis'
@@ -20,7 +18,7 @@ import type { ComponentSelection, SelectionContext } from '../select/types'
 
 /**
  * Build a complete UI plan from raw input data.
- * Pure function — no side effects, no framework dependencies.
+ * Stateless function — no framework dependencies, no mutation of inputs.
  */
 export function buildUIPlan(
   input: string | unknown,
@@ -35,7 +33,13 @@ export function buildUIPlan(
 
   // 2. Analyze
   const url = options?.url ?? ''
-  const analysisResult = analyzeApiResponse(data, url)
+  let analysisResult
+  try {
+    analysisResult = analyzeApiResponse(data, url)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Schema analysis failed: ${message}`)
+  }
   const { schema, paths } = analysisResult
 
   // 3. Build UINode tree
@@ -95,11 +99,12 @@ function buildNode(
     return buildFieldNode(fieldName, path, typeSignature, data, paths, pluginRegistry, pluginPreferences)
   }
 
-  // Fallback
+  // Fallback — unhandled schema kind (e.g., nested arrays).
+  // If this triggers, it indicates a gap in the engine's coverage.
   return {
     kind: NodeKind.Layout,
     component: ComponentType.Json,
-    selection: { componentType: ComponentType.Json, confidence: 0, reason: SelectionReason.FallbackToDefault },
+    selection: { componentType: ComponentType.Json, confidence: 0, reason: 'unhandled-schema-kind' },
     path,
     schema: typeSignature,
     children: [],

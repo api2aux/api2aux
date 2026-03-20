@@ -2,7 +2,8 @@
  * Heuristic functions for pattern-based component selection.
  * Each heuristic returns null or a ComponentSelection with confidence score.
  *
- * Moved from app/src/services/selection/heuristics.ts — logic preserved verbatim.
+ * Moved from app/src/services/selection/heuristics.ts — same algorithm,
+ * reason strings consolidated to SelectionReason enum.
  */
 
 import type { TypeSignature, FieldDefinition } from '@api2aux/semantic-analysis'
@@ -96,7 +97,7 @@ export function checkImageGalleryPattern(
   return {
     componentType: ComponentType.CardList,
     confidence: 0.75,
-    reason: SelectionReason.ImageGallery,
+    reason: SelectionReason.ImageWithFields,
   }
 }
 
@@ -176,7 +177,7 @@ export function selectCardOrTable(
     return {
       componentType: ComponentType.Table,
       confidence: 0.8,
-      reason: SelectionReason.CardHeuristic,
+      reason: SelectionReason.HighFieldCount,
     }
   }
 

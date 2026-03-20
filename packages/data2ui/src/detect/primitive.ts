@@ -2,6 +2,7 @@
  * Auto-detection heuristics for primitive display modes.
  * Used to choose smart defaults based on field name and value patterns.
  */
+import type { RenderHint } from '../types'
 
 /** Check if a string value looks like an email address */
 export function isEmail(value: string): boolean {
@@ -20,7 +21,11 @@ export function isRatingField(fieldName: string, value: number): boolean {
   return /rating|score|stars/i.test(fieldName) && value >= 0 && value <= 5
 }
 
-/** Check if a field represents a currency amount */
+/**
+ * Check if a field represents a currency amount.
+ * "total" alone is too ambiguous (pagination count vs monetary total) —
+ * require explicit price-related words.
+ */
 export function isCurrencyField(fieldName: string): boolean {
   return /price|cost|amount|fee|salary|budget|revenue|subtotal/i.test(fieldName)
 }
@@ -34,7 +39,7 @@ export function isCodeField(fieldName: string): boolean {
  * Detect the best primitive render mode for a value based on heuristics.
  * Returns the mode string, or null if no special mode detected (use default).
  */
-export function detectPrimitiveMode(value: unknown, fieldName: string): string | null {
+export function detectPrimitiveMode(value: unknown, fieldName: string): RenderHint | null {
   if (typeof value === 'number') {
     if (isRatingField(fieldName, value)) return 'rating'
     if (isCurrencyField(fieldName)) return 'currency'

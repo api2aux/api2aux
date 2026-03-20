@@ -1,11 +1,14 @@
 /**
  * Smart component selection service.
- * Moved from app/src/services/selection/ — logic preserved verbatim.
+ * Moved from app/src/services/selection/ — same algorithm, streamlined JSDoc.
  */
 
 import type { TypeSignature } from '@api2aux/semantic-analysis'
 import type { ComponentSelection, SelectionContext } from './types'
 import { ComponentType, SelectionReason } from '../types'
+
+/** Minimum confidence for a heuristic to override the type-based default */
+export const SMART_DEFAULT_THRESHOLD = 0.75
 import {
   checkReviewPattern,
   checkImageGalleryPattern,
@@ -20,7 +23,7 @@ import {
 
 /**
  * Select the most appropriate component type for rendering array data.
- * Only returns smart default when confidence >= 0.75.
+ * Only returns smart default when confidence >= SMART_DEFAULT_THRESHOLD.
  */
 export function selectComponent(
   schema: TypeSignature,
@@ -43,7 +46,7 @@ export function selectComponent(
 
   for (const heuristic of heuristics) {
     const result = heuristic(schema, context)
-    if (result && result.confidence >= 0.75) {
+    if (result && result.confidence >= SMART_DEFAULT_THRESHOLD) {
       return result
     }
   }
@@ -57,7 +60,7 @@ export function selectComponent(
 
 /**
  * Select the most appropriate component type for rendering an object.
- * Only returns smart default when confidence >= 0.75.
+ * Only returns smart default when confidence >= SMART_DEFAULT_THRESHOLD.
  */
 export function selectObjectComponent(
   schema: TypeSignature,
@@ -79,7 +82,7 @@ export function selectObjectComponent(
 
   for (const heuristic of heuristics) {
     const result = heuristic(schema, context)
-    if (result && result.confidence >= 0.75) {
+    if (result && result.confidence >= SMART_DEFAULT_THRESHOLD) {
       return result
     }
   }
@@ -93,7 +96,7 @@ export function selectObjectComponent(
 
 /**
  * Select the most appropriate component type for rendering a primitive array.
- * Only returns smart default when confidence >= 0.75.
+ * Only returns smart default when confidence >= SMART_DEFAULT_THRESHOLD.
  */
 export function selectPrimitiveArrayComponent(
   schema: TypeSignature,
@@ -117,12 +120,12 @@ export function selectPrimitiveArrayComponent(
   }
 
   const gridResult = checkImageGridPattern(data, schema)
-  if (gridResult && gridResult.confidence >= 0.75) {
+  if (gridResult && gridResult.confidence >= SMART_DEFAULT_THRESHOLD) {
     return gridResult
   }
 
   const result = checkChipsPattern(data, schema, context)
-  if (result && result.confidence >= 0.75) {
+  if (result && result.confidence >= SMART_DEFAULT_THRESHOLD) {
     return result
   }
 

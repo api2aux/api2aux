@@ -2,8 +2,10 @@
  * @api2aux/data2ui — Framework-agnostic data-to-UI inference engine.
  *
  * Parses raw data (JSON, YAML, XML), infers schema and semantics,
- * selects optimal UI components, and produces a serializable UIPlan
- * descriptor tree that any renderer can consume.
+ * selects optimal UI components, and produces a UIPlan descriptor tree
+ * that any renderer can consume.
+ *
+ * Note: UIPlan contains Map instances; use a custom serializer for JSON transport.
  */
 
 // --- Const enums ---
@@ -23,11 +25,13 @@ export {
   selectObjectComponent,
   selectPrimitiveArrayComponent,
   getDefaultTypeName,
+  SMART_DEFAULT_THRESHOLD,
 } from './select'
 export type { ComponentSelection, SelectionContext } from './select/types'
 
 // --- Detection utilities ---
 export { detectFieldType } from './detect/type'
+export type { FieldType } from './detect/type'
 export { isImageUrl, getHeroImageField } from './detect/image'
 export {
   detectPrimitiveMode,

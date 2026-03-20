@@ -1,7 +1,7 @@
 /**
  * Core types for the UI descriptor tree.
  */
-import type { NodeKind, InputFormat } from '../types'
+import type { NodeKind, InputFormat, RenderHint, ComponentType } from '../types'
 import type {
   TypeSignature,
   UnifiedSchema,
@@ -24,8 +24,8 @@ export type UINode = LayoutNode | FieldNode | CollectionNode
 /** Layout-level node (renders arrays/objects) */
 export interface LayoutNode {
   kind: typeof NodeKind.Layout
-  /** Selected component type — open string for extensibility */
-  component: string
+  /** Effective component type; equals selection.componentType unless overridden */
+  component: ComponentType | (string & {})
   /** Selection metadata (confidence, reason) */
   selection: ComponentSelection
   /** JSON path to this node's data */
@@ -51,8 +51,8 @@ export interface FieldNode {
   path: string
   /** Resolved plugin ID (e.g., 'core/star-rating') or null for default */
   pluginId: string | null
-  /** Fallback render hint — open string for extensibility */
-  renderHint: string | null
+  /** Fallback render hint when no plugin matched */
+  renderHint: RenderHint | (string & {}) | null
   /** Inferred type signature */
   schema: TypeSignature
   /** Semantic metadata */
@@ -64,8 +64,8 @@ export interface FieldNode {
 /** Collection node (primitive arrays) */
 export interface CollectionNode {
   kind: typeof NodeKind.Collection
-  /** Selected component type — open string for extensibility */
-  component: string
+  /** Effective component type; equals selection.componentType unless overridden */
+  component: ComponentType | (string & {})
   /** Selection metadata */
   selection: ComponentSelection
   /** JSON path */
