@@ -1,6 +1,6 @@
 import type { RendererProps } from '../../types/components'
 import { DrilldownContainer } from '../detail/DrilldownContainer'
-import { getHeroImageField } from '../../utils/imageDetection'
+import { getHeroImageField } from '@api2aux/data2ui'
 import { useItemDrilldown } from '../../hooks/useItemDrilldown'
 import { getItemLabel } from '../../utils/itemLabel'
 

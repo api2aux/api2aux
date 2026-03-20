@@ -1,5 +1,5 @@
 import type { TypeSignature } from '../../types/schema'
-import { getHeroImageField } from '../../utils/imageDetection'
+import { getHeroImageField } from '@api2aux/data2ui'
 import { getItemLabel } from '../../utils/itemLabel'
 
 interface HorizontalCardScrollerProps {

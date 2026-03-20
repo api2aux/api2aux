@@ -114,6 +114,9 @@ importers:
       '@api2aux/chat-engine':
         specifier: workspace:*
         version: link:../chat-engine
+      '@api2aux/data2ui':
+        specifier: workspace:*
+        version: link:../data2ui
       '@api2aux/semantic-analysis':
         specifier: workspace:*
         version: link:../semantic-analysis

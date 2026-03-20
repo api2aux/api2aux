@@ -5,8 +5,7 @@ import type { FieldRenderProps } from '../../types/plugins'
 import { useConfigStore } from '../../store/configStore'
 import { useAppStore } from '../../store/appStore'
 import { ExternalLink } from '../ui/ExternalLink'
-import { isImageUrl } from '../../utils/imageDetection'
-import { isEmail, isColorValue, isCurrencyField, isRatingField, detectPrimitiveMode } from '../../utils/primitiveDetection'
+import { isImageUrl, isEmail, isColorValue, isCurrencyField, isRatingField, detectPrimitiveMode } from '@api2aux/data2ui'
 import { registry } from '../registry/pluginRegistry'
 
 // Existing semantic components (used directly when no plugin is registered yet)

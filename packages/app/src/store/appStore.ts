@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { UnifiedSchema, SemanticMetadata } from '../types/schema'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import type { ImportanceScore, GroupingResult } from '../services/analysis/types'
-import type { ComponentSelection } from '../services/selection/types'
+import type { ComponentSelection } from '@api2aux/data2ui'
 import type { DeployResult } from '../services/mcp/deploy'
 import type { SSEEvent } from 'api-invoke'
 
