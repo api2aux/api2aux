@@ -28,6 +28,15 @@ export type { ComponentSelection, SelectionContext } from './select/types'
 
 // --- Detection utilities ---
 export { detectFieldType } from './detect/type'
+export { isImageUrl, getHeroImageField } from './detect/image'
+export {
+  detectPrimitiveMode,
+  isEmail,
+  isColorValue,
+  isRatingField,
+  isCurrencyField,
+  isCodeField,
+} from './detect/primitive'
 
 // --- Plugin registry ---
 export { PluginRegistry } from './plugins/registry'
