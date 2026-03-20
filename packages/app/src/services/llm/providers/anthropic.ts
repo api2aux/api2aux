@@ -174,8 +174,7 @@ export const anthropicProvider: LLMProvider = {
 
     const textBlock = response.content.find(b => b.type === 'text')
     if (!textBlock || textBlock.type !== 'text' || !textBlock.text) {
-      console.warn('[anthropic] complete() received no text content. Stop reason:', response.stop_reason)
-      return ''
+      throw new Error(`[anthropic] complete() received no text content (stop_reason: ${response.stop_reason})`)
     }
     return textBlock.text
   },

@@ -222,17 +222,15 @@ describe('formatStructuredResponse', () => {
       expect(resp.strategy).toBe(MergeStrategy.Array)
     })
 
-    it('falls back to array on LLM error', async () => {
+    it('propagates LLM infrastructure errors', async () => {
       const mockLlm: LLMTextFn = vi.fn().mockRejectedValue(new Error('API error'))
 
-      const resp = await formatStructuredResponse(
+      await expect(formatStructuredResponse(
         multipleResults,
         MergeStrategy.LlmGuided,
         'merge data',
         mockLlm,
-      )
-
-      expect(resp.strategy).toBe(MergeStrategy.Array)
+      )).rejects.toThrow('API error')
     })
 
     it('falls back to array on invalid JSON from LLM', async () => {

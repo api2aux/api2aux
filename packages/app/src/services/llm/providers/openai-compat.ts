@@ -129,8 +129,7 @@ export function createOpenAICompatProvider(providerConfig: OpenAICompatConfig): 
 
       const content = response.choices[0]?.message?.content
       if (!content) {
-        console.warn(`[${providerConfig.id}] complete() received no text content. Finish reason:`, response.choices[0]?.finish_reason)
-        return ''
+        throw new Error(`[${providerConfig.id}] complete() received no text content (finish_reason: ${response.choices[0]?.finish_reason})`)
       }
       return content
     },

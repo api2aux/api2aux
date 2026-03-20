@@ -171,7 +171,7 @@ export interface ApiOperation {
 export const MergeStrategy = {
   /** Return each tool result separately with source metadata. */
   Array: 'array',
-  /** Use an extra LLM call to merge results into a single document. */
+  /** Use an extra LLM call to merge or focus results into a single document. */
   LlmGuided: 'llm-guided',
   /** Merge results deterministically by detecting shared entity IDs. */
   SchemaBased: 'schema-based',
@@ -200,7 +200,7 @@ export interface ChatEngineConfig {
   truncationLimit?: number
   /** Strategy for merging/focusing tool results. Default: MergeStrategy.LlmGuided. */
   mergeStrategy?: MergeStrategy
-  /** Run merge/focus LLM call in parallel with text response. Default: true. Only meaningful when mergeStrategy is LlmGuided. */
+  /** Run merge/focus in parallel with text response streaming. Default: true. Has no practical effect when mergeStrategy is Array (the merge is instantaneous). */
   parallelMerge?: boolean
   /** Non-streaming LLM for merge/focus calls. When provided, runs in a separate async context from the streaming LLM. Falls back to the streaming LLM with a no-op token handler if not set. */
   llmText?: LLMTextFn
@@ -217,7 +217,7 @@ export const ChatEventType = {
   ToolCallResult: 'tool_call_result',
   /** A tool call failed. */
   ToolCallError: 'tool_call_error',
-  /** Structured data is ready (may arrive before text finishes when parallelMerge is enabled). Consumers that also handle TurnComplete should deduplicate, as both carry the same structured data. */
+  /** Structured data is ready (may arrive before text finishes when parallelMerge is enabled). TurnComplete carries the same resolved object; consumers should avoid processing it twice. */
   StructuredReady: 'structured_ready',
   /** The full turn is complete. */
   TurnComplete: 'turn_complete',

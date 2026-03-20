@@ -31,7 +31,7 @@ export async function chatCompletionStream(
 /**
  * Send a non-streaming chat completion request.
  * Used for merge/focus calls that don't need token-by-token output.
- * Runs in a separate async context from streaming, enabling true parallel execution.
+ * Creates a separate HTTP request from the streaming call, enabling concurrent I/O.
  */
 export async function chatCompletion(
   messages: ChatMessage[],

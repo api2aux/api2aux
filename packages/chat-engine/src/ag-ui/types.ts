@@ -107,6 +107,8 @@ export interface AgUiStateSnapshot {
   text: string
   toolResults: ToolResultEntry[]
   structured: StructuredResponse
+  /** True when the snapshot contains fallback data due to a serialization failure. */
+  degraded?: boolean
 }
 
 export interface AgUiStateSnapshotEvent extends AgUiBaseEvent {

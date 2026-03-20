@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mapEvent, createAgent, createAdapterState } from '../../../src/ag-ui/adapter'
 import { AgUiEventType, AgUiRole } from '../../../src/ag-ui/types'
 import { ChatEventType, FinishReason, MergeStrategy } from '../../../src/types'
@@ -310,8 +310,9 @@ describe('mapEvent', () => {
     expect(events).toHaveLength(1)
     expect(events[0]!.type).toBe(AgUiEventType.StateSnapshot)
     if (events[0]!.type === AgUiEventType.StateSnapshot) {
-      expect(events[0]!.snapshot.structured.strategy).toBe('array')
+      expect(events[0]!.snapshot.structured.strategy).toBe(MergeStrategy.Array)
       expect(events[0]!.snapshot.structured.data).toEqual([])
+      expect(events[0]!.snapshot.degraded).toBe(true)
     }
     expect(warnSpy).toHaveBeenCalled()
     warnSpy.mockRestore()
@@ -377,6 +378,17 @@ describe('mapEvent', () => {
 })
 
 describe('createAgent', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    // Suppress expected warning about parallelMerge without llmText
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
   it('produces complete AG-UI event sequence for tool call flow', async () => {
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('list_users', {}))

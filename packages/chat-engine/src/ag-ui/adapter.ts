@@ -8,7 +8,7 @@
 
 import type { ChatEngine } from '../engine'
 import type { ChatEngineEvent } from '../types'
-import { ChatEventType } from '../types'
+import { ChatEventType, MergeStrategy } from '../types'
 import { TRUNCATION_LIMIT } from '../defaults'
 import type {
   AgUiEvent,
@@ -161,7 +161,7 @@ export function mapEvent(
         })) as AgUiStateSnapshot
       } catch (err) {
         console.warn('[chat-engine] Failed to serialize early state snapshot:', err instanceof Error ? err.message : String(err))
-        snapshot = { text: '', toolResults: [], structured: { strategy: 'array', sources: [], data: [] } }
+        snapshot = { text: '', toolResults: [], structured: { strategy: MergeStrategy.Array, sources: [], data: [] }, degraded: true }
       }
       events.push({
         type: AgUiEventType.StateSnapshot,
@@ -190,7 +190,7 @@ export function mapEvent(
         })) as AgUiStateSnapshot
       } catch (err) {
         console.warn('[chat-engine] Failed to serialize state snapshot:', err instanceof Error ? err.message : String(err))
-        snapshot = { text: event.text, toolResults: [], structured: { strategy: 'array', sources: [], data: [] } }
+        snapshot = { text: event.text, toolResults: [], structured: { strategy: MergeStrategy.Array, sources: [], data: [] }, degraded: true }
       }
 
       events.push({

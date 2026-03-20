@@ -63,6 +63,10 @@ export class ChatEngine {
     this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
     this.llmText = config?.llmText
 
+    if (this.parallelMerge && !this.llmText && this.mergeStrategy === MergeStrategy.LlmGuided) {
+      console.warn('[chat-engine] parallelMerge is enabled with LlmGuided strategy but llmText is not provided — merge calls will reuse the streaming LLM with a no-op token handler')
+    }
+
     // Validate resolved config values
     if (!Number.isFinite(this.maxRounds) || this.maxRounds < 1) {
       throw new Error(`ChatEngineConfig: maxRounds must be a finite number >= 1, got ${this.maxRounds}`)
@@ -226,7 +230,7 @@ export class ChatEngine {
               }).catch((err) => {
                 // buildStructuredResponse failures are handled when mergePromise is awaited below.
                 // This catch prevents unhandled-rejection warnings from the .then() chain.
-                console.warn('[chat-engine] Parallel merge .then() chain rejected:', err instanceof Error ? err.message : String(err))
+                console.error('[chat-engine] Parallel merge failed:', err instanceof Error ? err.message : String(err))
               })
             }
           },
@@ -397,8 +401,8 @@ export class ChatEngine {
     toolResults: ToolResultEntry[],
     userMessage: string,
   ): Promise<StructuredResponse> {
-    // Prefer non-streaming LLM for merge/focus — runs in a separate async context
-    // so React doesn't batch it with the streaming text updates.
+    // Prefer non-streaming LLM for merge/focus — creates a separate HTTP request
+    // that resolves independently of the streaming SSE connection.
     // Falls back to wrapping the streaming LLM with a no-op token handler.
     const mergeLlm: LLMTextFn = this.llmText
       ?? (async (messages) => {

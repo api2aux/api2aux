@@ -52,10 +52,17 @@ function toolCallResponse(name: string, args: Record<string, unknown>): StreamRe
 describe('ChatEngine', () => {
   let events: ChatEngineEvent[]
   let onEvent: ChatEngineEventHandler
+  let warnSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
     events = []
     onEvent = (event: ChatEngineEvent) => { events.push(event) }
+    // Suppress expected warning about parallelMerge without llmText in tests
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
   })
 
   describe('single-round text response', () => {
@@ -1031,10 +1038,11 @@ describe('ChatEngine', () => {
 
       const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
 
-      // Merge LLM rejects — formatStructuredResponse catches this internally
-      // and falls back to Array strategy
+      // Merge LLM rejects — LLM infrastructure errors propagate from
+      // mergeLlmGuided and are caught by engine's outer catch block
       const llmText = vi.fn().mockRejectedValue(new Error('Rate limited'))
 
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
         parallelMerge: true,
@@ -1045,9 +1053,16 @@ describe('ChatEngine', () => {
       const eventTypes = events.map(e => e.type)
       expect(eventTypes).toContain(ChatEventType.TurnComplete)
 
-      // Should fall back to Array (formatStructuredResponse handles the error internally)
+      // Should fall back to Array via engine's outer catch
       expect(result.structured.strategy).toBe(MergeStrategy.Array)
       expect(Array.isArray(result.structured.data)).toBe(true)
+
+      // Engine should log the error
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('buildStructuredResponse failed'),
+        'Rate limited',
+      )
+      errorSpy.mockRestore()
     })
 
     it('uses llmText when provided instead of streaming llm for merge', async () => {
@@ -1101,6 +1116,126 @@ describe('ChatEngine', () => {
       // llm called 3 times: tool call, text, merge fallback
       expect(llm).toHaveBeenCalledTimes(3)
       expect(result.structured.data).toEqual({ fallback: true })
+    })
+
+    it('silences stale merge from earlier round via mergeGeneration guard', async () => {
+      // Multi-round scenario: tool call in round 1, another tool call in round 2,
+      // then text response in round 3. The merge starts on first token of round 3.
+      // If a hypothetical earlier merge existed, the generation counter would prevent
+      // its .then() from emitting StructuredReady.
+      //
+      // We verify this by using a slow llmText that resolves AFTER sendMessage returns.
+      // Since collectedResults.length > 0 only after tool execution, merge only starts
+      // during the text response. We verify exactly one StructuredReady is emitted
+      // and no stale merge contaminates the result.
+      let resolveSlowMerge!: (value: string) => void
+      const slowMergePromise = new Promise<string>(r => { resolveSlowMerge = r })
+
+      const llmText = vi.fn().mockReturnValue(slowMergePromise)
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('Found ')
+          // Resolve merge mid-stream so StructuredReady fires
+          resolveSlowMerge(JSON.stringify({ merged: true }))
+          await new Promise(r => setTimeout(r, 10))
+          onToken('users.')
+          return textResponse('Found users.')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: MergeStrategy.LlmGuided,
+        parallelMerge: true,
+        llmText,
+      })
+      const result = await engine.sendMessage('test', onEvent)
+
+      // Exactly one StructuredReady emitted
+      const structuredReadyEvents = events.filter(e => e.type === ChatEventType.StructuredReady)
+      expect(structuredReadyEvents).toHaveLength(1)
+      if (structuredReadyEvents[0]?.type === ChatEventType.StructuredReady) {
+        expect(structuredReadyEvents[0].structured.data).toEqual({ merged: true })
+      }
+      expect(result.structured.data).toEqual({ merged: true })
+    })
+
+    it('catches buildStructuredResponse throw at engine level', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('ok')
+          return textResponse('ok')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      // Mock formatStructuredResponse to throw synchronously (not an LLM error)
+      const spy = vi.spyOn(responseModule, 'formatStructuredResponse')
+        .mockRejectedValue(new Error('unexpected runtime crash'))
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: MergeStrategy.LlmGuided,
+        parallelMerge: false,
+      })
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const result = await engine.sendMessage('test', onEvent)
+
+      // Should produce a valid result with Array fallback
+      expect(result.structured.strategy).toBe(MergeStrategy.Array)
+      expect(Array.isArray(result.structured.data)).toBe(true)
+
+      // TurnComplete should still be emitted
+      const eventTypes = events.map(e => e.type)
+      expect(eventTypes).toContain(ChatEventType.TurnComplete)
+
+      // console.error should have been called
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('buildStructuredResponse failed'),
+        'unexpected runtime crash',
+      )
+
+      spy.mockRestore()
+      errorSpy.mockRestore()
+    })
+
+    it('emits StructuredReady before TurnComplete using deferred promise', async () => {
+      let resolveMerge!: (value: string) => void
+      const mergePromise = new Promise<string>(r => { resolveMerge = r })
+
+      const llmText = vi.fn().mockReturnValue(mergePromise)
+
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('Found ')
+          // Resolve the merge mid-stream (controlled, not timing-dependent)
+          resolveMerge(JSON.stringify({ focused: true }))
+          // Give the .then() microtask time to fire
+          await new Promise(r => setTimeout(r, 0))
+          onToken('users.')
+          return textResponse('Found users.')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: MergeStrategy.LlmGuided,
+        parallelMerge: true,
+        llmText,
+      })
+      const result = await engine.sendMessage('test', onEvent)
+
+      const eventTypes = events.map(e => e.type)
+      expect(eventTypes).toContain(ChatEventType.StructuredReady)
+      expect(eventTypes).toContain(ChatEventType.TurnComplete)
+
+      const srIdx = eventTypes.indexOf(ChatEventType.StructuredReady)
+      const tcIdx = eventTypes.indexOf(ChatEventType.TurnComplete)
+      expect(srIdx).toBeLessThan(tcIdx)
+      expect(result.structured.data).toEqual({ focused: true })
     })
 
     it('updates llmText via setLlmText', async () => {

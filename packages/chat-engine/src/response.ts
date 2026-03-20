@@ -124,19 +124,26 @@ async function mergeLlmGuided(
     { role: MessageRole.User, content: `User's question: ${userMessage}\n\n${resultsText}` },
   ]
 
+  // Separate LLM call from JSON parse so infrastructure errors propagate
+  // while malformed LLM output falls back gracefully.
+  let content: string
   try {
-    const content = await llm(messages)
+    content = await llm(messages)
+  } catch (err) {
+    // LLM infrastructure error (network, auth, rate limit) — let it propagate
+    // so the caller can handle it visibly rather than silently degrading.
+    throw err
+  }
+
+  try {
     const parsed = JSON.parse(content)
     return {
       strategy: MergeStrategy.LlmGuided,
       sources: toolResults.map(r => ({ toolName: r.toolName, args: r.toolArgs })),
       data: parsed,
     }
-  } catch (err) {
-    console.warn(
-      '[chat-engine] LLM-guided merge failed, falling back to array strategy:',
-      err instanceof Error ? err.message : String(err),
-    )
+  } catch {
+    console.warn('[chat-engine] LLM merge returned invalid JSON, falling back to array strategy')
     return mergeArray(toolResults)
   }
 }
@@ -193,12 +200,15 @@ export async function formatStructuredResponse(
       )
       return mergeArray(toolResults)
 
-    default:
+    default: {
+      const _exhaustive: never = strategy
+      console.error('[chat-engine] Unknown merge strategy:', _exhaustive)
       return mergeArray(toolResults)
+    }
   }
 }
 
-/** True when structured data is non-empty and came from a real merge/focus (not Array fallback). */
+/** True when structured data used a non-Array strategy and the resulting data is non-empty. */
 export function hasUsableStructuredData(s: StructuredResponse): boolean {
   if (s.strategy === MergeStrategy.Array) return false
   const { data } = s
