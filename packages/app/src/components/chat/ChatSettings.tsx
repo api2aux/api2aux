@@ -4,7 +4,7 @@ import { getAllProviders, getProvider } from '../../services/llm/providers/regis
 import type { ProviderId } from '../../services/llm/types'
 
 export function ChatSettings() {
-  const { config, setConfig, apiCacheEnabled, setApiCacheEnabled, apiCache, clearApiCache, embeddingProvider, setEmbeddingProvider } = useChatStore()
+  const { config, setConfig, apiCacheEnabled, setApiCacheEnabled, apiCache, clearApiCache, embeddingProvider, setEmbeddingProvider, focusReduction, setFocusReduction } = useChatStore()
   const [showKey, setShowKey] = useState(false)
 
   const allProviders = getAllProviders()
@@ -126,6 +126,25 @@ export function ChatSettings() {
           {embeddingProvider === 'local'
             ? 'Runs locally — ~33MB model downloaded on first use.'
             : 'Uses your API key for embeddings (~$0.00006/request).'}
+        </p>
+      </div>
+
+      {/* Focus reduction strategy */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground block mb-1">Focus strategy</label>
+        <select
+          value={focusReduction}
+          onChange={(e) => setFocusReduction(e.target.value as 'truncate-values' | 'embed-fields' | 'llm-fields')}
+          className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground"
+        >
+          <option value="truncate-values">Truncate values (default)</option>
+          <option value="embed-fields">Embed fields (semantic)</option>
+          <option value="llm-fields">LLM fields (most accurate)</option>
+        </select>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          {focusReduction === 'truncate-values' && 'Keeps all fields, truncates long values. No extra calls.'}
+          {focusReduction === 'embed-fields' && 'Selects relevant fields via embeddings. Uses embedding service.'}
+          {focusReduction === 'llm-fields' && 'Selects relevant fields via LLM reasoning. Extra lightweight LLM call.'}
         </p>
       </div>
     </div>

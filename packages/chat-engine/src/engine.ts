@@ -24,6 +24,8 @@ import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from '.
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
 import { buildResponsePrompt } from './context'
+import { reduceToolResultsForFocus, FocusReduction } from './reduction'
+import type { FocusReductionStrategy } from './reduction'
 
 export class ChatEngine {
   private history: ChatMessage[] = []
@@ -38,7 +40,7 @@ export class ChatEngine {
   private readonly parallelMerge: boolean
   private llmText: LLMTextFn | undefined
   private embedFn: ((texts: string[]) => Promise<number[][]>) | undefined
-  private readonly embedTopK: number
+  private readonly focusReduction: FocusReductionStrategy
 
   constructor(
     llm: LLMCompletionFn,
@@ -66,7 +68,7 @@ export class ChatEngine {
     this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
     this.llmText = config?.llmText
     this.embedFn = config?.embedFn
-    this.embedTopK = config?.embedTopK ?? 8
+    this.focusReduction = config?.focusReduction ?? FocusReduction.TruncateValues
 
     if (this.parallelMerge && !this.llmText && this.mergeStrategy === MergeStrategy.LlmGuided) {
       console.warn('[chat-engine] parallelMerge is enabled with LlmGuided strategy but llmText is not provided — merge calls will reuse the streaming LLM with a no-op token handler')
@@ -91,7 +93,7 @@ export class ChatEngine {
   }
 
   /** Get the resolved engine configuration. */
-  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText' | 'embedFn' | 'embedTopK'>>> {
+  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText' | 'embedFn' | 'embedTopK' | 'focusReduction'>>> {
     return {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
@@ -496,13 +498,21 @@ export class ChatEngine {
           return result.content
         })
 
+    // Reduce data per strategy before sending to focus/merge LLM
+    const reducedResults = await reduceToolResultsForFocus(
+      toolResults,
+      userMessage,
+      this.focusReduction,
+      this.embedFn,
+      this.llmText,
+    )
+
     return formatStructuredResponse(
       toolResults,
       this.mergeStrategy,
       userMessage,
       mergeLlm,
-      this.embedFn,
-      this.embedTopK,
+      reducedResults,
     )
   }
 }

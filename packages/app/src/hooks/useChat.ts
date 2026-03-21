@@ -251,10 +251,12 @@ export function useChat() {
 
     if (!engineRef.current) {
       const executor = createToolExecutor(url)
+      const { focusReduction } = useChatStore.getState()
       engineRef.current = new ChatEngine(llmFn, executor, context, {
         mergeStrategy: 'llm-guided',
         llmText: llmTextFn,
         embedFn,
+        focusReduction,
       })
     } else {
       // Clear stale history and cache when switching to a different API

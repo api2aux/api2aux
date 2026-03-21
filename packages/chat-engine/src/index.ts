@@ -42,5 +42,9 @@ export { buildToolsFromSpec, buildToolsFromUrl, buildSystemPrompt, buildResponse
 // === Response Formatting ===
 export { formatStructuredResponse, hasUsableStructuredData, extractJson, clearFocusCache } from './response'
 
+// === Focus Reduction ===
+export { FocusReduction, reduceToolResultsForFocus, truncateValues } from './reduction'
+export type { FocusReductionStrategy } from './reduction'
+
 // === Engine ===
 export { ChatEngine } from './engine'

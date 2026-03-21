@@ -40,6 +40,10 @@ interface ChatState {
   /** Embedding provider for semantic context reduction (persisted) */
   embeddingProvider: 'local' | 'openai'
   setEmbeddingProvider: (provider: 'local' | 'openai') => void
+
+  /** Focus reduction strategy (persisted) */
+  focusReduction: 'truncate-values' | 'embed-fields' | 'llm-fields'
+  setFocusReduction: (strategy: 'truncate-values' | 'embed-fields' | 'llm-fields') => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -58,6 +62,7 @@ export const useChatStore = create<ChatState>()(
       apiCacheEnabled: true,
       apiCache: new Map(),
       embeddingProvider: 'local' as const,
+      focusReduction: 'truncate-values' as const,
 
       setOpen: (open) => set({ open }),
       toggle: () => set((s) => ({ open: !s.open })),
@@ -81,6 +86,7 @@ export const useChatStore = create<ChatState>()(
       setApiCacheEnabled: (apiCacheEnabled) => set({ apiCacheEnabled }),
       clearApiCache: () => set({ apiCache: new Map() }),
       setEmbeddingProvider: (embeddingProvider) => set({ embeddingProvider }),
+      setFocusReduction: (focusReduction) => set({ focusReduction }),
     }),
     {
       name: 'api2aux-chat',
@@ -91,6 +97,7 @@ export const useChatStore = create<ChatState>()(
         panelSize: state.panelSize,
         apiCacheEnabled: state.apiCacheEnabled,
         embeddingProvider: state.embeddingProvider,
+        focusReduction: state.focusReduction,
       }),
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>

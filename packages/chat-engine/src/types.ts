@@ -209,6 +209,8 @@ export interface ChatEngineConfig {
   embedFn?: (texts: string[]) => Promise<number[][]>
   /** Number of top items to keep after embedding-based filtering. Default: 8. */
   embedTopK?: number
+  /** Strategy for reducing data before the focus/merge LLM call. Default: 'truncate-values'. */
+  focusReduction?: 'truncate-values' | 'embed-fields' | 'llm-fields'
 }
 
 // ── Events ──

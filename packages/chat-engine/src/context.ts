@@ -423,7 +423,7 @@ export function buildResponsePrompt(url: string, spec?: ApiSpec | null): string 
     `Your job is to answer the user's question based ONLY on that data.`,
     `Guidelines:`,
     `- Answer the question directly and concisely (2-3 sentences).`,
-    `- If multiple items are relevant, use a short bullet list with key details (name, price, rating, etc.).`,
+    `- If multiple items are relevant, use a short bullet list with key details from the data.`,
     `- Highlight the most relevant items first.`,
     `- If the data doesn't fully answer the question, say so and suggest what the user could try.`,
     `- Offer follow-up options ("I can filter by budget, show more details, etc.").`,

@@ -130,153 +130,9 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
   }
 }
 
-const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document that best answers the user's question. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
+const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document. Include ALL items from each result that are relevant to the user's question. Preserve key fields needed for comparison or display. Return ONLY valid JSON, nothing else.`
 
-const FOCUS_PROMPT = `You are a data formatting assistant. Given the following API result, extract and organize the data that best answers the user's question into a single JSON document. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
-
-// ── Embedding-based reduction ──
-
-type EmbedFn = (texts: string[]) => Promise<number[][]>
-
-/**
- * Reduce tool results with large arrays by selecting only the most
- * semantically relevant items via embedding similarity.
- *
- * Walks each tool result's data: if it contains an array with more than
- * `topK` items (directly or as an object property), the items are flattened
- * to text, embedded alongside the user's query, and the top-K most similar
- * items replace the original array.
- */
-async function reduceWithEmbeddings(
-  toolResults: ToolResultEntry[],
-  userMessage: string,
-  embedFn: EmbedFn,
-  topK: number,
-): Promise<ToolResultEntry[]> {
-  const reduced: ToolResultEntry[] = []
-
-  for (const result of toolResults) {
-    const data = result.data
-    const reducedData = await reduceData(data, userMessage, embedFn, topK)
-    reduced.push(reducedData !== data ? { ...result, data: reducedData } : result)
-  }
-
-  return reduced
-}
-
-/** Reduce a data value — finds and shrinks large arrays. */
-async function reduceData(
-  data: unknown,
-  query: string,
-  embedFn: EmbedFn,
-  topK: number,
-): Promise<unknown> {
-  // Direct array (e.g., [product1, product2, ...])
-  if (Array.isArray(data) && data.length > topK) {
-    return reduceArray(data, query, embedFn, topK)
-  }
-
-  // Object with array properties (e.g., { products: [...], total: 194 })
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    const obj = data as Record<string, unknown>
-    let changed = false
-    const result: Record<string, unknown> = {}
-
-    for (const [key, value] of Object.entries(obj)) {
-      if (Array.isArray(value) && value.length > topK && value.length > 0 && typeof value[0] === 'object') {
-        result[key] = await reduceArray(value, query, embedFn, topK)
-        changed = true
-      } else {
-        result[key] = value
-      }
-    }
-
-    return changed ? result : data
-  }
-
-  return data
-}
-
-/** Reduce an array to top-K items by embedding similarity to the query. */
-async function reduceArray(
-  items: unknown[],
-  query: string,
-  embedFn: EmbedFn,
-  topK: number,
-): Promise<unknown[]> {
-  // Flatten each item to natural language text
-  const itemTexts = items.map(item => flattenItemForEmbedding(item))
-
-  // Embed query + all items in a single batch
-  const allTexts = [query, ...itemTexts]
-  let allVectors: number[][]
-  try {
-    allVectors = await embedFn(allTexts)
-  } catch (err) {
-    console.warn('[chat-engine] Embedding failed, skipping reduction:', err instanceof Error ? err.message : String(err))
-    return items
-  }
-
-  const queryVector = allVectors[0]!
-  const itemVectors = allVectors.slice(1)
-
-  // Score and rank
-  const scored = itemVectors.map((vec, i) => ({
-    index: i,
-    score: cosine(queryVector, vec),
-  }))
-  scored.sort((a, b) => b.score - a.score)
-
-  return scored.slice(0, topK).map(s => items[s.index]!)
-}
-
-/** Simple cosine similarity (inline to avoid cross-package dependency). */
-function cosine(a: number[], b: number[]): number {
-  if (a.length !== b.length || a.length === 0) return 0
-  let dot = 0, na = 0, nb = 0
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i]! * b[i]!
-    na += a[i]! * a[i]!
-    nb += b[i]! * b[i]!
-  }
-  const d = Math.sqrt(na) * Math.sqrt(nb)
-  return d === 0 ? 0 : dot / d
-}
-
-/** Flatten a JSON item to natural language text for embedding. */
-function flattenItemForEmbedding(item: unknown): string {
-  if (item === null || item === undefined) return ''
-  if (typeof item !== 'object') return String(item)
-  if (Array.isArray(item)) return item.map(flattenItemForEmbedding).join(' ')
-
-  const obj = item as Record<string, unknown>
-  const parts: Array<{ key: string; value: string; len: number }> = []
-
-  for (const [key, value] of Object.entries(obj)) {
-    if (value === null || value === undefined) continue
-    if (typeof value === 'string') {
-      if (/^https?:\/\//.test(value) || value.startsWith('data:')) continue
-      parts.push({ key, value, len: value.length })
-    } else if (typeof value === 'number' || typeof value === 'boolean') {
-      const s = String(value)
-      parts.push({ key, value: s, len: s.length })
-    } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
-      const joined = value.slice(0, 5).join(', ')
-      parts.push({ key, value: joined, len: joined.length })
-    }
-  }
-
-  parts.sort((a, b) => b.len - a.len)
-
-  let text = ''
-  for (const p of parts) {
-    const seg = `${p.key}: ${p.value}`
-    if (text.length + seg.length + 2 > 2000) break
-    if (text) text += '. '
-    text += seg
-  }
-  return text
-}
+const FOCUS_PROMPT = `You are a data formatting assistant. Given the following API result, extract ALL items relevant to the user's question into a single JSON document. Include every matching item, not just the top few. Keep key fields for each item. Return ONLY valid JSON, nothing else.`
 
 /**
  * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
@@ -287,17 +143,14 @@ async function mergeLlmGuided(
   toolResults: ToolResultEntry[],
   userMessage: string,
   llm: LLMTextFn,
-  embedFn?: (texts: string[]) => Promise<number[][]>,
-  embedTopK?: number,
+  reducedResults?: ToolResultEntry[],
 ): Promise<StructuredResponse> {
   const prompt = toolResults.length === 1 ? FOCUS_PROMPT : MERGE_PROMPT
 
-  // If embedding is available, reduce large arrays to the most relevant items
-  const reducedResults = embedFn
-    ? await reduceWithEmbeddings(toolResults, userMessage, embedFn, embedTopK ?? 8)
-    : toolResults
+  // Use pre-reduced results if available (from reduceToolResultsForFocus)
+  const effectiveResults = reducedResults ?? toolResults
 
-  const resultsText = reducedResults
+  const resultsText = effectiveResults
     .map((r, i) => {
       let dataStr: string
       try {
@@ -366,8 +219,7 @@ export async function formatStructuredResponse(
   strategy: typeof MergeStrategy.LlmGuided,
   userMessage: string,
   llm: LLMTextFn,
-  embedFn?: EmbedFn,
-  embedTopK?: number,
+  reducedResults?: ToolResultEntry[],
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
@@ -378,16 +230,14 @@ export async function formatStructuredResponse(
   strategy: MergeStrategy,
   userMessage: string,
   llm: LLMTextFn,
-  embedFn?: EmbedFn,
-  embedTopK?: number,
+  reducedResults?: ToolResultEntry[],
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: MergeStrategy = MergeStrategy.LlmGuided,
   userMessage?: string,
   llm?: LLMTextFn,
-  embedFn?: EmbedFn,
-  embedTopK?: number,
+  reducedResults?: ToolResultEntry[],
 ): Promise<StructuredResponse> {
   if (toolResults.length === 0) {
     return mergeArray(toolResults)
@@ -402,7 +252,7 @@ export async function formatStructuredResponse(
 
     case MergeStrategy.LlmGuided:
       if (llm && userMessage) {
-        return mergeLlmGuided(toolResults, userMessage, llm, embedFn, embedTopK)
+        return mergeLlmGuided(toolResults, userMessage, llm, reducedResults)
       }
       console.warn(
         '[chat-engine] LLM-guided merge requested but llm/userMessage not provided; falling back to array strategy',
