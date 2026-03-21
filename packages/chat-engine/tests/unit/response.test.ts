@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { formatStructuredResponse, hasUsableStructuredData, extractJson } from '../../src/response'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { formatStructuredResponse, hasUsableStructuredData, extractJson, clearFocusCache } from '../../src/response'
 import { MergeStrategy } from '../../src/types'
 import type { ToolResultEntry, LLMTextFn, StructuredResponse } from '../../src/types'
 
@@ -28,6 +28,10 @@ const multipleResults: ToolResultEntry[] = [
 ]
 
 describe('formatStructuredResponse', () => {
+  beforeEach(() => {
+    clearFocusCache()
+  })
+
   describe('Array strategy', () => {
     it('returns results as separate entries', async () => {
       const resp = await formatStructuredResponse(singleResult, MergeStrategy.Array)

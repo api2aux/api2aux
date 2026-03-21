@@ -11,7 +11,7 @@ import { useCallback, useRef, useMemo } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useChatStore } from '../store/chatStore'
 import { chatCompletionStream, chatCompletion } from '../services/llm/client'
-import { buildChatContext, ChatEngine, ChatEventType, hasUsableStructuredData } from '@api2aux/chat-engine'
+import { buildChatContext, ChatEngine, ChatEventType, hasUsableStructuredData, clearFocusCache } from '@api2aux/chat-engine'
 import type { LLMCompletionFn, ToolExecutorFn, ChatEngineEvent, ChatMessage } from '@api2aux/chat-engine'
 import { generateToolName } from '@api2aux/tool-utils'
 import { parseUrlParameters } from '../services/urlParser/parser'
@@ -260,7 +260,9 @@ export function useChat() {
       // Clear stale history and cache when switching to a different API
       if (engineRef.current.getContext().url !== context.url) {
         engineRef.current.clearHistory()
-        useChatStore.getState().clearApiCache()
+        useChatStore.getState().clearApiCache()  // Layer 1
+        embeddingRef.current?.clearCache()        // Layer 2
+        clearFocusCache()                         // Layer 3
       }
       engineRef.current.setContext(context)
       engineRef.current.setLlm(llmFn)

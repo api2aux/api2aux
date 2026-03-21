@@ -18,6 +18,7 @@ export class EmbeddingService {
   private localProvider: LocalEmbeddingProvider | null = null
   private openaiProvider: OpenAIEmbeddingProvider | null = null
   private topKValue: number
+  private vectorCache = new Map<string, number[]>()
 
   constructor(config: EmbeddingServiceConfig) {
     this.topKValue = config.topK ?? DEFAULT_TOP_K
@@ -58,9 +59,34 @@ export class EmbeddingService {
     }
   }
 
-  /** Embed an array of texts into vectors. */
+  /** Embed an array of texts into vectors. Uses cached vectors when available. */
   async embed(texts: string[]): Promise<number[][]> {
-    return this.provider.embed(texts)
+    if (texts.length === 0) return []
+
+    const results: (number[] | undefined)[] = new Array(texts.length)
+    const uncachedIndices: number[] = []
+    const uncachedTexts: string[] = []
+
+    for (let i = 0; i < texts.length; i++) {
+      const cached = this.vectorCache.get(texts[i]!)
+      if (cached) {
+        results[i] = cached
+      } else {
+        uncachedIndices.push(i)
+        uncachedTexts.push(texts[i]!)
+      }
+    }
+
+    if (uncachedTexts.length > 0) {
+      const newVectors = await this.provider.embed(uncachedTexts)
+      for (let j = 0; j < uncachedIndices.length; j++) {
+        const idx = uncachedIndices[j]!
+        results[idx] = newVectors[j]!
+        this.vectorCache.set(texts[idx]!, newVectors[j]!)
+      }
+    }
+
+    return results as number[][]
   }
 
   /** Compute cosine similarity between two vectors. */
@@ -113,8 +139,14 @@ export class EmbeddingService {
     return indices.map(i => items[i]!)
   }
 
+  /** Clear the embedding vector cache. */
+  clearCache(): void {
+    this.vectorCache.clear()
+  }
+
   /** Clean up resources (terminate workers, etc.). */
   destroy(): void {
+    this.vectorCache.clear()
     this.localProvider?.destroy()
   }
 }

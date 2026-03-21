@@ -10,6 +10,15 @@
 import type { ToolResultEntry, StructuredResponse, LLMTextFn, ChatMessage } from './types'
 import { MergeStrategy, MessageRole } from './types'
 
+// ── Focus result cache ──
+
+const focusCache = new Map<string, unknown>()
+
+/** Clear the focus result cache (call on API switch or user request). */
+export function clearFocusCache(): void {
+  focusCache.clear()
+}
+
 // ── JSON extraction helper ──
 
 /**
@@ -301,6 +310,17 @@ async function mergeLlmGuided(
     })
     .join('\n\n')
 
+  // Check focus cache — same query + same data = same focused result
+  const focusKey = `${userMessage}::${resultsText.slice(0, 500)}`
+  const cachedFocus = focusCache.get(focusKey)
+  if (cachedFocus !== undefined) {
+    return {
+      strategy: MergeStrategy.LlmGuided,
+      sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
+      data: cachedFocus,
+    }
+  }
+
   const messages: ChatMessage[] = [
     { role: MessageRole.System, content: prompt },
     { role: MessageRole.User, content: `User's question: ${userMessage}\n\n${resultsText}` },
@@ -319,6 +339,7 @@ async function mergeLlmGuided(
 
   const parsed = extractJson(content)
   if (parsed !== null) {
+    focusCache.set(focusKey, parsed)
     return {
       strategy: MergeStrategy.LlmGuided,
       sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),

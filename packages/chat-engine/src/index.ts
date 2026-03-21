@@ -40,7 +40,7 @@ export { truncateToolResult, summarizeToolResult } from './truncation'
 export { buildToolsFromSpec, buildToolsFromUrl, buildSystemPrompt, buildResponsePrompt, buildChatContext } from './context'
 
 // === Response Formatting ===
-export { formatStructuredResponse, hasUsableStructuredData, extractJson } from './response'
+export { formatStructuredResponse, hasUsableStructuredData, extractJson, clearFocusCache } from './response'
 
 // === Engine ===
 export { ChatEngine } from './engine'

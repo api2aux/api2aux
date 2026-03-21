@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ChatEngine } from '../../src/engine'
 import * as responseModule from '../../src/response'
+import { clearFocusCache } from '../../src/response'
 import { ChatEventType, FinishReason, MergeStrategy, MessageRole } from '../../src/types'
 import { NO_DATA_MESSAGE } from '../../src/defaults'
 import type {
@@ -61,6 +62,7 @@ describe('ChatEngine', () => {
     // Suppress expected warnings and merge fallback errors in tests
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    clearFocusCache()
   })
 
   afterEach(() => {
