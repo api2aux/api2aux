@@ -485,6 +485,7 @@ export function generateRawUrlToolDefinition(
     inputSchema: {
       type: 'object',
       properties,
+      additionalProperties: false,
     },
   }
 }

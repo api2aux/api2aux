@@ -47,6 +47,7 @@ export interface Tool {
       type: 'object'
       properties: Record<string, ToolParameter>
       required?: string[]
+      additionalProperties?: boolean
     }
   }
 }
