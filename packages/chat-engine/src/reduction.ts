@@ -110,9 +110,7 @@ function truncateValuesInternal(data: unknown, depth: number): unknown {
     }
 
     if (typeof value === 'string') {
-      if (looksLikeUrl(value)) {
-        result[key] = '[url]'
-      } else if (value.length > MAX_STRING_LENGTH) {
+      if (value.length > MAX_STRING_LENGTH && !looksLikeUrl(value)) {
         result[key] = value.slice(0, MAX_STRING_LENGTH) + '...'
       } else {
         result[key] = value

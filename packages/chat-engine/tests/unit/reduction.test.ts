@@ -34,15 +34,15 @@ describe('truncateValues', () => {
     expect(result.description.endsWith('...')).toBe(true)
   })
 
-  it('replaces URLs with [url] placeholder', () => {
+  it('preserves URLs intact (not replaced with placeholders)', () => {
     const data = {
       image: 'https://cdn.example.com/image.webp',
       thumbnail: 'https://cdn.example.com/thumb.webp',
       name: 'keep this',
     }
     const result = truncateValues(data) as Record<string, string>
-    expect(result.image).toBe('[url]')
-    expect(result.thumbnail).toBe('[url]')
+    expect(result.image).toBe('https://cdn.example.com/image.webp')
+    expect(result.thumbnail).toBe('https://cdn.example.com/thumb.webp')
     expect(result.name).toBe('keep this')
   })
 
@@ -99,10 +99,10 @@ describe('truncateValues', () => {
     expect(result.c).toBe('keep')
   })
 
-  it('handles data:URIs as URLs', () => {
+  it('preserves data:URIs intact', () => {
     const data = { qrCode: 'data:image/png;base64,abc123' }
     const result = truncateValues(data) as Record<string, string>
-    expect(result.qrCode).toBe('[url]')
+    expect(result.qrCode).toBe('data:image/png;base64,abc123')
   })
 
   it('handles empty data', () => {
@@ -157,7 +157,7 @@ describe('reduceToolResultsForFocus', () => {
     const product = (reduced[0]!.data as { products: Array<Record<string, unknown>> }).products[0]!
     expect(product.title).toBe('Product')
     expect((product.description as string).length).toBeLessThan(250)
-    expect(product.image).toBe('[url]')
+    expect(product.image).toBe('https://cdn.example.com/img.webp')
     expect(product.reviews).toBe('1 reviews, avg rating 5.0')
   })
 
@@ -167,7 +167,7 @@ describe('reduceToolResultsForFocus', () => {
     const reduced = await reduceToolResultsForFocus(results, 'test', 'embed-fields')
 
     const item = (reduced[0]!.data as { items: Array<Record<string, unknown>> }).items[0]!
-    expect(item.image).toBe('[url]')
+    expect(item.image).toBe('https://x.com/i.webp')
   })
 
   it('llm-fields: falls back to truncate-values when llmText not provided', async () => {
@@ -176,7 +176,7 @@ describe('reduceToolResultsForFocus', () => {
     const reduced = await reduceToolResultsForFocus(results, 'test', 'llm-fields')
 
     const item = (reduced[0]!.data as { items: Array<Record<string, unknown>> }).items[0]!
-    expect(item.image).toBe('[url]')
+    expect(item.image).toBe('https://x.com/i.webp')
   })
 
   it('embed-fields: selects relevant fields when embedFn provided', async () => {
