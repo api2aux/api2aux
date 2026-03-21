@@ -88,11 +88,16 @@ const MAX_ARRAY_ITEMS = 5
 
 /** Keep all fields, truncate long values. */
 export function truncateValues(data: unknown): unknown {
+  return truncateValuesInternal(data, 0)
+}
+
+function truncateValuesInternal(data: unknown, depth: number): unknown {
   if (data === null || data === undefined) return data
   if (typeof data !== 'object') return truncateScalar(data)
 
   if (Array.isArray(data)) {
-    return data.map(item => truncateValues(item))
+    // Top-level arrays: preserve all items, truncate each
+    return data.map(item => truncateValuesInternal(item, depth + 1))
   }
 
   const obj = data as Record<string, unknown>
@@ -115,10 +120,9 @@ export function truncateValues(data: unknown): unknown {
     } else if (typeof value === 'number' || typeof value === 'boolean') {
       result[key] = value
     } else if (Array.isArray(value)) {
-      result[key] = truncateArray(key, value)
+      result[key] = truncateArray(key, value, depth)
     } else if (typeof value === 'object') {
-      // Nested object — recurse but with truncated values
-      result[key] = truncateValues(value)
+      result[key] = truncateValuesInternal(value, depth + 1)
     }
   }
 
@@ -132,11 +136,16 @@ function truncateScalar(value: unknown): unknown {
   return value
 }
 
-function truncateArray(key: string, arr: unknown[]): unknown {
+function truncateArray(key: string, arr: unknown[], depth: number): unknown {
   if (arr.length === 0) return arr
 
-  // Array of objects → summarize
+  // Array of objects: at top level (depth 0), truncate each item's values.
+  // At deeper levels (nested arrays like reviews), summarize to a count.
   if (typeof arr[0] === 'object' && arr[0] !== null && !Array.isArray(arr[0])) {
+    if (depth === 0) {
+      // Top-level data array — preserve every item, truncate each item's values
+      return arr.map(item => truncateValuesInternal(item, depth + 1))
+    }
     return summarizeObjectArray(key, arr)
   }
 
