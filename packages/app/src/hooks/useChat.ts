@@ -91,6 +91,23 @@ function autoSelectTab(data: unknown, responseText: string) {
 
 // ── Tool executor (app-specific, injected into engine) ──
 
+/** Filter args to only include params that exist in the URL (prevents LLM hallucinated params). */
+function filterToKnownParams(args: Record<string, unknown>, apiUrl: string): Record<string, unknown> {
+  try {
+    const knownParams = new Set(new URL(apiUrl).searchParams.keys())
+    if (knownParams.size === 0) return {}
+    const filtered: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(args)) {
+      if (knownParams.has(key) && value !== undefined && value !== '') {
+        filtered[key] = value
+      }
+    }
+    return filtered
+  } catch {
+    return args
+  }
+}
+
 /** Build a cache key from tool name + sorted non-empty args. */
 function buildCacheKey(toolName: string, args: Record<string, unknown>): string {
   const sortedArgs = Object.keys(args).sort().reduce((acc, key) => {
@@ -112,8 +129,11 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
 
     if (toolName === 'query_api') {
       const queryParams = new URLSearchParams(parsedUrl.search)
+      const knownParams = new Set(queryParams.keys())
+
+      // Only forward args that match known URL params — ignore hallucinated ones
       for (const [key, value] of Object.entries(args)) {
-        if (value !== undefined && value !== '') {
+        if (knownParams.has(key) && value !== undefined && value !== '') {
           queryParams.set(key, String(value))
         }
       }
@@ -160,8 +180,9 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
     return fetchWithAuth(apiUrl)
   }
 
-  // Wrap with cache layer
-  return async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
+  // Wrap with cache layer (filter hallucinated params before cache key + execution)
+  return async (toolName: string, rawArgs: Record<string, unknown>): Promise<unknown> => {
+    const args = toolName === 'query_api' ? filterToKnownParams(rawArgs, apiUrl) : rawArgs
     const { apiCacheEnabled, apiCache } = useChatStore.getState()
     const cacheKey = buildCacheKey(toolName, args)
 

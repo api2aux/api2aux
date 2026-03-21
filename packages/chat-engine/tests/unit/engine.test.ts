@@ -1363,8 +1363,12 @@ describe('ChatEngine', () => {
       const toolMsgs = history.filter(m => m.role === 'tool')
       expect(toolMsgs).toHaveLength(1)
 
-      const compressed = JSON.parse(toolMsgs[0]!.content!)
-      expect(compressed._compressed).toBe(true)
+      const rawContent = toolMsgs[0]!.content!
+      expect(rawContent).toContain('[API Result')
+      expect(rawContent).toContain('[End of API Result]')
+      // Extract JSON between the framing markers
+      const jsonLine = rawContent.split('\n').find(l => l.startsWith('{'))!
+      const compressed = JSON.parse(jsonLine)
       expect(compressed.focused).toEqual({ focused: true })
       expect(compressed.calls).toHaveLength(1)
       expect(compressed.calls[0].tool).toBe('list_users')
@@ -1396,8 +1400,10 @@ describe('ChatEngine', () => {
       expect(toolMsgs).toHaveLength(1)
 
       // Should be compressed even on Array fallback — with truncated raw data
-      const content = JSON.parse(toolMsgs[0]!.content!)
-      expect(content._compressed).toBe(true)
+      const rawContent = toolMsgs[0]!.content!
+      expect(rawContent).toContain('[API Result')
+      const jsonLine = rawContent.split('\n').find(l => l.startsWith('{'))!
+      const content = JSON.parse(jsonLine)
       expect(content.calls).toHaveLength(1)
       expect(content.calls[0].tool).toBe('list_users')
     })
@@ -1450,15 +1456,15 @@ describe('ChatEngine', () => {
       const toolMsgs = history.filter(m => m.role === 'tool')
       expect(toolMsgs).toHaveLength(2)
 
-      // First tool message: compressed with focused data
-      const first = JSON.parse(toolMsgs[0]!.content!)
-      expect(first._compressed).toBe(true)
-      expect(first.focused).toEqual({ merged: true })
-      expect(first.calls).toHaveLength(2)
+      // First tool message: compressed with focused data and text framing
+      const firstContent = toolMsgs[0]!.content!
+      expect(firstContent).toContain('[API Result')
+      const firstJson = JSON.parse(firstContent.split('\n').find(l => l.startsWith('{'))!)
+      expect(firstJson.focused).toEqual({ merged: true })
+      expect(firstJson.calls).toHaveLength(2)
 
       // Second tool message: ref pointer
-      const second = JSON.parse(toolMsgs[1]!.content!)
-      expect(second._ref).toBeDefined()
+      expect(toolMsgs[1]!.content).toContain('See first tool result')
     })
 
     it('subsequent turns see compressed history in LLM input', async () => {
@@ -1500,8 +1506,9 @@ describe('ChatEngine', () => {
       const toolMsg = messages.find(m => m.role === 'tool')
       expect(toolMsg).toBeDefined()
 
-      const content = JSON.parse(toolMsg!.content!)
-      expect(content._compressed).toBe(true)
+      expect(toolMsg!.content).toContain('[API Result')
+      const jsonLine = toolMsg!.content!.split('\n').find(l => l.startsWith('{'))!
+      const content = JSON.parse(jsonLine)
       expect(content.focused).toEqual({ focused: true })
     })
   })

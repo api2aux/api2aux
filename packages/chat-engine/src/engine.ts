@@ -23,6 +23,7 @@ import { ChatEventType, MergeStrategy, MessageRole } from './types'
 import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from './defaults'
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
+import { buildResponsePrompt } from './context'
 
 export class ChatEngine {
   private history: ChatMessage[] = []
@@ -360,8 +361,10 @@ export class ChatEngine {
     this.compressToolHistory(collectedResults, structured)
 
     // Step 3: Generate text response using focused data in history (no tools → forces text)
+    // Use a dedicated summarization prompt — Phase B is data presentation, not tool selection
+    const responsePrompt = buildResponsePrompt(this.context.url, this.context.spec)
     const responseMessages: ChatMessage[] = [
-      { role: MessageRole.System, content: systemPrompt },
+      { role: MessageRole.System, content: responsePrompt },
       ...this.history,
     ]
 
@@ -434,13 +437,16 @@ export class ChatEngine {
       summary: r.summary,
     }))
 
-    const compressed = JSON.stringify({
-      _compressed: true,
-      focused: structured.strategy === MergeStrategy.Array
-        ? collectedResults.map(r => truncateToolResult(r.data, this.truncationLimit))
-        : structured.data,
-      calls: metadata,
-    })
+    const focusedData = structured.strategy === MergeStrategy.Array
+      ? collectedResults.map(r => truncateToolResult(r.data, this.truncationLimit))
+      : structured.data
+
+    // Wrap with text framing so the LLM treats it as context data, not something to echo
+    const compressed = [
+      '[API Result — focused data for the user\'s question]',
+      JSON.stringify({ focused: focusedData, calls: metadata }),
+      '[End of API Result]',
+    ].join('\n')
 
     // Find tool_call_ids from the most recent assistant tool_calls message
     const toolCallIds = new Set<string>()
@@ -464,7 +470,7 @@ export class ChatEngine {
         } else {
           this.history[i] = {
             role: MessageRole.Tool,
-            content: JSON.stringify({ _ref: 'see first tool result for focused data' }),
+            content: '[See first tool result for focused data]',
             tool_call_id: msg.tool_call_id,
           }
         }

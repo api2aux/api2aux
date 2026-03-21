@@ -125,6 +125,9 @@ export function createOpenAICompatProvider(providerConfig: OpenAICompatConfig): 
         model: config.model,
         messages: messages as OpenAI.ChatCompletionMessageParam[],
         stream: false,
+      }, {
+        maxRetries: 2,
+        timeout: 30_000,
       })
 
       const content = response.choices[0]?.message?.content

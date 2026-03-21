@@ -37,7 +37,7 @@ export { MAX_ROUNDS, TRUNCATION_LIMIT, NO_DATA_MESSAGE } from './defaults'
 export { truncateToolResult, summarizeToolResult } from './truncation'
 
 // === Context Building ===
-export { buildToolsFromSpec, buildToolsFromUrl, buildSystemPrompt, buildChatContext } from './context'
+export { buildToolsFromSpec, buildToolsFromUrl, buildSystemPrompt, buildResponsePrompt, buildChatContext } from './context'
 
 // === Response Formatting ===
 export { formatStructuredResponse, hasUsableStructuredData, extractJson } from './response'

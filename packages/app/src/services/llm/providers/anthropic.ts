@@ -170,6 +170,9 @@ export const anthropicProvider: LLMProvider = {
       messages: anthropicMsgs,
       max_tokens: 4096,
       stream: false,
+    }, {
+      maxRetries: 2,
+      timeout: 30_000,
     })
 
     const textBlock = response.content.find(b => b.type === 'text')
