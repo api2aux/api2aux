@@ -187,6 +187,7 @@ describe('Simple scenarios (1 endpoint)', () => {
     const spec = await loadSpec('dnd5e')
     const llm = createScriptedLlm([
       { toolCalls: [{ name: 'get_api', args: {} }] },
+      { text: 'Done with tools.' },
       { text: 'The API provides classes, monsters, spells, races, and more.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor())
@@ -203,6 +204,7 @@ describe('Simple scenarios (1 endpoint)', () => {
     const spec = await loadSpec('dnd5e')
     const llm = createScriptedLlm([
       { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'wizard' } }] },
+      { text: 'Done with tools.' },
       { text: 'The Wizard class has a hit die of 6 and focuses on spellcasting.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor())
@@ -225,7 +227,9 @@ describe('Complex scenarios (2+ endpoints)', () => {
       { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'wizard' } }] },
       // Round 2: get level 3 spells using class info
       { toolCalls: [{ name: 'get_api_classes_index_levels_spell_level_spells', args: { index: 'wizard', spell_level: '3' } }] },
-      // Round 3: text response
+      // Round 3: Phase A break signal (tools done)
+      { text: 'Done with tools.' },
+      // Round 4: Phase B text response
       { text: 'At level 3, wizards can cast Fireball, Counterspell, and Fly.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor())
@@ -247,7 +251,9 @@ describe('Complex scenarios (2+ endpoints)', () => {
         { name: 'get_api_classes_index', args: { index: 'fighter' } },
         { name: 'get_api_classes_index', args: { index: 'barbarian' } },
       ] },
-      // Round 2: text response comparing them
+      // Round 2: Phase A break signal (tools done)
+      { text: 'Done with tools.' },
+      // Round 3: Phase B text response
       { text: 'The Fighter has d10 hit die while the Barbarian has d12.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor())
@@ -274,7 +280,9 @@ describe('Complex scenarios (2+ endpoints)', () => {
       // Round 2: follow reference to get Life subclass detail
       // Tool name is auto-generated: GET /api/subclasses/{index} → get_api_subclasses_by_id
       { toolCalls: [{ name: 'get_api_subclasses_by_id', args: { index: 'life' } }] },
-      // Round 3: text response
+      // Round 3: Phase A break signal (tools done)
+      { text: 'Done with tools.' },
+      // Round 4: Phase B text response
       { text: 'The Cleric has Life Domain and Light Domain subclasses. The Life Domain focuses on positive energy and healing.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor())
@@ -297,7 +305,9 @@ describe('Complex scenarios (2+ endpoints)', () => {
       { toolCalls: [{ name: 'get_api_monsters', args: {} }] },
       // Round 2: get first monster detail (aboleth)
       { toolCalls: [{ name: 'get_api_monsters_index', args: { index: 'aboleth' } }] },
-      // Round 3: text response
+      // Round 3: Phase A break signal (tools done)
+      { text: 'Done with tools.' },
+      // Round 4: Phase B text response
       { text: 'Found 3 monsters. The Aboleth is a Large aberration with 135 HP and CR 10.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor())
@@ -324,7 +334,9 @@ describe('Complex scenarios (2+ endpoints)', () => {
       { toolCalls: [{ name: 'get_api_spells_index', args: { index: 'fireball' } }] },
       // Round 2: get wizard class (one of the classes that can cast fireball)
       { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'wizard' } }] },
-      // Round 3: text response
+      // Round 3: Phase A break signal (tools done)
+      { text: 'Done with tools.' },
+      // Round 4: Phase B text response
       { text: 'Fireball is a level 3 Evocation spell. Wizards and Sorcerers can learn it.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor())
@@ -350,6 +362,7 @@ describe('Conversation continuity', () => {
     // First message: look up wizard class
     const llm1 = createScriptedLlm([
       { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'wizard' } }] },
+      { text: 'Done with tools.' },
       { text: 'The Wizard class has d6 hit die and focuses on spellcasting.' },
     ])
     const executor = createDndExecutor()
@@ -379,6 +392,11 @@ describe('Conversation continuity', () => {
           finish_reason: FinishReason.ToolCalls,
         }
       }
+      if (secondCallCount === 2) {
+        // Phase A break signal (tools done)
+        return { content: 'Done with tools.', tool_calls: [], finish_reason: FinishReason.Stop }
+      }
+      // Phase B text response
       const text = 'At level 3, wizards can cast Fireball, Counterspell, and Fly.'
       onToken(text)
       return { content: text, tool_calls: [], finish_reason: FinishReason.Stop }
@@ -405,22 +423,30 @@ describe('Conversation continuity', () => {
     const executor = createDndExecutor()
 
     // Use a simple LLM that always calls get_api then responds
+    // Each turn requires 3 LLM calls: tool call, Phase A break signal, Phase B text response
     let turnCount = 0
     const multiTurnLlm = async (_messages: unknown[], _tools: unknown[], onToken: (t: string) => void) => {
       turnCount++
-      if (turnCount % 2 === 1) {
+      const phase = ((turnCount - 1) % 3) // 0 = tool call, 1 = break signal, 2 = Phase B text
+      const turnNumber = Math.ceil(turnCount / 3)
+      if (phase === 0) {
         return {
           content: '',
           tool_calls: [{
-            id: `call_turn_${turnCount}`,
+            id: `call_turn_${turnNumber}`,
             type: 'function' as const,
             function: { name: 'get_api', arguments: '{}' },
           }],
           finish_reason: FinishReason.ToolCalls,
         }
       }
-      onToken(`Response for turn ${Math.ceil(turnCount / 2)}.`)
-      return { content: `Response for turn ${Math.ceil(turnCount / 2)}.`, tool_calls: [], finish_reason: FinishReason.Stop }
+      if (phase === 1) {
+        // Phase A break signal
+        return { content: 'Done with tools.', tool_calls: [], finish_reason: FinishReason.Stop }
+      }
+      // Phase B text response
+      onToken(`Response for turn ${turnNumber}.`)
+      return { content: `Response for turn ${turnNumber}.`, tool_calls: [], finish_reason: FinishReason.Stop }
     }
 
     const engine = buildTestEngine(spec, multiTurnLlm as never, executor)
@@ -448,7 +474,9 @@ describe('Edge cases', () => {
     const llm = createScriptedLlm([
       { toolCalls: [{ name: 'get_api', args: {} }] },
       { toolCalls: [{ name: 'get_api_endpoint', args: { endpoint: 'classes' } }] },
-      // Round 3: engine sends no tools, so this should be text
+      // Round 3: engine sends no tools (maxRounds exceeded), Phase A break signal
+      { text: 'Done with tools.' },
+      // Round 4: Phase B text response
       { text: 'Here is everything I found.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor(), { maxRounds: 2 })
@@ -466,6 +494,9 @@ describe('Edge cases', () => {
     const llm = createScriptedLlm([
       { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'nonexistent' } }] },
       { toolCalls: [{ name: 'get_api_endpoint', args: { endpoint: 'classes' } }] },
+      // Phase A break signal (tools done)
+      { text: 'Done with tools.' },
+      // Phase B text response
       { text: 'Found 12 classes after correcting the query.' },
     ])
     const engine = buildTestEngine(spec, llm, createDndExecutor())

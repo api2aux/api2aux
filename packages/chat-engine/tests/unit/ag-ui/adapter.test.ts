@@ -392,6 +392,8 @@ describe('createAgent', () => {
   it('produces complete AG-UI event sequence for tool call flow', async () => {
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('Found users.')
         return textResponse('Found users.')
@@ -424,7 +426,7 @@ describe('createAgent', () => {
     expect(types).toContain(AgUiEventType.ToolCallEnd)
     expect(types).toContain(AgUiEventType.ToolCallResult)
 
-    // Should include text message events
+    // Should include text message events (from Phase B)
     expect(types).toContain(AgUiEventType.TextMessageStart)
     expect(types).toContain(AgUiEventType.TextMessageContent)
     expect(types).toContain(AgUiEventType.TextMessageEnd)
@@ -488,9 +490,11 @@ describe('createAgent', () => {
 
   it('closes in-progress text message on error path', async () => {
     const llm: LLMCompletionFn = vi.fn()
-      // First call: returns a tool call
+      // Phase A call 1: returns a tool call
       .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
-      // Second call: streams tokens then throws
+      // Phase A call 2: signals end of tools (breaks to Phase B)
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B: streams tokens then throws mid-stream
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('Starting to...')
         throw new Error('mid-stream crash')
@@ -514,7 +518,7 @@ describe('createAgent', () => {
 
     const types = events.map(e => e.type)
 
-    // Tokens were streamed, so TextMessageStart was emitted
+    // Tokens were streamed in Phase B, so TextMessageStart was emitted
     expect(types).toContain(AgUiEventType.TextMessageStart)
     expect(types).toContain(AgUiEventType.TextMessageContent)
 
@@ -565,6 +569,8 @@ describe('createAgent', () => {
 
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('custom_tool', {}))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('ok')
         return textResponse('ok')
@@ -597,6 +603,8 @@ describe('createAgent', () => {
 
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('ok')
         return textResponse('ok')
@@ -630,6 +638,8 @@ describe('createAgent', () => {
   it('extracts user message from AG-UI messages', async () => {
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('ok')
         return textResponse('ok')

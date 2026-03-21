@@ -23,6 +23,7 @@ import { ChatEventType, MergeStrategy, MessageRole } from './types'
 import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from './defaults'
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
+import { buildResponsePrompt } from './context'
 
 export class ChatEngine {
   private history: ChatMessage[] = []
@@ -190,11 +191,9 @@ export class ChatEngine {
 
     let roundCount = 0
     const collectedResults: ToolResultEntry[] = []
-    let mergePromise: Promise<StructuredResponse> | null = null
-    // Generation counter: prevents stale merge promises from emitting StructuredReady
-    let mergeGeneration = 0
 
-    // Loop until the LLM produces a text response (no tool calls)
+    // ── Phase A: Tool-calling loop ──
+    // LLM calls tools, we execute them. Repeats until LLM stops calling tools.
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const llmMessages: ChatMessage[] = [
@@ -205,33 +204,16 @@ export class ChatEngine {
       // After max tool-calling rounds, send no tools to force a text response
       const roundTools = roundCount >= this.maxRounds ? [] : tools
 
-      let streamedText = ''
-      let mergeStarted = false
       let streamResult
       try {
         streamResult = await this.llm(
           llmMessages,
           roundTools,
-          (token) => {
-            streamedText += token
-            emit({ type: ChatEventType.Token, token })
-
-            // On first token: confirmed this is a text response (not tool calls).
-            // Start merge/focus in parallel while text continues streaming.
-            if (!mergeStarted && this.parallelMerge && collectedResults.length > 0) {
-              mergeStarted = true
-              const gen = ++mergeGeneration
-              mergePromise = this.buildStructuredResponse(collectedResults, text)
-              mergePromise.then(structured => {
-                // Only emit if this is still the latest merge (not superseded by a later round)
-                if (gen === mergeGeneration) {
-                  emit({ type: ChatEventType.StructuredReady, structured })
-                }
-              }).catch(() => {
-                // Handled when mergePromise is awaited below; this prevents unhandled-rejection warnings.
-              })
-            }
-          },
+          // During tool-calling rounds, ignore streamed text (the LLM is deciding which tools to call).
+          // During the forced-text round (maxRounds exceeded, no tools provided), stream tokens directly.
+          roundCount >= this.maxRounds
+            ? (token) => { emit({ type: ChatEventType.Token, token }) }
+            : () => {},
         )
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err)
@@ -239,52 +221,18 @@ export class ChatEngine {
         throw err
       }
 
+      // LLM returned text (no more tool calls)
       if (streamResult.tool_calls.length === 0) {
-        let responseText = streamResult.content || 'Done.'
+        // If we have collected tool results, break to Phase B (focus → text response)
+        if (collectedResults.length > 0) break
 
-        // No-knowledge guardrail: no tool call returned usable data this turn
-        if (collectedResults.length === 0) {
-          responseText = NO_DATA_MESSAGE
-        }
-
-        for (const plugin of this.plugins ?? []) {
-          if (plugin.processResponse) {
-            try {
-              responseText = plugin.processResponse(responseText, collectedResults)
-            } catch (err) {
-              console.error(`[chat-engine] Plugin "${plugin.id}" processResponse threw:`, err instanceof Error ? err.message : String(err))
-            }
-          }
-        }
-
+        // No tools were ever called — LLM answered directly or hit guardrail/maxRounds.
+        // Return the text response as-is (no focus step needed).
+        const responseText = collectedResults.length === 0 ? NO_DATA_MESSAGE : (streamResult.content || 'Done.')
         this.history.push({ role: MessageRole.Assistant, content: responseText })
-
-        // Await the parallel merge (already in-flight) or run sequentially
-        let structured: StructuredResponse
-        try {
-          structured = await (mergePromise ?? this.buildStructuredResponse(collectedResults, text))
-        } catch (err) {
-          console.error('[chat-engine] buildStructuredResponse failed:', err instanceof Error ? err.message : String(err))
-          structured = {
-            strategy: MergeStrategy.Array,
-            sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
-            data: collectedResults.map(r => r.data),
-          }
-        }
-
-        emit({
-          type: ChatEventType.TurnComplete,
-          text: responseText,
-          toolResults: collectedResults,
-          structured,
-        })
-
-        return {
-          text: responseText,
-          toolResults: collectedResults,
-          structured,
-          history: [...this.history],
-        }
+        const structured = await this.buildArrayFallback(collectedResults)
+        emit({ type: ChatEventType.TurnComplete, text: responseText, toolResults: collectedResults, structured })
+        return { text: responseText, toolResults: collectedResults, structured, history: [...this.history] }
       }
 
       roundCount++
@@ -303,7 +251,6 @@ export class ChatEngine {
         } catch (parseErr) {
           const parseDetail = parseErr instanceof Error ? parseErr.message : ''
           const errorMsg = `Invalid JSON in tool arguments (${parseDetail}): ${toolCall.function.arguments}`
-          // Emit ToolCallStart so consumers always see a start before an error
           emit({
             type: ChatEventType.ToolCallStart,
             toolCallId: toolCall.id,
@@ -354,9 +301,6 @@ export class ChatEngine {
           continue
         }
 
-        // Note: if a plugin throws here, its transform is skipped and the last
-        // successfully-transformed value is used. For safety-critical plugins
-        // (e.g. PII redaction), plugins should catch internally.
         for (const plugin of this.plugins ?? []) {
           if (plugin.processToolResult) {
             try {
@@ -390,6 +334,146 @@ export class ChatEngine {
           content: truncatedResult,
           tool_call_id: toolCall.id,
         })
+      }
+    }
+
+    // ── Phase B: Focus/merge + text response ──
+    // Only reached when collectedResults.length > 0 (break condition above).
+
+    // Step 1: Focus/merge the collected tool results
+    emit({ type: ChatEventType.DataProcessing })
+
+    let structured: StructuredResponse
+    try {
+      structured = await this.buildStructuredResponse(collectedResults, text)
+    } catch (err) {
+      console.error('[chat-engine] buildStructuredResponse failed:', err instanceof Error ? err.message : String(err))
+      structured = {
+        strategy: MergeStrategy.Array,
+        sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
+        data: collectedResults.map(r => r.data),
+      }
+    }
+
+    emit({ type: ChatEventType.StructuredReady, structured })
+
+    // Step 2: Compress tool results in history with focused data
+    this.compressToolHistory(collectedResults, structured)
+
+    // Step 3: Generate text response using focused data in history (no tools → forces text)
+    // Use a dedicated summarization prompt — Phase B is data presentation, not tool selection
+    const responsePrompt = buildResponsePrompt(this.context.url, this.context.spec)
+    const responseMessages: ChatMessage[] = [
+      { role: MessageRole.System, content: responsePrompt },
+      ...this.history,
+    ]
+
+    let responseText = ''
+    try {
+      const streamResult = await this.llm(
+        responseMessages,
+        [], // No tools — force text response
+        (token) => {
+          responseText += token
+          emit({ type: ChatEventType.Token, token })
+        },
+      )
+      responseText = streamResult.content || responseText || 'Done.'
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      emit({ type: ChatEventType.Error, error: errorMsg })
+      throw err
+    }
+
+    for (const plugin of this.plugins ?? []) {
+      if (plugin.processResponse) {
+        try {
+          responseText = plugin.processResponse(responseText, collectedResults)
+        } catch (err) {
+          console.error(`[chat-engine] Plugin "${plugin.id}" processResponse threw:`, err instanceof Error ? err.message : String(err))
+        }
+      }
+    }
+
+    this.history.push({ role: MessageRole.Assistant, content: responseText })
+
+    emit({
+      type: ChatEventType.TurnComplete,
+      text: responseText,
+      toolResults: collectedResults,
+      structured,
+    })
+
+    return {
+      text: responseText,
+      toolResults: collectedResults,
+      structured,
+      history: [...this.history],
+    }
+  }
+
+  /** Build an Array-strategy fallback response (no focus/merge). */
+  private async buildArrayFallback(collectedResults: ToolResultEntry[]): Promise<StructuredResponse> {
+    return {
+      strategy: MergeStrategy.Array,
+      sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
+      data: collectedResults.map(r => r.data),
+    }
+  }
+
+  /**
+   * Replace raw tool result messages in history with compact data + endpoint metadata.
+   * For LLM-guided/schema-based merges: uses the focused data (already compact).
+   * For Array strategy (single result / fallback): uses truncated raw data.
+   * The full raw data remains in collectedResults for UI consumption.
+   */
+  private compressToolHistory(
+    collectedResults: ToolResultEntry[],
+    structured: StructuredResponse,
+  ): void {
+    const metadata = collectedResults.map(r => ({
+      tool: r.toolName,
+      args: r.toolArgs,
+      summary: r.summary,
+    }))
+
+    const focusedData = structured.strategy === MergeStrategy.Array
+      ? collectedResults.map(r => truncateToolResult(r.data, this.truncationLimit))
+      : structured.data
+
+    // Wrap with text framing so the LLM treats it as context data, not something to echo
+    const compressed = [
+      '[API Result — focused data for the user\'s question]',
+      JSON.stringify({ focused: focusedData, calls: metadata }),
+      '[End of API Result]',
+    ].join('\n')
+
+    // Find tool_call_ids from the most recent assistant tool_calls message
+    const toolCallIds = new Set<string>()
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      const msg = this.history[i]!
+      if (msg.role === MessageRole.Assistant && msg.tool_calls) {
+        for (const tc of msg.tool_calls) toolCallIds.add(tc.id)
+        break
+      }
+    }
+
+    // Replace tool messages: first gets compressed content,
+    // rest get minimal refs (OpenAI format requires one tool msg per tool_call_id)
+    let first = true
+    for (let i = 0; i < this.history.length; i++) {
+      const msg = this.history[i]!
+      if (msg.role === MessageRole.Tool && msg.tool_call_id && toolCallIds.has(msg.tool_call_id)) {
+        if (first) {
+          this.history[i] = { role: MessageRole.Tool, content: compressed, tool_call_id: msg.tool_call_id }
+          first = false
+        } else {
+          this.history[i] = {
+            role: MessageRole.Tool,
+            content: '[See first tool result for focused data]',
+            tool_call_id: msg.tool_call_id,
+          }
+        }
       }
     }
   }

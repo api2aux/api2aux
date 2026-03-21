@@ -30,6 +30,12 @@ interface ChatState {
   /** Whether a request is in flight */
   sending: boolean
   setSending: (sending: boolean) => void
+
+  /** API response cache (session-only, not persisted) */
+  apiCacheEnabled: boolean
+  apiCache: Map<string, unknown>
+  setApiCacheEnabled: (enabled: boolean) => void
+  clearApiCache: () => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -45,6 +51,8 @@ export const useChatStore = create<ChatState>()(
       },
       panelSize: 30,
       sending: false,
+      apiCacheEnabled: true,
+      apiCache: new Map(),
 
       setOpen: (open) => set({ open }),
       toggle: () => set((s) => ({ open: !s.open })),
@@ -65,6 +73,8 @@ export const useChatStore = create<ChatState>()(
       })),
       setPanelSize: (panelSize) => set({ panelSize }),
       setSending: (sending) => set({ sending }),
+      setApiCacheEnabled: (apiCacheEnabled) => set({ apiCacheEnabled }),
+      clearApiCache: () => set({ apiCache: new Map() }),
     }),
     {
       name: 'api2aux-chat',
@@ -73,6 +83,7 @@ export const useChatStore = create<ChatState>()(
       partialize: (state) => ({
         config: state.config,
         panelSize: state.panelSize,
+        apiCacheEnabled: state.apiCacheEnabled,
       }),
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>

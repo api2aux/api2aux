@@ -47,6 +47,7 @@ export interface Tool {
       type: 'object'
       properties: Record<string, ToolParameter>
       required?: string[]
+      additionalProperties?: boolean
     }
   }
 }
@@ -217,7 +218,9 @@ export const ChatEventType = {
   ToolCallResult: 'tool_call_result',
   /** A tool call failed. */
   ToolCallError: 'tool_call_error',
-  /** Structured data is ready (may arrive before text finishes when parallelMerge is enabled). TurnComplete carries the same resolved object; consumers should avoid processing it twice. */
+  /** Tool results are being focused/merged before generating the text response. */
+  DataProcessing: 'data_processing',
+  /** Structured data is ready. Fires before the text response begins. TurnComplete carries the same resolved object; consumers should avoid processing it twice. */
   StructuredReady: 'structured_ready',
   /** The full turn is complete. */
   TurnComplete: 'turn_complete',
@@ -231,6 +234,7 @@ export type ChatEngineEvent =
   | { type: typeof ChatEventType.ToolCallStart; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; parallelCount: number }
   | { type: typeof ChatEventType.ToolCallResult; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; data: unknown; summary: string }
   | { type: typeof ChatEventType.ToolCallError; toolCallId: string; toolName: string; toolArgs: Record<string, unknown>; error: string }
+  | { type: typeof ChatEventType.DataProcessing }
   | { type: typeof ChatEventType.StructuredReady; structured: StructuredResponse }
   | { type: typeof ChatEventType.TurnComplete; text: string; toolResults: ToolResultEntry[]; structured: StructuredResponse }
   | { type: typeof ChatEventType.Error; error: string }

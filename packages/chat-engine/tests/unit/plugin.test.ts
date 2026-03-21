@@ -101,6 +101,8 @@ describe('Healthcare plugin', () => {
   it('adds HIPAA notice to system prompt', async () => {
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('get_patient', { id: '123' }))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('Patient record retrieved.')
         return textResponse('Patient record retrieved.')
@@ -127,6 +129,8 @@ describe('Healthcare plugin', () => {
   it('redacts SSN from tool results fed to LLM', async () => {
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('get_patient', { id: '123' }))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('ok')
         return textResponse('ok')
@@ -158,6 +162,8 @@ describe('Healthcare plugin', () => {
   it('redacts SSN patterns from text response', async () => {
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('get_patient', { id: '123' }))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('Patient SSN is 123-45-6789')
         return textResponse('Patient SSN is 123-45-6789')
@@ -192,6 +198,8 @@ describe('Insurance plugin', () => {
 
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('get_claim', { id: '1' }))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('ok')
         return textResponse('ok')
@@ -246,6 +254,8 @@ describe('Multiple plugins', () => {
 
     const llm: LLMCompletionFn = vi.fn()
       .mockImplementationOnce(async () => toolCallResponse('get_patient', { id: '1' }))
+      .mockImplementationOnce(async () => textResponse('ignored'))
+      // Phase B text response
       .mockImplementationOnce(async (_msgs, _tools, onToken) => {
         onToken('Result')
         return textResponse('Result')

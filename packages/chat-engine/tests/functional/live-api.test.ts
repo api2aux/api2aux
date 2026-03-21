@@ -24,6 +24,7 @@ describeOrSkip('Live API: D&D 5e (dnd5eapi.co)', { timeout: 15000 }, () => {
       const spec = await loadSpec('dnd5e')
       const llm = createScriptedLlm([
         { toolCalls: [{ name: 'get_api', args: {} }] },
+        { text: 'Done with tools.' },
         { text: 'The D&D 5e API provides many resource types.' },
       ])
       const executor = createLiveExecutor(spec)
@@ -46,6 +47,7 @@ describeOrSkip('Live API: D&D 5e (dnd5eapi.co)', { timeout: 15000 }, () => {
       const spec = await loadSpec('dnd5e')
       const llm = createScriptedLlm([
         { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'fighter' } }] },
+        { text: 'Done with tools.' },
         { text: 'The Fighter is a martial class.' },
       ])
       const executor = createLiveExecutor(spec)
@@ -69,7 +71,9 @@ describeOrSkip('Live API: D&D 5e (dnd5eapi.co)', { timeout: 15000 }, () => {
         { toolCalls: [{ name: 'get_api_endpoint', args: { endpoint: 'classes' } }] },
         // Round 2: get the first class detail
         { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'barbarian' } }] },
-        // Round 3: text
+        // Round 3: Phase A break signal (tools done)
+        { text: 'Done with tools.' },
+        // Round 4: Phase B text response
         { text: 'Found 12 classes. The Barbarian has d12 hit die.' },
       ])
       const executor = createLiveExecutor(spec)
@@ -97,6 +101,7 @@ describeOrSkip('Live API: D&D 5e (dnd5eapi.co)', { timeout: 15000 }, () => {
       const llm = createScriptedLlm([
         { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'wizard' } }] },
         { toolCalls: [{ name: 'get_api_classes_index_levels_spell_level_spells', args: { index: 'wizard', spell_level: '1' } }] },
+        { text: 'Done with tools.' },
         { text: 'Wizards have many level 1 spells including Magic Missile.' },
       ])
       const executor = createLiveExecutor(spec)
@@ -123,6 +128,9 @@ describeOrSkip('Live API: D&D 5e (dnd5eapi.co)', { timeout: 15000 }, () => {
       const spec = await loadSpec('dnd5e')
       const llm = createScriptedLlm([
         { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'nonexistent-class-xyz' } }] },
+        // If the API errors: collectedResults empty → early return (only 2 steps used)
+        // If the API returns data: collectedResults has entry → Phase B needs 3rd step
+        { text: 'Done with tools.' },
         { text: 'Could not find that class.' },
       ])
       const executor = createLiveExecutor(spec)

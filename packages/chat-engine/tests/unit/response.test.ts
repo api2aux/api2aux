@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { formatStructuredResponse, hasUsableStructuredData } from '../../src/response'
+import { formatStructuredResponse, hasUsableStructuredData, extractJson } from '../../src/response'
 import { MergeStrategy } from '../../src/types'
 import type { ToolResultEntry, LLMTextFn, StructuredResponse } from '../../src/types'
 
@@ -246,7 +246,7 @@ describe('formatStructuredResponse', () => {
       expect(resp.strategy).toBe(MergeStrategy.Array)
     })
 
-    it('truncates individual result data at 4000 chars in the merge prompt', async () => {
+    it('sends full compact JSON to the merge prompt without truncation', async () => {
       const largeData = { payload: 'x'.repeat(5000) }
       const results: ToolResultEntry[] = [
         { toolName: 'big_api', toolArgs: {}, data: largeData, summary: '' },
@@ -261,15 +261,11 @@ describe('formatStructuredResponse', () => {
 
       await formatStructuredResponse(results, MergeStrategy.LlmGuided, 'merge', mockLlm)
 
-      // The user message sent to the LLM should have truncated the large result
       const userMsg = (capturedMessages as Array<{ role: string; content: string }>).find(m => m.role === 'user')
       expect(userMsg).toBeDefined()
-      // The large data's JSON is ~5010 chars, but should be sliced to 4000
-      const fullJson = JSON.stringify(largeData, null, 2)
-      expect(fullJson.length).toBeGreaterThan(4000)
-      expect(userMsg!.content).not.toContain(fullJson)
-      // Should contain the truncated version
-      expect(userMsg!.content.length).toBeLessThan(fullJson.length + 200)
+      // Full compact JSON should be present (not truncated, not pretty-printed)
+      const fullCompactJson = JSON.stringify(largeData)
+      expect(userMsg!.content).toContain(fullCompactJson)
     })
   })
 })
@@ -323,5 +319,70 @@ describe('hasUsableStructuredData', () => {
   it('returns true for falsy but valid data (empty string)', () => {
     const s: StructuredResponse = { strategy: MergeStrategy.LlmGuided, sources: [], data: '' }
     expect(hasUsableStructuredData(s)).toBe(true)
+  })
+})
+
+describe('extractJson', () => {
+  it('parses pure JSON string directly', () => {
+    expect(extractJson('{"name":"Alice"}')).toEqual({ name: 'Alice' })
+  })
+
+  it('parses JSON array', () => {
+    expect(extractJson('[1, 2, 3]')).toEqual([1, 2, 3])
+  })
+
+  it('handles leading/trailing whitespace', () => {
+    expect(extractJson('  {"id": 1}  \n')).toEqual({ id: 1 })
+  })
+
+  it('extracts JSON from markdown code block with json tag', () => {
+    const input = '```json\n{"focused": true}\n```'
+    expect(extractJson(input)).toEqual({ focused: true })
+  })
+
+  it('extracts JSON from markdown code block without tag', () => {
+    const input = '```\n{"focused": true}\n```'
+    expect(extractJson(input)).toEqual({ focused: true })
+  })
+
+  it('extracts JSON from code block with surrounding text', () => {
+    const input = 'Here is the result:\n```json\n{"data": [1, 2]}\n```\nHope this helps!'
+    expect(extractJson(input)).toEqual({ data: [1, 2] })
+  })
+
+  it('extracts outermost JSON object from surrounding text', () => {
+    const input = 'The merged data is: {"users": [{"id": 1}]} end of response'
+    expect(extractJson(input)).toEqual({ users: [{ id: 1 }] })
+  })
+
+  it('extracts outermost JSON array from surrounding text', () => {
+    const input = 'Results: [{"id": 1}, {"id": 2}] done'
+    expect(extractJson(input)).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it('returns null for truly unparseable content', () => {
+    expect(extractJson('This is just plain text with no JSON at all')).toBeNull()
+  })
+
+  it('returns null for empty string', () => {
+    expect(extractJson('')).toBeNull()
+  })
+
+  it('returns null for malformed JSON even in code block', () => {
+    const input = '```json\n{broken: json}\n```'
+    expect(extractJson(input)).toBeNull()
+  })
+
+  it('handles nested braces correctly', () => {
+    const input = 'prefix {"a": {"b": {"c": 1}}} suffix'
+    expect(extractJson(input)).toEqual({ a: { b: { c: 1 } } })
+  })
+
+  it('parses number as valid JSON', () => {
+    expect(extractJson('42')).toBe(42)
+  })
+
+  it('parses string literal as valid JSON', () => {
+    expect(extractJson('"hello"')).toBe('hello')
   })
 })

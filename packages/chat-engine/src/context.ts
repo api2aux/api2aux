@@ -408,6 +408,29 @@ export function buildSystemPrompt(url: string, spec?: ApiSpec | null): string {
   ].join(' ')
 }
 
+/**
+ * Build a system prompt for the Phase B text response (data summarization).
+ * This is a different task from Phase A (tool selection) and needs different instructions.
+ */
+export function buildResponsePrompt(url: string, spec?: ApiSpec | null): string {
+  let hostname: string
+  try { hostname = new URL(url).hostname } catch { hostname = url }
+  const apiName = spec?.title ?? hostname
+
+  return [
+    `You are a helpful assistant presenting data from the "${apiName}" API to the user.`,
+    `The API data has already been fetched — it appears in the tool results above.`,
+    `Your job is to answer the user's question based ONLY on that data.`,
+    `Guidelines:`,
+    `- Answer the question directly and concisely (2-3 sentences).`,
+    `- If multiple items are relevant, use a short bullet list with key details (name, price, rating, etc.).`,
+    `- Highlight the most relevant items first.`,
+    `- If the data doesn't fully answer the question, say so and suggest what the user could try.`,
+    `- Offer follow-up options ("I can filter by budget, show more details, etc.").`,
+    `- NEVER output raw JSON, data structures, or tool arguments. Use natural language only.`,
+  ].join(' ')
+}
+
 // ── Convenience ──
 
 /**
