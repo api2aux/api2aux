@@ -419,16 +419,15 @@ export class ChatEngine {
   }
 
   /**
-   * Replace raw tool result messages in history with compact focused data + endpoint metadata.
-   * Only compresses when focus/merge succeeded (non-Array strategy).
+   * Replace raw tool result messages in history with compact data + endpoint metadata.
+   * For LLM-guided/schema-based merges: uses the focused data (already compact).
+   * For Array strategy (single result / fallback): uses truncated raw data.
    * The full raw data remains in collectedResults for UI consumption.
    */
   private compressToolHistory(
     collectedResults: ToolResultEntry[],
     structured: StructuredResponse,
   ): void {
-    if (structured.strategy === MergeStrategy.Array) return
-
     const metadata = collectedResults.map(r => ({
       tool: r.toolName,
       args: r.toolArgs,
@@ -437,7 +436,9 @@ export class ChatEngine {
 
     const compressed = JSON.stringify({
       _compressed: true,
-      focused: structured.data,
+      focused: structured.strategy === MergeStrategy.Array
+        ? collectedResults.map(r => truncateToolResult(r.data, this.truncationLimit))
+        : structured.data,
       calls: metadata,
     })
 

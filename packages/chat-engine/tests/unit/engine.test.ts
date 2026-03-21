@@ -1370,7 +1370,7 @@ describe('ChatEngine', () => {
       expect(compressed.calls[0].tool).toBe('list_users')
     })
 
-    it('does not compress on Array fallback', async () => {
+    it('compresses with truncated raw data on Array fallback', async () => {
       const llmText = vi.fn().mockResolvedValue('not valid json at all')
 
       const llm: LLMCompletionFn = vi.fn()
@@ -1395,10 +1395,11 @@ describe('ChatEngine', () => {
       const toolMsgs = history.filter(m => m.role === 'tool')
       expect(toolMsgs).toHaveLength(1)
 
-      // Should NOT be compressed — original truncated data
+      // Should be compressed even on Array fallback — with truncated raw data
       const content = JSON.parse(toolMsgs[0]!.content!)
-      expect(content._compressed).toBeUndefined()
-      expect(content.users).toEqual([])
+      expect(content._compressed).toBe(true)
+      expect(content.calls).toHaveLength(1)
+      expect(content.calls[0].tool).toBe('list_users')
     })
 
     it('compresses multi-tool turns with first containing focused data and rest containing refs', async () => {
