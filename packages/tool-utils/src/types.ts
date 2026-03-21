@@ -92,5 +92,6 @@ export interface UnifiedToolDefinition {
     type: 'object'
     properties: Record<string, JsonSchemaProperty>
     required?: string[]
+    additionalProperties?: boolean
   }
 }

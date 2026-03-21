@@ -91,8 +91,34 @@ function autoSelectTab(data: unknown, responseText: string) {
 
 // ── Tool executor (app-specific, injected into engine) ──
 
+/** Filter args to only include params that exist in the URL (prevents LLM hallucinated params). */
+function filterToKnownParams(args: Record<string, unknown>, apiUrl: string): Record<string, unknown> {
+  try {
+    const knownParams = new Set(new URL(apiUrl).searchParams.keys())
+    if (knownParams.size === 0) return {}
+    const filtered: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(args)) {
+      if (knownParams.has(key) && value !== undefined && value !== '') {
+        filtered[key] = value
+      }
+    }
+    return filtered
+  } catch {
+    return args
+  }
+}
+
+/** Build a cache key from tool name + sorted non-empty args. */
+function buildCacheKey(toolName: string, args: Record<string, unknown>): string {
+  const sortedArgs = Object.keys(args).sort().reduce((acc, key) => {
+    if (args[key] !== undefined && args[key] !== '') acc[key] = args[key]
+    return acc
+  }, {} as Record<string, unknown>)
+  return `${toolName}::${JSON.stringify(sortedArgs)}`
+}
+
 function createToolExecutor(apiUrl: string): ToolExecutorFn {
-  return async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
+  const execute = async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
     let parsedUrl: URL
     try {
       parsedUrl = new URL(apiUrl)
@@ -103,8 +129,11 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
 
     if (toolName === 'query_api') {
       const queryParams = new URLSearchParams(parsedUrl.search)
+      const knownParams = new Set(queryParams.keys())
+
+      // Only forward args that match known URL params — ignore hallucinated ones
       for (const [key, value] of Object.entries(args)) {
-        if (value !== undefined && value !== '') {
+        if (knownParams.has(key) && value !== undefined && value !== '') {
           queryParams.set(key, String(value))
         }
       }
@@ -149,6 +178,26 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
     }
 
     return fetchWithAuth(apiUrl)
+  }
+
+  // Wrap with cache layer (filter hallucinated params before cache key + execution)
+  return async (toolName: string, rawArgs: Record<string, unknown>): Promise<unknown> => {
+    const args = toolName === 'query_api' ? filterToKnownParams(rawArgs, apiUrl) : rawArgs
+    const { apiCacheEnabled, apiCache } = useChatStore.getState()
+    const cacheKey = buildCacheKey(toolName, args)
+
+    if (apiCacheEnabled) {
+      const cached = apiCache.get(cacheKey)
+      if (cached !== undefined) return cached
+    }
+
+    const result = await execute(toolName, args)
+
+    if (apiCacheEnabled) {
+      useChatStore.getState().apiCache.set(cacheKey, result)
+    }
+
+    return result
   }
 }
 
@@ -195,9 +244,10 @@ export function useChat() {
         llmText: llmTextFn,
       })
     } else {
-      // Clear stale history when switching to a different API
+      // Clear stale history and cache when switching to a different API
       if (engineRef.current.getContext().url !== context.url) {
         engineRef.current.clearHistory()
+        useChatStore.getState().clearApiCache()
       }
       engineRef.current.setContext(context)
       engineRef.current.setLlm(llmFn)
@@ -283,7 +333,7 @@ export function useChat() {
 
           case ChatEventType.ToolCallResult:
             updateMessage(assistantId, {
-              text: 'Generating response...',
+              text: 'Fetched data, processing...',
               loading: true,
             })
             break
@@ -295,8 +345,15 @@ export function useChat() {
             })
             break
 
+          case ChatEventType.DataProcessing:
+            updateMessage(assistantId, {
+              text: 'Processing data...',
+              loading: true,
+            })
+            break
+
           case ChatEventType.StructuredReady:
-            // Parallel merge finished — update main panel while text is still streaming
+            // Focus/merge finished — update main panel before text streaming starts
             if (hasUsableStructuredData(event.structured)) {
               const ok = updateMainView(event.structured.data, url)
               if (ok) {
@@ -305,6 +362,10 @@ export function useChat() {
                 scrollToResponseData()
               }
             }
+            updateMessage(assistantId, {
+              text: 'Generating response...',
+              loading: true,
+            })
             break
 
           default:

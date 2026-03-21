@@ -29,6 +29,9 @@ describe('Guardrail: no-LLM-knowledge', () => {
     const spec = await loadSpec('dnd5e')
     const llm = createScriptedLlm([
       { toolCalls: [{ name: 'get_api', args: {} }] },
+      // Phase A break signal (tools done)
+      { text: 'Done with tools.' },
+      // Phase B text response (no tools provided)
       { text: 'The API has many resource types.' },
     ])
     const executor = createMockExecutor({
@@ -68,6 +71,9 @@ describe('Guardrail: no-LLM-knowledge', () => {
         { name: 'get_api_classes_index', args: { index: 'invalid' } },
         { name: 'get_api', args: {} },
       ] },
+      // Phase A break signal (tools done)
+      { text: 'Done with tools.' },
+      // Phase B text response (no tools provided)
       { text: 'Found the API resources.' },
     ])
     // First tool fails, second succeeds
