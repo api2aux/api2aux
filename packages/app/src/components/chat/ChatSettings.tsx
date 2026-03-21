@@ -4,7 +4,7 @@ import { getAllProviders, getProvider } from '../../services/llm/providers/regis
 import type { ProviderId } from '../../services/llm/types'
 
 export function ChatSettings() {
-  const { config, setConfig } = useChatStore()
+  const { config, setConfig, apiCacheEnabled, setApiCacheEnabled, apiCache, clearApiCache } = useChatStore()
   const [showKey, setShowKey] = useState(false)
 
   const allProviders = getAllProviders()
@@ -84,6 +84,30 @@ export function ChatSettings() {
           <p className="text-xs text-amber-500 mt-1">
             This provider doesn't support browser CORS — only works in dev via proxy.
           </p>
+        )}
+      </div>
+
+      {/* Cache controls */}
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+          <input
+            type="checkbox"
+            checked={apiCacheEnabled}
+            onChange={(e) => setApiCacheEnabled(e.target.checked)}
+            className="rounded border-border"
+          />
+          Cache API responses
+          {apiCache.size > 0 && (
+            <span className="text-[10px]">({apiCache.size} cached)</span>
+          )}
+        </label>
+        {apiCache.size > 0 && (
+          <button
+            onClick={clearApiCache}
+            className="px-2 py-1 rounded-md text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            Clear cache
+          </button>
         )}
       </div>
     </div>

@@ -91,8 +91,17 @@ function autoSelectTab(data: unknown, responseText: string) {
 
 // ── Tool executor (app-specific, injected into engine) ──
 
+/** Build a cache key from tool name + sorted non-empty args. */
+function buildCacheKey(toolName: string, args: Record<string, unknown>): string {
+  const sortedArgs = Object.keys(args).sort().reduce((acc, key) => {
+    if (args[key] !== undefined && args[key] !== '') acc[key] = args[key]
+    return acc
+  }, {} as Record<string, unknown>)
+  return `${toolName}::${JSON.stringify(sortedArgs)}`
+}
+
 function createToolExecutor(apiUrl: string): ToolExecutorFn {
-  return async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
+  const execute = async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
     let parsedUrl: URL
     try {
       parsedUrl = new URL(apiUrl)
@@ -150,6 +159,25 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
 
     return fetchWithAuth(apiUrl)
   }
+
+  // Wrap with cache layer
+  return async (toolName: string, args: Record<string, unknown>): Promise<unknown> => {
+    const { apiCacheEnabled, apiCache } = useChatStore.getState()
+    const cacheKey = buildCacheKey(toolName, args)
+
+    if (apiCacheEnabled) {
+      const cached = apiCache.get(cacheKey)
+      if (cached !== undefined) return cached
+    }
+
+    const result = await execute(toolName, args)
+
+    if (apiCacheEnabled) {
+      useChatStore.getState().apiCache.set(cacheKey, result)
+    }
+
+    return result
+  }
 }
 
 // ── Hook ──
@@ -195,9 +223,10 @@ export function useChat() {
         llmText: llmTextFn,
       })
     } else {
-      // Clear stale history when switching to a different API
+      // Clear stale history and cache when switching to a different API
       if (engineRef.current.getContext().url !== context.url) {
         engineRef.current.clearHistory()
+        useChatStore.getState().clearApiCache()
       }
       engineRef.current.setContext(context)
       engineRef.current.setLlm(llmFn)
