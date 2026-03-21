@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { UIMessage, ChatConfig } from '../services/llm/types'
+import type { UIMessage, ChatConfig, CallLogEntry } from '../services/llm/types'
 import { getProvider } from '../services/llm/providers/registry'
 
 interface ChatState {
@@ -44,6 +44,11 @@ interface ChatState {
   /** Focus reduction strategy (persisted) */
   focusReduction: 'truncate-values' | 'embed-fields' | 'llm-fields'
   setFocusReduction: (strategy: 'truncate-values' | 'embed-fields' | 'llm-fields') => void
+
+  /** Debug call log (session-only, not persisted) */
+  callLog: CallLogEntry[]
+  addCallLogEntry: (entry: CallLogEntry) => void
+  clearCallLog: () => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -63,6 +68,7 @@ export const useChatStore = create<ChatState>()(
       apiCache: new Map(),
       embeddingProvider: 'local' as const,
       focusReduction: 'truncate-values' as const,
+      callLog: [],
 
       setOpen: (open) => set({ open }),
       toggle: () => set((s) => ({ open: !s.open })),
@@ -87,6 +93,8 @@ export const useChatStore = create<ChatState>()(
       clearApiCache: () => set({ apiCache: new Map() }),
       setEmbeddingProvider: (embeddingProvider) => set({ embeddingProvider }),
       setFocusReduction: (focusReduction) => set({ focusReduction }),
+      addCallLogEntry: (entry) => set((s) => ({ callLog: [...s.callLog, entry] })),
+      clearCallLog: () => set({ callLog: [] }),
     }),
     {
       name: 'api2aux-chat',

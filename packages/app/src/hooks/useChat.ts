@@ -20,7 +20,7 @@ import { fetchWithAuth, credentialToAuth } from '../services/api/fetcher'
 import { executeOperation } from 'api-invoke'
 import { proxy } from '../services/api/proxy'
 import { useAuthStore } from '../store/authStore'
-import type { UIMessage } from '../services/llm/types'
+import type { UIMessage, ApiCallEntry, LlmCallEntry } from '../services/llm/types'
 import { updateMainView, scrollToResponseData } from '../utils/chatViewHelpers'
 import { EmbeddingService } from '@api2aux/embedding-service'
 
@@ -181,24 +181,33 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
     return fetchWithAuth(apiUrl)
   }
 
-  // Wrap with cache layer (filter hallucinated params before cache key + execution)
+  // Wrap with cache layer + call logging
   return async (toolName: string, rawArgs: Record<string, unknown>): Promise<unknown> => {
     const args = toolName === 'query_api' ? filterToKnownParams(rawArgs, apiUrl) : rawArgs
-    const { apiCacheEnabled, apiCache } = useChatStore.getState()
+    const { apiCacheEnabled, apiCache, addCallLogEntry } = useChatStore.getState()
     const cacheKey = buildCacheKey(toolName, args)
 
     if (apiCacheEnabled) {
       const cached = apiCache.get(cacheKey)
-      if (cached !== undefined) return cached
+      if (cached !== undefined) {
+        addCallLogEntry({ type: 'api', toolName, args, status: 'cached', response: cached, durationMs: 0, timestamp: Date.now() } satisfies ApiCallEntry)
+        return cached
+      }
     }
 
-    const result = await execute(toolName, args)
-
-    if (apiCacheEnabled) {
-      useChatStore.getState().apiCache.set(cacheKey, result)
+    const t0 = Date.now()
+    try {
+      const result = await execute(toolName, args)
+      const durationMs = Date.now() - t0
+      addCallLogEntry({ type: 'api', toolName, args, status: 'success', response: result, durationMs, timestamp: Date.now() } satisfies ApiCallEntry)
+      if (apiCacheEnabled) {
+        useChatStore.getState().apiCache.set(cacheKey, result)
+      }
+      return result
+    } catch (err) {
+      addCallLogEntry({ type: 'api', toolName, args, status: 'error', error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - t0, timestamp: Date.now() } satisfies ApiCallEntry)
+      throw err
     }
-
-    return result
   }
 }
 
@@ -207,20 +216,47 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
 export function useChat() {
   const url = useAppStore((s) => s.url)
   const parsedSpec = useAppStore((s) => s.parsedSpec)
-  const { messages, addMessage, updateMessage, clearMessages: storeClearMessages, config, sending, setSending, setChatApiUrl } = useChatStore()
+  const { messages, addMessage, updateMessage, clearMessages: storeClearMessages, config, sending, setSending, setChatApiUrl, callLog } = useChatStore()
 
   const engineRef = useRef<ChatEngine | null>(null)
   const embeddingRef = useRef<EmbeddingService | null>(null)
 
   // Create LLM functions by closing over config
   const llmFn: LLMCompletionFn = useMemo(() => {
-    return (messages, tools, onToken) =>
-      chatCompletionStream(messages, tools, config, onToken)
+    return async (messages, tools, onToken) => {
+      const { addCallLogEntry } = useChatStore.getState()
+      const t0 = Date.now()
+      try {
+        const result = await chatCompletionStream(messages, tools, config, onToken)
+        const entry: LlmCallEntry = {
+          type: 'llm', purpose: 'stream', model: config.model,
+          messages, response: result.content,
+          toolCalls: result.tool_calls?.map((tc: import('@api2aux/chat-engine').ToolCall) => ({ name: tc.function.name, args: tc.function.arguments })),
+          durationMs: Date.now() - t0, timestamp: Date.now(),
+        }
+        addCallLogEntry(entry)
+        return result
+      } catch (err) {
+        addCallLogEntry({ type: 'llm', purpose: 'stream', model: config.model, messages, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - t0, timestamp: Date.now() } satisfies LlmCallEntry)
+        throw err
+      }
+    }
   }, [config])
 
   // Non-streaming LLM for merge/focus — runs in a separate async context
   const llmTextFn = useMemo(() => {
-    return (messages: ChatMessage[]) => chatCompletion(messages, config)
+    return async (messages: ChatMessage[]) => {
+      const { addCallLogEntry } = useChatStore.getState()
+      const t0 = Date.now()
+      try {
+        const response = await chatCompletion(messages, config)
+        addCallLogEntry({ type: 'llm', purpose: 'focus', model: config.model, messages, response, durationMs: Date.now() - t0, timestamp: Date.now() } satisfies LlmCallEntry)
+        return response
+      } catch (err) {
+        addCallLogEntry({ type: 'llm', purpose: 'focus', model: config.model, messages, error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - t0, timestamp: Date.now() } satisfies LlmCallEntry)
+        throw err
+      }
+    }
   }, [config])
 
   // Build context from current URL/spec
@@ -277,6 +313,7 @@ export function useChat() {
   const clearMessages = useCallback(() => {
     storeClearMessages()
     engineRef.current?.clearHistory()
+    useChatStore.getState().clearCallLog()
   }, [storeClearMessages])
 
   const sendMessage = useCallback(async (text: string) => {
@@ -439,5 +476,6 @@ export function useChat() {
     hasApiKey: !!config.apiKey,
     contextStats,
     llmHistory: history as import('@api2aux/chat-engine').ChatMessage[],
+    callLog,
   }
 }
