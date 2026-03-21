@@ -36,6 +36,10 @@ interface ChatState {
   apiCache: Map<string, unknown>
   setApiCacheEnabled: (enabled: boolean) => void
   clearApiCache: () => void
+
+  /** Embedding provider for semantic context reduction (persisted) */
+  embeddingProvider: 'local' | 'openai'
+  setEmbeddingProvider: (provider: 'local' | 'openai') => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -53,6 +57,7 @@ export const useChatStore = create<ChatState>()(
       sending: false,
       apiCacheEnabled: true,
       apiCache: new Map(),
+      embeddingProvider: 'local' as const,
 
       setOpen: (open) => set({ open }),
       toggle: () => set((s) => ({ open: !s.open })),
@@ -75,6 +80,7 @@ export const useChatStore = create<ChatState>()(
       setSending: (sending) => set({ sending }),
       setApiCacheEnabled: (apiCacheEnabled) => set({ apiCacheEnabled }),
       clearApiCache: () => set({ apiCache: new Map() }),
+      setEmbeddingProvider: (embeddingProvider) => set({ embeddingProvider }),
     }),
     {
       name: 'api2aux-chat',
@@ -84,6 +90,7 @@ export const useChatStore = create<ChatState>()(
         config: state.config,
         panelSize: state.panelSize,
         apiCacheEnabled: state.apiCacheEnabled,
+        embeddingProvider: state.embeddingProvider,
       }),
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>

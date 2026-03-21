@@ -4,7 +4,7 @@ import { getAllProviders, getProvider } from '../../services/llm/providers/regis
 import type { ProviderId } from '../../services/llm/types'
 
 export function ChatSettings() {
-  const { config, setConfig, apiCacheEnabled, setApiCacheEnabled, apiCache, clearApiCache } = useChatStore()
+  const { config, setConfig, apiCacheEnabled, setApiCacheEnabled, apiCache, clearApiCache, embeddingProvider, setEmbeddingProvider } = useChatStore()
   const [showKey, setShowKey] = useState(false)
 
   const allProviders = getAllProviders()
@@ -109,6 +109,24 @@ export function ChatSettings() {
             Clear cache
           </button>
         )}
+      </div>
+
+      {/* Embedding provider */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground block mb-1">Embedding</label>
+        <select
+          value={embeddingProvider}
+          onChange={(e) => setEmbeddingProvider(e.target.value as 'local' | 'openai')}
+          className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground"
+        >
+          <option value="local">Local (gte-small, browser)</option>
+          <option value="openai">OpenAI (text-embedding-3-small)</option>
+        </select>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          {embeddingProvider === 'local'
+            ? 'Runs locally — ~33MB model downloaded on first use.'
+            : 'Uses your API key for embeddings (~$0.00006/request).'}
+        </p>
       </div>
     </div>
   )

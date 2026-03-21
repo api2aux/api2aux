@@ -37,6 +37,8 @@ export class ChatEngine {
   private readonly mergeStrategy: MergeStrategy
   private readonly parallelMerge: boolean
   private llmText: LLMTextFn | undefined
+  private embedFn: ((texts: string[]) => Promise<number[][]>) | undefined
+  private readonly embedTopK: number
 
   constructor(
     llm: LLMCompletionFn,
@@ -63,6 +65,8 @@ export class ChatEngine {
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
     this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
     this.llmText = config?.llmText
+    this.embedFn = config?.embedFn
+    this.embedTopK = config?.embedTopK ?? 8
 
     if (this.parallelMerge && !this.llmText && this.mergeStrategy === MergeStrategy.LlmGuided) {
       console.warn('[chat-engine] parallelMerge is enabled with LlmGuided strategy but llmText is not provided — merge calls will reuse the streaming LLM with a no-op token handler')
@@ -87,7 +91,7 @@ export class ChatEngine {
   }
 
   /** Get the resolved engine configuration. */
-  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText'>>> {
+  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText' | 'embedFn' | 'embedTopK'>>> {
     return {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
@@ -497,6 +501,8 @@ export class ChatEngine {
       this.mergeStrategy,
       userMessage,
       mergeLlm,
+      this.embedFn,
+      this.embedTopK,
     )
   }
 }

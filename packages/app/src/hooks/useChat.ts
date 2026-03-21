@@ -22,6 +22,7 @@ import { proxy } from '../services/api/proxy'
 import { useAuthStore } from '../store/authStore'
 import type { UIMessage } from '../services/llm/types'
 import { updateMainView, scrollToResponseData } from '../utils/chatViewHelpers'
+import { EmbeddingService } from '@api2aux/embedding-service'
 
 let messageCounter = 0
 function nextId(): string {
@@ -209,6 +210,7 @@ export function useChat() {
   const { messages, addMessage, updateMessage, clearMessages: storeClearMessages, config, sending, setSending, setChatApiUrl } = useChatStore()
 
   const engineRef = useRef<ChatEngine | null>(null)
+  const embeddingRef = useRef<EmbeddingService | null>(null)
 
   // Create LLM functions by closing over config
   const llmFn: LLMCompletionFn = useMemo(() => {
@@ -237,11 +239,22 @@ export function useChat() {
   const getEngine = useCallback(() => {
     if (!url || !context) return null
 
+    // Initialize embedding service (lazy, shared across engine recreations)
+    if (!embeddingRef.current) {
+      const { embeddingProvider, config: chatConfig } = useChatStore.getState()
+      embeddingRef.current = new EmbeddingService({
+        provider: embeddingProvider,
+        openaiApiKey: embeddingProvider === 'openai' ? chatConfig.apiKey : undefined,
+      })
+    }
+    const embedFn = (texts: string[]) => embeddingRef.current!.embed(texts)
+
     if (!engineRef.current) {
       const executor = createToolExecutor(url)
       engineRef.current = new ChatEngine(llmFn, executor, context, {
         mergeStrategy: 'llm-guided',
         llmText: llmTextFn,
+        embedFn,
       })
     } else {
       // Clear stale history and cache when switching to a different API
