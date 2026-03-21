@@ -283,7 +283,7 @@ export function useChat() {
 
           case ChatEventType.ToolCallResult:
             updateMessage(assistantId, {
-              text: 'Generating response...',
+              text: 'Fetched data, processing...',
               loading: true,
             })
             break
@@ -295,8 +295,15 @@ export function useChat() {
             })
             break
 
+          case ChatEventType.DataProcessing:
+            updateMessage(assistantId, {
+              text: 'Processing data...',
+              loading: true,
+            })
+            break
+
           case ChatEventType.StructuredReady:
-            // Parallel merge finished — update main panel while text is still streaming
+            // Focus/merge finished — update main panel before text streaming starts
             if (hasUsableStructuredData(event.structured)) {
               const ok = updateMainView(event.structured.data, url)
               if (ok) {
@@ -305,6 +312,10 @@ export function useChat() {
                 scrollToResponseData()
               }
             }
+            updateMessage(assistantId, {
+              text: 'Generating response...',
+              loading: true,
+            })
             break
 
           default:

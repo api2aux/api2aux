@@ -18,7 +18,9 @@ describe('Error recovery: D&D 5e API', () => {
       { toolCalls: [{ name: 'get_api_classes_index', args: { index: 'nonexistent' } }] },
       // Round 2: LLM falls back to the list endpoint
       { toolCalls: [{ name: 'get_api', args: {} }] },
-      // Round 3: LLM produces text
+      // Round 3: LLM signals done with tools (Phase A break)
+      { text: 'Done with tools.' },
+      // Round 4: Phase B text response (no tools provided)
       { text: 'Found the API resources after retrying.' },
     ])
     const executor = createMockExecutor((toolName, args) => {
