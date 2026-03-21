@@ -132,7 +132,7 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
 
 const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document. Include ALL items from each result that are relevant to the user's question. Preserve key fields needed for comparison or display. Return ONLY valid JSON, nothing else.`
 
-const FOCUS_PROMPT = `You are a data formatting assistant. Given the following API result, extract ALL items relevant to the user's question into a single JSON document. Include every matching item, not just the top few. Keep key fields for each item. Return ONLY valid JSON, nothing else.`
+const FOCUS_PROMPT = `You are a data formatting assistant. Given the following API result, format ALL items from the data into a clean JSON document. Preserve every item — do NOT filter or omit any items based on the user's question. Include the complete dataset with key fields for each item. Return ONLY valid JSON, nothing else.`
 
 /**
  * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
