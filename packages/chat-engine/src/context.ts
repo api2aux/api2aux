@@ -332,7 +332,7 @@ export function buildSystemPrompt(url: string, spec?: ApiSpec | null): string {
       `Your role is to fetch real-time data from the API, not to provide information you already know.`,
       `Even if you know the answer, call the relevant API tool so the UI updates with fresh data.`,
       `You can call multiple tools in sequence if needed — for example, to compare data from two endpoints.`,
-      `When the user asks a question, determine which API operation to call, execute it, then summarize the results concisely (2-3 sentences).`,
+      `When the user asks a question, determine which API operation to call and execute it. Call each operation ONCE — do not retry with the same parameters.`,
     ]
 
     const sections: string[] = []
@@ -404,7 +404,7 @@ export function buildSystemPrompt(url: string, spec?: ApiSpec | null): string {
     `IMPORTANT: You MUST always call the tool to answer the user's question. NEVER answer from your own knowledge.`,
     `Your role is to fetch real-time data from the API, not to provide information you already know.`,
     `Even if you know the answer, call the tool so the UI updates with fresh data.`,
-    `After calling the tool, summarize the results concisely (2-3 sentences).`,
+    `Call the tool ONCE per question. Do not retry or call it again even if the results seem incomplete — a separate step will generate the response from whatever data was returned.`,
   ].join(' ')
 }
 

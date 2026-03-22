@@ -50,6 +50,32 @@ function toolCallResponse(name: string, args: Record<string, unknown>): StreamRe
   }
 }
 
+/** Second tool for multi-result tests (focus/merge LLM only runs for 2+ results). */
+const secondTool: Tool = {
+  type: 'function',
+  function: {
+    name: 'get_orders',
+    description: 'Get orders',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+}
+
+const multiContext: ChatEngineContext = {
+  ...testContext,
+  tools: [testTool, secondTool],
+}
+
+function twoToolCallResponse(): StreamResult {
+  return {
+    content: '',
+    tool_calls: [
+      { id: 'call_1', type: 'function' as const, function: { name: 'list_users', arguments: '{}' } },
+      { id: 'call_2', type: 'function' as const, function: { name: 'get_orders', arguments: '{}' } },
+    ],
+    finish_reason: FinishReason.ToolCalls,
+  }
+}
+
 describe('ChatEngine', () => {
   let events: ChatEngineEvent[]
   let onEvent: ChatEngineEventHandler
@@ -775,8 +801,9 @@ describe('ChatEngine', () => {
       const spy = vi.spyOn(responseModule, 'formatStructuredResponse')
         .mockRejectedValueOnce(new Error('merge exploded'))
 
+      // Use 2 tool results so formatStructuredResponse is actually called
       const llm: LLMCompletionFn = vi.fn()
-        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async () => twoToolCallResponse())
         .mockImplementationOnce(async () => textResponse('ignored'))
         // Phase B text response
         .mockImplementationOnce(async (_msgs, _tools, onToken) => {
@@ -784,9 +811,11 @@ describe('ChatEngine', () => {
           return textResponse('ok')
         })
 
-      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+      const executor: ToolExecutorFn = vi.fn()
+        .mockResolvedValueOnce([{ id: 1 }])
+        .mockResolvedValueOnce([{ orderId: 100 }])
 
-      const engine = new ChatEngine(llm, executor, testContext)
+      const engine = new ChatEngine(llm, executor, multiContext)
       const result = await engine.sendMessage('test', onEvent)
 
       expect(result.structured.strategy).toBe(MergeStrategy.Array)
@@ -1048,12 +1077,12 @@ describe('ChatEngine', () => {
       expect(srIdx).toBeLessThan(tokenIdx)
       expect(tokenIdx).toBeLessThan(tcIdx)
 
-      // Result should have the merged structured data
+      // Single tool result: focus LLM is skipped, raw data returned
       expect(result.structured.strategy).toBe(MergeStrategy.LlmGuided)
-      expect(result.structured.data).toEqual({ focused: true })
+      expect(Array.isArray(result.structured.data)).toBe(true)
 
-      // llmText should have been called (for the merge/focus step)
-      expect(llmText).toHaveBeenCalledOnce()
+      // llmText should NOT be called for single tool result (focus LLM skipped)
+      expect(llmText).not.toHaveBeenCalled()
     })
 
     it('emits StructuredReady even with Array strategy', async () => {
@@ -1112,8 +1141,9 @@ describe('ChatEngine', () => {
     })
 
     it('falls back to Array strategy when merge LLM fails', async () => {
+      // Use 2 tool results so the merge LLM is actually called
       const llm: LLMCompletionFn = vi.fn()
-        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async () => twoToolCallResponse())
         .mockImplementationOnce(async () => textResponse('ignored'))
         // Phase B text response (still called after fallback)
         .mockImplementationOnce(async (_msgs, _tools, onToken) => {
@@ -1121,12 +1151,14 @@ describe('ChatEngine', () => {
           return textResponse('Found users.')
         })
 
-      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+      const executor: ToolExecutorFn = vi.fn()
+        .mockResolvedValueOnce([{ id: 1 }])
+        .mockResolvedValueOnce([{ orderId: 100 }])
 
       // Merge LLM rejects — caught by engine's Phase B catch block
       const llmText = vi.fn().mockRejectedValue(new Error('Rate limited'))
 
-      const engine = new ChatEngine(llm, executor, testContext, {
+      const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
         parallelMerge: true,
         llmText,
@@ -1148,8 +1180,9 @@ describe('ChatEngine', () => {
     })
 
     it('uses llmText when provided instead of streaming llm for merge', async () => {
+      // Use 2 tool results so the merge LLM is actually called
       const llm: LLMCompletionFn = vi.fn()
-        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async () => twoToolCallResponse())
         .mockImplementationOnce(async () => textResponse('ignored'))
         // Phase B text response
         .mockImplementationOnce(async (_msgs, _tools, onToken) => {
@@ -1157,17 +1190,19 @@ describe('ChatEngine', () => {
           return textResponse('ok')
         })
 
-      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+      const executor: ToolExecutorFn = vi.fn()
+        .mockResolvedValueOnce([{ id: 1 }])
+        .mockResolvedValueOnce([{ orderId: 100 }])
 
       const llmText = vi.fn().mockResolvedValue(JSON.stringify({ merged: true }))
 
-      const engine = new ChatEngine(llm, executor, testContext, {
+      const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
         llmText,
       })
       const result = await engine.sendMessage('test', onEvent)
 
-      // llm called 3 times (tool call, end-of-tools text, Phase B text), llmText once (merge)
+      // llm called 3 times (2-tool call, end-of-tools, Phase B), llmText once (merge)
       expect(llm).toHaveBeenCalledTimes(3)
       expect(llmText).toHaveBeenCalledOnce()
       expect(result.structured.strategy).toBe(MergeStrategy.LlmGuided)
@@ -1175,8 +1210,9 @@ describe('ChatEngine', () => {
     })
 
     it('falls back to streaming llm for merge when llmText is not provided', async () => {
+      // Use 2 tool results so the merge LLM is actually called
       const llm: LLMCompletionFn = vi.fn()
-        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async () => twoToolCallResponse())
         .mockImplementationOnce(async () => textResponse('ignored'))
         // Third call: merge fallback (buildStructuredResponse uses streaming llm wrapper)
         .mockImplementationOnce(async () => ({
@@ -1190,14 +1226,16 @@ describe('ChatEngine', () => {
           return textResponse('ok')
         })
 
-      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+      const executor: ToolExecutorFn = vi.fn()
+        .mockResolvedValueOnce([{ id: 1 }])
+        .mockResolvedValueOnce([{ orderId: 100 }])
 
-      const engine = new ChatEngine(llm, executor, testContext, {
+      const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
       })
       const result = await engine.sendMessage('test', onEvent)
 
-      // llm called 4 times: tool call, end-of-tools, merge fallback, Phase B text
+      // llm called 4 times: 2-tool call, end-of-tools, merge fallback, Phase B text
       expect(llm).toHaveBeenCalledTimes(4)
       expect(result.structured.data).toEqual({ fallback: true })
     })
@@ -1225,15 +1263,14 @@ describe('ChatEngine', () => {
       // Exactly one StructuredReady emitted
       const structuredReadyEvents = events.filter(e => e.type === ChatEventType.StructuredReady)
       expect(structuredReadyEvents).toHaveLength(1)
-      if (structuredReadyEvents[0]?.type === ChatEventType.StructuredReady) {
-        expect(structuredReadyEvents[0].structured.data).toEqual({ merged: true })
-      }
-      expect(result.structured.data).toEqual({ merged: true })
+      // Single tool result: raw data returned (focus LLM skipped)
+      expect(Array.isArray(result.structured.data)).toBe(true)
     })
 
     it('catches buildStructuredResponse throw at engine level', async () => {
+      // Use 2 tool results so formatStructuredResponse is actually called
       const llm: LLMCompletionFn = vi.fn()
-        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async () => twoToolCallResponse())
         .mockImplementationOnce(async () => textResponse('ignored'))
         // Phase B text response (still called after fallback)
         .mockImplementationOnce(async (_msgs, _tools, onToken) => {
@@ -1241,13 +1278,15 @@ describe('ChatEngine', () => {
           return textResponse('ok')
         })
 
-      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+      const executor: ToolExecutorFn = vi.fn()
+        .mockResolvedValueOnce([{ id: 1 }])
+        .mockResolvedValueOnce([{ orderId: 100 }])
 
       // Mock formatStructuredResponse to throw
       const spy = vi.spyOn(responseModule, 'formatStructuredResponse')
         .mockRejectedValue(new Error('unexpected runtime crash'))
 
-      const engine = new ChatEngine(llm, executor, testContext, {
+      const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
         parallelMerge: false,
       })
@@ -1305,12 +1344,14 @@ describe('ChatEngine', () => {
       expect(dpIdx).toBeLessThan(srIdx)
       expect(srIdx).toBeLessThan(tokenIdx)
       expect(tokenIdx).toBeLessThan(tcIdx)
-      expect(result.structured.data).toEqual({ focused: true })
+      // Single tool result: raw data returned (focus LLM skipped)
+      expect(Array.isArray(result.structured.data)).toBe(true)
     })
 
     it('updates llmText via setLlmText', async () => {
+      // Use 2 tool results so the merge LLM is actually called
       const llm: LLMCompletionFn = vi.fn()
-        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        .mockImplementationOnce(async () => twoToolCallResponse())
         .mockImplementationOnce(async () => textResponse('ignored'))
         // Phase B text response
         .mockImplementationOnce(async (_msgs, _tools, onToken) => {
@@ -1318,11 +1359,13 @@ describe('ChatEngine', () => {
           return textResponse('ok')
         })
 
-      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+      const executor: ToolExecutorFn = vi.fn()
+        .mockResolvedValueOnce([{ id: 1 }])
+        .mockResolvedValueOnce([{ orderId: 100 }])
 
       const llmText = vi.fn().mockResolvedValue(JSON.stringify({ updated: true }))
 
-      const engine = new ChatEngine(llm, executor, testContext, {
+      const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
         parallelMerge: false,
       })
@@ -1371,7 +1414,8 @@ describe('ChatEngine', () => {
       // Extract JSON between the framing markers
       const jsonLine = rawContent.split('\n').find(l => l.startsWith('{'))!
       const compressed = JSON.parse(jsonLine)
-      expect(compressed.focused).toEqual({ focused: true })
+      // Single tool result: focus LLM skipped, raw data used as focused
+      expect(compressed.focused).toEqual([{ id: 1, name: 'Alice' }])
       expect(compressed.calls).toHaveLength(1)
       expect(compressed.calls[0].tool).toBe('list_users')
     })
@@ -1511,7 +1555,8 @@ describe('ChatEngine', () => {
       expect(toolMsg!.content).toContain('[API Result')
       const jsonLine = toolMsg!.content!.split('\n').find(l => l.startsWith('{'))!
       const content = JSON.parse(jsonLine)
-      expect(content.focused).toEqual({ focused: true })
+      // Single tool result: focus LLM skipped, raw data used as focused
+      expect(Array.isArray(content.focused)).toBe(true)
     })
   })
 
