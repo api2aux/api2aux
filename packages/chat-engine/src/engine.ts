@@ -186,17 +186,12 @@ export class ChatEngine {
       }
     }
 
-    // Note: if a plugin throws here, the tools from the last successful plugin
-    // (or the original tools) are used. For security-critical plugins (e.g. tool
-    // filtering to restrict access), plugins should catch internally.
+    // modifyTools errors propagate — fail-closed is safer than silently skipping
+    // a security-critical plugin (e.g., tool filtering to restrict access).
     let tools = [...this.context.tools]
     for (const plugin of this.plugins ?? []) {
       if (plugin.modifyTools) {
-        try {
-          tools = plugin.modifyTools(tools, this.context)
-        } catch (err) {
-          console.error(`[chat-engine] Plugin "${plugin.id}" modifyTools threw:`, err instanceof Error ? err.message : String(err))
-        }
+        tools = plugin.modifyTools(tools, this.context)
       }
     }
 
@@ -360,6 +355,7 @@ export class ChatEngine {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       console.error('[chat-engine] buildStructuredResponse failed:', errorMsg)
+      emit({ type: ChatEventType.Error, error: `Data processing failed (showing raw results): ${errorMsg}` })
       structured = {
         strategy: MergeStrategy.Array,
         sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),

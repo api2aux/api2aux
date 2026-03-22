@@ -64,13 +64,11 @@ async function reduceData(
 
     case 'embed-fields':
       if (embedFn) return embedFieldSelection(data, query, embedFn)
-      console.error('[chat-engine] embed-fields strategy requested but embedFn not provided — this is a configuration error. Falling back to truncate-values.')
-      return truncateValues(data)
+      throw new Error('embed-fields strategy requested but embedFn not provided — check ChatEngineConfig')
 
     case 'llm-fields':
       if (llmText) return llmFieldSelection(data, query, llmText)
-      console.error('[chat-engine] llm-fields strategy requested but llmText not provided — this is a configuration error. Falling back to truncate-values.')
-      return truncateValues(data)
+      throw new Error('llm-fields strategy requested but llmText not provided — check ChatEngineConfig')
 
     default:
       return truncateValues(data)
@@ -252,13 +250,9 @@ export async function llmFieldSelection(
     { role: MessageRole.User, content: `Question: ${query}\n\n${sampleText}` },
   ]
 
-  let content: string
-  try {
-    content = await llmText(messages)
-  } catch (err) {
-    console.error('[chat-engine] llm-fields call failed, falling back to truncate-values:', err instanceof Error ? err.message : String(err))
-    return truncateValues(data)
-  }
+  // LLM infrastructure errors (auth, rate limit, network) propagate to the caller —
+  // the outer reduceToolResultsForFocus catch handles fallback to raw data.
+  const content = await llmText(messages)
 
   const parsed = extractJson(content)
   if (!Array.isArray(parsed)) {

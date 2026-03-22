@@ -162,10 +162,11 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
     worker.onerror = (err: ErrorEvent) => {
       console.error('[embedding-service] Worker error:', err)
-      // Reject all pending requests
+      // Reject all pending requests with context from the ErrorEvent
+      const detail = err.message || 'unknown error'
       for (const [id, pending] of this.pendingRequests) {
         clearTimeout(pending.timer)
-        pending.reject(new Error('Embedding worker crashed'))
+        pending.reject(new Error(`Embedding worker crashed: ${detail}`))
         this.pendingRequests.delete(id)
       }
       // Reset worker state so the next call creates a fresh worker

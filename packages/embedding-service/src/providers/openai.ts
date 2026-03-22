@@ -88,7 +88,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
+      const errorText = await response.text().catch((e: Error) => `[body unreadable: ${e.message}]`)
       throw new EmbedHttpError(response.status, errorText)
     }
 

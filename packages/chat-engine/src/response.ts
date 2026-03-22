@@ -15,6 +15,15 @@ import { MergeStrategy, MessageRole } from './types'
 const MAX_FOCUS_CACHE_SIZE = 200
 const focusCache = new Map<string, unknown>()
 
+/** Simple djb2 string hash — fast, low-collision for cache keys. */
+function hashString(str: string): string {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0
+  }
+  return (hash >>> 0).toString(36)
+}
+
 /** Clear the focus result cache (call on API switch or user request). */
 export function clearFocusCache(): void {
   focusCache.clear()
@@ -192,7 +201,7 @@ async function mergeLlmGuided(
     .join('\n\n')
 
   // Check focus cache — same query + same data = same focused result
-  const focusKey = `${userMessage}::${resultsText.length}::${resultsText.slice(0, 250)}::${resultsText.slice(-250)}`
+  const focusKey = `${userMessage}::${hashString(resultsText)}`
   const cachedFocus = focusCache.get(focusKey)
   if (cachedFocus !== undefined) {
     return {

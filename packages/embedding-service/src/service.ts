@@ -72,6 +72,15 @@ export class EmbeddingService {
   async embed(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return []
 
+    if (!this.provider.isReady()) {
+      throw new Error(
+        `Embedding provider "${this.provider.id}" is not ready. ` +
+        (this.provider.id === 'openai'
+          ? 'Check that a valid OpenAI API key is configured.'
+          : 'The local model may still be loading.')
+      )
+    }
+
     const results: (number[] | undefined)[] = new Array(texts.length)
     const uncachedIndices: number[] = []
     const uncachedTexts: string[] = []

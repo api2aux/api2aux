@@ -515,26 +515,17 @@ describe('ChatEngine', () => {
       expect(result.text).toBe('ok')
     })
 
-    it('does not crash when modifyTools throws', async () => {
+    it('propagates modifyTools errors (fail-closed for security)', async () => {
       const plugin: ChatEnginePlugin = {
         id: 'bad-tools',
         modifyTools: () => { throw new Error('tools boom') },
       }
 
       const llm: LLMCompletionFn = vi.fn()
-        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
-        .mockImplementationOnce(async () => textResponse('ignored'))
-        // Phase B text response
-        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
-          onToken('ok')
-          return textResponse('ok')
-        })
-      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([])
+      const executor: ToolExecutorFn = vi.fn()
 
       const engine = new ChatEngine(llm, executor, testContext, { mergeStrategy: MergeStrategy.Array }, [plugin])
-      const result = await engine.sendMessage('test', onEvent)
-
-      expect(result.text).toBe('ok')
+      await expect(engine.sendMessage('test', onEvent)).rejects.toThrow('tools boom')
     })
 
     it('does not crash when processToolResult throws', async () => {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useChatStore } from '../../store/chatStore'
 import { getAllProviders, getProvider } from '../../services/llm/providers/registry'
 import type { ProviderId } from '../../services/llm/types'
+import { clearFocusCache } from '@api2aux/chat-engine'
 
 export function ChatSettings() {
   const { config, setConfig, apiCacheEnabled, setApiCacheEnabled, apiCache, clearApiCache, embeddingProvider, setEmbeddingProvider, focusReduction, setFocusReduction } = useChatStore()
@@ -25,7 +26,9 @@ export function ChatSettings() {
               const provider = e.target.value as ProviderId
               const p = getProvider(provider)
               const defaultModel = p?.models[0]?.value ?? ''
+              if (provider !== config.provider && !window.confirm('Switching provider will clear cached focus results. Continue?')) return
               setConfig({ provider, model: defaultModel })
+              clearFocusCache()
             }}
             className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground"
           >
@@ -45,7 +48,12 @@ export function ChatSettings() {
           <label className="text-xs font-medium text-muted-foreground block mb-1">Model</label>
           <select
             value={config.model}
-            onChange={(e) => setConfig({ model: e.target.value })}
+            onChange={(e) => {
+              const newModel = e.target.value
+              if (newModel !== config.model && !window.confirm('Switching model will clear cached focus results. Continue?')) return
+              setConfig({ model: newModel })
+              clearFocusCache()
+            }}
             className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground"
           >
             {models.map((m) => (
