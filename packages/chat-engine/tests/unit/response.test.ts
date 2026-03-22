@@ -390,3 +390,4 @@ describe('extractJson', () => {
     expect(extractJson('"hello"')).toBe('hello')
   })
 })
+

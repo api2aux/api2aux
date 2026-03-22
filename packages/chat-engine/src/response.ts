@@ -132,7 +132,28 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
 
 const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document. Include ALL items from each result that are relevant to the user's question. Preserve key fields needed for comparison or display. Return ONLY valid JSON, nothing else.`
 
-const FOCUS_PROMPT = `You are a data assistant. Given the following API result and the user's question, extract only the items that are relevant to the question. Keep all fields for each matching item. Return ONLY valid JSON, nothing else.`
+const FOCUS_PROMPT = `You are a data assistant. Given an API result and a user's question, extract only the data that directly answers the question.
+
+Key rule: API responses often wrap actual data inside envelope objects with pagination metadata (total, skip, limit, count, page, offset). Return the actual data items, not the pagination metadata — unless the user specifically asks about counts or totals.
+
+Example 1:
+API result: {"products":[{"id":1,"name":"Chair","price":50},{"id":2,"name":"Table","price":100}],"total":20,"skip":0,"limit":10}
+Question: show me chairs
+Output: [{"id":1,"name":"Chair","price":50}]
+
+Example 2:
+API result: {"data":[{"id":1,"category":"food","name":"Apple"},{"id":2,"category":"drink","name":"Cola"}],"meta":{"total":100,"page":1}}
+Question: show me food
+Output: [{"id":1,"category":"food","name":"Apple"}]
+
+Example 3:
+API result: {"products":[{"id":1,"name":"Chair"}],"total":20,"skip":0,"limit":10}
+Question: how many products are there?
+Output: {"total":20}
+
+Return ONLY valid JSON, nothing else.`
+
+const FOCUS_LLM_TIMEOUT_MS = 10_000
 
 /**
  * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
@@ -183,9 +204,14 @@ async function mergeLlmGuided(
   // while malformed LLM output falls back gracefully.
   let content: string
   try {
-    content = await llm(messages)
+    content = await Promise.race([
+      llm(messages),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Focus LLM timed out')), FOCUS_LLM_TIMEOUT_MS),
+      ),
+    ])
   } catch (err) {
-    // LLM infrastructure error (network, auth, rate limit) — let it propagate
+    // LLM infrastructure error (network, auth, rate limit, timeout) — let it propagate
     // so the caller can handle it visibly rather than silently degrading.
     throw err
   }
