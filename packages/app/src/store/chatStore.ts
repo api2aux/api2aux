@@ -96,7 +96,11 @@ export const useChatStore = create<ChatState>()(
       addCallLogEntry: (entry) => set((s) => {
         const log = [...s.callLog, entry]
         // Cap at 500 entries to prevent unbounded memory growth in long sessions
-        return { callLog: log.length > 500 ? log.slice(-500) : log }
+        if (log.length > 500) {
+          console.info(`[chat] Call log truncated from ${log.length} to 500 entries`)
+          return { callLog: log.slice(-500) }
+        }
+        return { callLog: log }
       }),
       clearCallLog: () => set({ callLog: [] }),
     }),

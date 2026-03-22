@@ -29,12 +29,13 @@ export function clearFocusCache(): void {
  */
 export function extractJson(raw: string): unknown | null {
   const trimmed = raw.trim()
-  try { return JSON.parse(trimmed) } catch { /* try other formats */ }
+  let lastError: unknown
+  try { return JSON.parse(trimmed) } catch (e) { lastError = e }
 
   // Markdown code block: ```json ... ```
   const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
   if (fenceMatch) {
-    try { return JSON.parse(fenceMatch[1]!) } catch { /* try bracket extraction */ }
+    try { return JSON.parse(fenceMatch[1]!) } catch (e) { lastError = e }
   }
 
   // Outermost { } or [ ]
@@ -43,13 +44,14 @@ export function extractJson(raw: string): unknown | null {
     const closer = trimmed[start] === '{' ? '}' : ']'
     const end = trimmed.lastIndexOf(closer)
     if (end > start) {
-      try { return JSON.parse(trimmed.slice(start, end + 1)) } catch { /* fall through */ }
+      try { return JSON.parse(trimmed.slice(start, end + 1)) } catch (e) { lastError = e }
     }
   }
 
   // All parse attempts failed — log for debugging
   const preview = trimmed.length > 200 ? trimmed.slice(0, 200) + '...' : trimmed
-  console.warn('[chat-engine] extractJson: all parse attempts failed. Raw content:', preview)
+  const errMsg = lastError instanceof Error ? lastError.message : String(lastError)
+  console.warn('[chat-engine] extractJson: all parse attempts failed. Last error:', errMsg, 'Raw:', preview)
   return null
 }
 
@@ -124,6 +126,7 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
 
   // If no entities with ID fields were found, fall back to array strategy
   if (entityMap.size === 0) {
+    console.warn('[chat-engine] Schema-based merge found no entities with ID fields; falling back to array strategy')
     return mergeArray(toolResults)
   }
 
@@ -292,8 +295,8 @@ export async function formatStructuredResponse(
       if (llm && userMessage) {
         return mergeLlmGuided(toolResults, userMessage, llm, reducedResults)
       }
-      console.warn(
-        '[chat-engine] LLM-guided merge requested but llm/userMessage not provided; falling back to array strategy',
+      console.error(
+        '[chat-engine] LLM-guided merge requested but llm/userMessage not provided — this is a configuration error. Falling back to array strategy.',
       )
       return mergeArray(toolResults)
 

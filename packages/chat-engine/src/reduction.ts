@@ -256,7 +256,7 @@ export async function llmFieldSelection(
   try {
     content = await llmText(messages)
   } catch (err) {
-    console.warn('[chat-engine] llm-fields call failed, falling back to truncate-values:', err instanceof Error ? err.message : String(err))
+    console.error('[chat-engine] llm-fields call failed, falling back to truncate-values:', err instanceof Error ? err.message : String(err))
     return truncateValues(data)
   }
 

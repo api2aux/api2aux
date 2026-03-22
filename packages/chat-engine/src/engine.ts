@@ -358,7 +358,10 @@ export class ChatEngine {
     try {
       structured = await this.buildStructuredResponse(collectedResults, text)
     } catch (err) {
-      console.error('[chat-engine] buildStructuredResponse failed:', err instanceof Error ? err.message : String(err))
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      console.error('[chat-engine] buildStructuredResponse failed:', errorMsg)
+      // Surface the error so the UI can show a degraded-mode indicator
+      emit({ type: ChatEventType.Error, error: `Focus/merge failed (using raw data): ${errorMsg}` })
       structured = {
         strategy: MergeStrategy.Array,
         sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
@@ -463,7 +466,8 @@ export class ChatEngine {
       console.warn('[chat-engine] Failed to serialize focused data for history compression:', err instanceof Error ? err.message : String(err))
       try {
         serialized = JSON.stringify({ calls: metadata, error: 'Data could not be serialized' })
-      } catch {
+      } catch (innerErr) {
+        console.warn('[chat-engine] Even metadata serialization failed:', innerErr instanceof Error ? innerErr.message : String(innerErr))
         serialized = '[API Result — data could not be serialized]'
       }
     }
