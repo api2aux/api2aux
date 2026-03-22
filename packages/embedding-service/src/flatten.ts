@@ -2,15 +2,15 @@
  * JSON → text flattener for embedding.
  *
  * Converts arbitrary JSON objects into natural language text suitable for
- * embedding models. All scalar fields are included (no field exclusion),
- * ordered by string length so semantically rich fields (title, description)
- * appear first. This approach is domain-agnostic and works for any API.
+ * embedding models. All scalar fields are included except URLs and base64
+ * blobs (which carry no semantic value for embedding). Nested objects are
+ * skipped; nested arrays are summarized. Fields are ordered by string
+ * length so semantically rich fields (title, description) appear first.
+ * This approach is domain-agnostic and works for any API.
  *
  * Why flatten? Raw JSON wastes ~25% of tokens on structural syntax
  * ({, }, ", :, [, ]) that carries zero semantic value, reducing embedding
- * quality by 19-27% compared to natural language representations.
- *
- * @see https://towardsdatascience.com/optimizing-vector-search-why-you-should-flatten-structured-data/
+ * quality compared to natural language representations.
  */
 
 /** Maximum characters per flattened item (gte-small supports 512 tokens ≈ ~2000 chars). */
@@ -81,7 +81,7 @@ function summarizeArray(key: string, arr: unknown[]): string | null {
   if (arr.length > 0 && typeof arr[0] === 'object' && arr[0] !== null) {
     const firstItem = arr[0] as Record<string, unknown>
     const numericField = Object.entries(firstItem).find(
-      ([, v]) => typeof v === 'number' && !['id', '_id'].includes(Object.keys(firstItem).find(k => firstItem[k] === v) ?? ''),
+      ([key, v]) => typeof v === 'number' && !['id', '_id'].includes(key),
     )
     if (numericField) {
       const values = arr

@@ -105,6 +105,7 @@ function filterToKnownParams(args: Record<string, unknown>, apiUrl: string): Rec
     }
     return filtered
   } catch {
+    console.warn('[useChat] filterToKnownParams: failed to parse URL, hallucination guardrail bypassed:', apiUrl)
     return args
   }
 }
@@ -278,10 +279,11 @@ export function useChat() {
     // Initialize embedding service (lazy, shared across engine recreations)
     if (!embeddingRef.current) {
       const { embeddingProvider, config: chatConfig } = useChatStore.getState()
-      embeddingRef.current = new EmbeddingService({
-        provider: embeddingProvider,
-        openaiApiKey: embeddingProvider === 'openai' ? chatConfig.apiKey : undefined,
-      })
+      embeddingRef.current = new EmbeddingService(
+        embeddingProvider === 'openai'
+          ? { provider: 'openai', openaiApiKey: chatConfig.apiKey }
+          : { provider: 'local' },
+      )
     }
     const embedFn = (texts: string[]) => embeddingRef.current!.embed(texts)
 
@@ -306,6 +308,9 @@ export function useChat() {
       engineRef.current.setLlm(llmFn)
       engineRef.current.setLlmText(llmTextFn)
       engineRef.current.setExecutor(createToolExecutor(url))
+      engineRef.current.setEmbedFn(embedFn)
+      const { focusReduction } = useChatStore.getState()
+      engineRef.current.setFocusReduction(focusReduction)
     }
     return engineRef.current
   }, [url, context, llmFn, llmTextFn])

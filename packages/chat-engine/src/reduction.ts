@@ -2,7 +2,8 @@
  * Focus reduction strategies.
  *
  * Reduces per-item data SIZE before sending to the focus/merge LLM,
- * while preserving ALL items. Three strategies:
+ * while preserving ALL items in the array (item-level filtering, if any,
+ * happens earlier via the embedding service). Three strategies:
  *
  * - truncate-values: keep all fields, truncate long values (default)
  * - embed-fields: select relevant fields via embedding similarity
@@ -45,7 +46,12 @@ export async function reduceToolResultsForFocus(
     try {
       reducedData = await reduceData(result.data, query, strategy, embedFn, llmText)
     } catch (err) {
-      console.warn('[chat-engine] Focus reduction failed, using raw data:', err instanceof Error ? err.message : String(err))
+      // Distinguish programming errors from expected failures
+      if (err instanceof TypeError || err instanceof ReferenceError) {
+        console.error('[chat-engine] Focus reduction hit unexpected error (possible bug):', err)
+      } else {
+        console.warn('[chat-engine] Focus reduction failed, using raw data:', err instanceof Error ? err.message : String(err))
+      }
       reducedData = result.data
     }
     reduced.push(reducedData !== result.data ? { ...result, data: reducedData } : result)
@@ -81,7 +87,7 @@ async function reduceData(
   }
 }
 
-// ── Strategy 1: truncate-values ──
+// ── truncate-values strategy ──
 
 const MAX_STRING_LENGTH = 200
 const MAX_ARRAY_ITEMS = 5
@@ -175,7 +181,7 @@ function summarizeObjectArray(key: string, arr: unknown[]): string {
   return `${arr.length} ${key}`
 }
 
-// ── Strategy 2: embed-fields ──
+// ── embed-fields strategy ──
 
 const ALWAYS_INCLUDE_FIELDS = new Set(['id', '_id', 'name', 'title', 'label'])
 const DEFAULT_FIELD_K = 10
@@ -190,7 +196,7 @@ export async function embedFieldSelection(
   query: string,
   embedFn: EmbedFn,
 ): Promise<unknown> {
-  const { items, wrapper } = extractItems(data)
+  const { items, wrapper, arrayKey } = extractItems(data)
   if (!items || items.length === 0) return data
 
   // Build field descriptors: "fieldName: sampleValue1, sampleValue2, ..."
@@ -225,10 +231,10 @@ export async function embedFieldSelection(
 
   // Filter items to selected fields only
   const filteredItems = items.map(item => filterFields(item, selectedFields))
-  return wrapper ? { ...wrapper, [findArrayKey(data)!]: filteredItems } : filteredItems
+  return wrapper && arrayKey ? { ...wrapper, [arrayKey]: filteredItems } : filteredItems
 }
 
-// ── Strategy 3: llm-fields ──
+// ── llm-fields strategy ──
 
 const FIELD_SELECTION_PROMPT = `You are a data analyst. Given a user's question and the available data fields (with a sample row), determine which fields are needed to answer the question. Return ONLY a JSON array of field names, nothing else.`
 
@@ -241,7 +247,7 @@ export async function llmFieldSelection(
   query: string,
   llmText: LLMTextFn,
 ): Promise<unknown> {
-  const { items, wrapper } = extractItems(data)
+  const { items, wrapper, arrayKey } = extractItems(data)
   if (!items || items.length === 0) return data
 
   const fieldNames = collectFieldNames(items)
@@ -277,44 +283,32 @@ export async function llmFieldSelection(
   }
 
   const filteredItems = items.map(item => filterFields(item, selectedFields))
-  return wrapper ? { ...wrapper, [findArrayKey(data)!]: filteredItems } : filteredItems
+  return wrapper && arrayKey ? { ...wrapper, [arrayKey]: filteredItems } : filteredItems
 }
 
 // ── Shared utilities ──
 
-/** Extract the main array of items from data (handles both direct arrays and wrapper objects). */
-function extractItems(data: unknown): { items: Record<string, unknown>[] | null; wrapper: Record<string, unknown> | null } {
+/** Extract the main array of items from data (handles both direct arrays and wrapper objects). Returns the array key to avoid re-scanning. */
+function extractItems(data: unknown): { items: Record<string, unknown>[] | null; wrapper: Record<string, unknown> | null; arrayKey: string | null } {
   if (Array.isArray(data)) {
     const objects = data.filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object' && !Array.isArray(item))
-    return { items: objects.length > 0 ? objects : null, wrapper: null }
+    return { items: objects.length > 0 ? objects : null, wrapper: null, arrayKey: null }
   }
 
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     const obj = data as Record<string, unknown>
     // Find the first array property with objects
-    for (const [, value] of Object.entries(obj)) {
+    for (const [key, value] of Object.entries(obj)) {
       if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
         const objects = value.filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object' && !Array.isArray(item))
         if (objects.length > 0) {
-          return { items: objects, wrapper: obj }
+          return { items: objects, wrapper: obj, arrayKey: key }
         }
       }
     }
   }
 
-  return { items: null, wrapper: null }
-}
-
-/** Find the key of the main array property in a wrapper object. */
-function findArrayKey(data: unknown): string | null {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
-  const obj = data as Record<string, unknown>
-  for (const [key, value] of Object.entries(obj)) {
-    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
-      return key
-    }
-  }
-  return null
+  return { items: null, wrapper: null, arrayKey: null }
 }
 
 /** Collect all unique field names across items. */

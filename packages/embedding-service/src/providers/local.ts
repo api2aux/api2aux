@@ -5,23 +5,28 @@
  * Model is downloaded on first use and cached by the browser.
  *
  * In non-browser environments (Node.js, tests), falls back to
- * running on the main thread.
+ * running on the main thread (browser-with-window check: both
+ * Worker and window must exist).
  */
 
 import type { EmbeddingProvider } from '../types'
 
-/** Messages sent to/from the embedding worker. */
-export type WorkerMessage =
-  | { type: 'embed'; id: number; texts: string[]; model: string }
+/** Messages sent TO the embedding worker. */
+export type WorkerRequest = { type: 'embed'; id: number; texts: string[]; model: string }
+
+/** Messages received FROM the embedding worker. */
+export type WorkerResponse =
   | { type: 'result'; id: number; vectors: number[][] }
   | { type: 'error'; id: number; error: string }
   | { type: 'ready' }
 
 const DEFAULT_MODEL = 'Xenova/gte-small'
+const WORKER_REQUEST_TIMEOUT_MS = 30_000
 
 export class LocalEmbeddingProvider implements EmbeddingProvider {
   readonly id = 'local'
   readonly name = 'Local (Browser)'
+  readonly dimensions = 384
 
   private model: string
   private worker: Worker | null = null
@@ -29,9 +34,11 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   private pendingRequests = new Map<number, {
     resolve: (vectors: number[][]) => void
     reject: (error: Error) => void
+    timer: ReturnType<typeof setTimeout>
   }>()
   private nextId = 0
   private pipeline: unknown = null
+  private initError: Error | null = null
 
   constructor(model?: string) {
     this.model = model ?? DEFAULT_MODEL
@@ -61,19 +68,36 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
     const id = this.nextId++
     return new Promise<number[][]>((resolve, reject) => {
-      this.pendingRequests.set(id, { resolve, reject })
-      this.worker!.postMessage({ type: 'embed', id, texts, model: this.model } satisfies WorkerMessage)
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(id)
+        reject(new Error(`Embedding worker request timed out after ${WORKER_REQUEST_TIMEOUT_MS}ms`))
+      }, WORKER_REQUEST_TIMEOUT_MS)
+
+      this.pendingRequests.set(id, { resolve, reject, timer })
+      this.worker!.postMessage({ type: 'embed', id, texts, model: this.model } satisfies WorkerRequest)
     })
   }
 
   /** Embed directly on the main thread (Node.js/test path). */
   private async embedDirect(texts: string[]): Promise<number[][]> {
+    if (this.initError) {
+      throw new Error(`Local embedding provider previously failed to initialize: ${this.initError.message}`)
+    }
+
     if (!this.pipeline) {
-      const { pipeline } = await import('@huggingface/transformers')
-      this.pipeline = await pipeline('feature-extraction', this.model, {
-        dtype: 'q8',
-      })
-      this.ready = true
+      try {
+        const { pipeline } = await import('@huggingface/transformers')
+        this.pipeline = await pipeline('feature-extraction', this.model, {
+          dtype: 'q8',
+        })
+        this.ready = true
+      } catch (err) {
+        this.initError = err instanceof Error ? err : new Error(String(err))
+        throw new Error(
+          `Failed to initialize local embedding provider (model: ${this.model}): ${this.initError.message}. ` +
+          `Ensure @huggingface/transformers is installed, or switch to the OpenAI embedding provider.`
+        )
+      }
     }
 
     const extractor = this.pipeline as (texts: string[], options: { pooling: string; normalize: boolean }) => Promise<{ tolist: () => number[][] }>
@@ -111,19 +135,21 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     const blob = new Blob([workerCode], { type: 'application/javascript' })
     const worker = new Worker(URL.createObjectURL(blob), { type: 'module' })
 
-    worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
+    worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const msg = e.data
       if (msg.type === 'ready') {
         this.ready = true
       } else if (msg.type === 'result') {
         const pending = this.pendingRequests.get(msg.id)
         if (pending) {
+          clearTimeout(pending.timer)
           this.pendingRequests.delete(msg.id)
           pending.resolve(msg.vectors)
         }
       } else if (msg.type === 'error') {
         const pending = this.pendingRequests.get(msg.id)
         if (pending) {
+          clearTimeout(pending.timer)
           this.pendingRequests.delete(msg.id)
           pending.reject(new Error(msg.error))
         }
@@ -134,6 +160,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
       console.error('[embedding-service] Worker error:', err)
       // Reject all pending requests
       for (const [id, pending] of this.pendingRequests) {
+        clearTimeout(pending.timer)
         pending.reject(new Error('Embedding worker crashed'))
         this.pendingRequests.delete(id)
       }
@@ -144,9 +171,14 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
   /** Terminate the worker and clean up. */
   destroy(): void {
+    for (const [, pending] of this.pendingRequests) {
+      clearTimeout(pending.timer)
+    }
+    this.pendingRequests.clear()
     this.worker?.terminate()
     this.worker = null
     this.ready = false
     this.pipeline = null
+    this.initError = null
   }
 }

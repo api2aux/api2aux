@@ -12,7 +12,7 @@
  */
 
 // === Types ===
-export type { EmbeddingProvider, EmbeddingServiceConfig, RelevanceResult } from './types'
+export type { EmbeddingProvider, EmbeddingServiceConfig, RelevanceResult, RelevanceEntry } from './types'
 
 // === Service ===
 export { EmbeddingService } from './service'

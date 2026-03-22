@@ -205,10 +205,8 @@ export interface ChatEngineConfig {
   parallelMerge?: boolean
   /** Non-streaming LLM for merge/focus calls. When provided, runs in a separate async context from the streaming LLM. Falls back to the streaming LLM with a no-op token handler if not set. */
   llmText?: LLMTextFn
-  /** Embedding function for semantic context reduction. When provided, large tool results are reduced to the most relevant items before the focus/merge LLM call. */
+  /** Embedding function for field-level reduction strategies (embed-fields). Used by reduceToolResultsForFocus to select relevant fields via embedding similarity. */
   embedFn?: (texts: string[]) => Promise<number[][]>
-  /** Number of top items to keep after embedding-based filtering. Default: 8. */
-  embedTopK?: number
   /** Strategy for reducing data before the focus/merge LLM call. Default: 'truncate-values'. */
   focusReduction?: 'truncate-values' | 'embed-fields' | 'llm-fields'
 }

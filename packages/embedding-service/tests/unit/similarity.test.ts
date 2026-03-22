@@ -39,7 +39,7 @@ describe('cosineSimilarity', () => {
 describe('topK', () => {
   const queryVector = [1, 0, 0]
 
-  it('returns indices sorted by similarity (highest first)', () => {
+  it('returns results sorted by similarity (highest first)', () => {
     const items = [
       [0, 1, 0],  // orthogonal → 0
       [1, 0, 0],  // identical → 1
@@ -47,8 +47,11 @@ describe('topK', () => {
     ]
 
     const result = topK(queryVector, items, 3)
-    expect(result.indices).toEqual([1, 2, 0])
-    expect(result.scores[0]).toBeCloseTo(1.0)
+    expect(result.results).toHaveLength(3)
+    expect(result.results[0]!.index).toBe(1)
+    expect(result.results[1]!.index).toBe(2)
+    expect(result.results[2]!.index).toBe(0)
+    expect(result.results[0]!.score).toBeCloseTo(1.0)
   })
 
   it('returns only K items when K < items.length', () => {
@@ -60,22 +63,20 @@ describe('topK', () => {
     ]
 
     const result = topK(queryVector, items, 2)
-    expect(result.indices).toHaveLength(2)
-    expect(result.scores).toHaveLength(2)
+    expect(result.results).toHaveLength(2)
     // Top 2 should be the most similar
-    expect(result.indices[0]).toBe(1) // identical
-    expect(result.indices[1]).toBe(3) // 0.9, 0.1
+    expect(result.results[0]!.index).toBe(1) // identical
+    expect(result.results[1]!.index).toBe(3) // 0.9, 0.1
   })
 
   it('returns all items when K > items.length', () => {
     const items = [[1, 0, 0], [0, 1, 0]]
     const result = topK(queryVector, items, 10)
-    expect(result.indices).toHaveLength(2)
+    expect(result.results).toHaveLength(2)
   })
 
   it('handles empty items array', () => {
     const result = topK(queryVector, [], 5)
-    expect(result.indices).toEqual([])
-    expect(result.scores).toEqual([])
+    expect(result.results).toEqual([])
   })
 })

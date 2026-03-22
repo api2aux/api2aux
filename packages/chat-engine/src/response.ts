@@ -12,6 +12,7 @@ import { MergeStrategy, MessageRole } from './types'
 
 // ── Focus result cache ──
 
+const MAX_FOCUS_CACHE_SIZE = 200
 const focusCache = new Map<string, unknown>()
 
 /** Clear the focus result cache (call on API switch or user request). */
@@ -28,12 +29,12 @@ export function clearFocusCache(): void {
  */
 export function extractJson(raw: string): unknown | null {
   const trimmed = raw.trim()
-  try { return JSON.parse(trimmed) } catch {}
+  try { return JSON.parse(trimmed) } catch { /* try other formats */ }
 
   // Markdown code block: ```json ... ```
   const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
   if (fenceMatch) {
-    try { return JSON.parse(fenceMatch[1]!) } catch {}
+    try { return JSON.parse(fenceMatch[1]!) } catch { /* try bracket extraction */ }
   }
 
   // Outermost { } or [ ]
@@ -42,10 +43,13 @@ export function extractJson(raw: string): unknown | null {
     const closer = trimmed[start] === '{' ? '}' : ']'
     const end = trimmed.lastIndexOf(closer)
     if (end > start) {
-      try { return JSON.parse(trimmed.slice(start, end + 1)) } catch {}
+      try { return JSON.parse(trimmed.slice(start, end + 1)) } catch { /* fall through */ }
     }
   }
 
+  // All parse attempts failed — log for debugging
+  const preview = trimmed.length > 200 ? trimmed.slice(0, 200) + '...' : trimmed
+  console.warn('[chat-engine] extractJson: all parse attempts failed. Raw content:', preview)
   return null
 }
 
@@ -218,6 +222,11 @@ async function mergeLlmGuided(
 
   const parsed = extractJson(content)
   if (parsed !== null) {
+    // LRU eviction: remove oldest entries when cache is full
+    if (focusCache.size >= MAX_FOCUS_CACHE_SIZE) {
+      const firstKey = focusCache.keys().next().value as string
+      focusCache.delete(firstKey)
+    }
     focusCache.set(focusKey, parsed)
     return {
       strategy: MergeStrategy.LlmGuided,

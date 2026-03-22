@@ -12,6 +12,7 @@ import { LocalEmbeddingProvider } from './providers/local'
 import { OpenAIEmbeddingProvider } from './providers/openai'
 
 const DEFAULT_TOP_K = 8
+const MAX_CACHE_SIZE = 2000
 
 export class EmbeddingService {
   private provider: EmbeddingProvider
@@ -23,7 +24,7 @@ export class EmbeddingService {
   constructor(config: EmbeddingServiceConfig) {
     this.topKValue = config.topK ?? DEFAULT_TOP_K
 
-    if (config.provider === 'openai' && config.openaiApiKey) {
+    if (config.provider === 'openai') {
       this.openaiProvider = new OpenAIEmbeddingProvider(config.openaiApiKey, config.openaiModel)
       this.provider = this.openaiProvider
     } else {
@@ -42,8 +43,9 @@ export class EmbeddingService {
     return this.provider.isReady()
   }
 
-  /** Switch to a different provider. */
+  /** Switch to a different provider. Clears the vector cache to prevent cross-dimensionality corruption. */
   setProvider(providerId: 'local' | 'openai', config?: { apiKey?: string; model?: string }): void {
+    const previousId = this.provider.id
     if (providerId === 'openai') {
       if (!this.openaiProvider) {
         this.openaiProvider = new OpenAIEmbeddingProvider(config?.apiKey ?? '', config?.model)
@@ -56,6 +58,10 @@ export class EmbeddingService {
         this.localProvider = new LocalEmbeddingProvider(config?.model)
       }
       this.provider = this.localProvider
+    }
+    // Clear cache when switching providers to avoid mixing different-dimensionality vectors
+    if (previousId !== this.provider.id) {
+      this.vectorCache.clear()
     }
   }
 
@@ -78,10 +84,30 @@ export class EmbeddingService {
     }
 
     if (uncachedTexts.length > 0) {
-      const newVectors = await this.provider.embed(uncachedTexts)
+      let newVectors: number[][]
+      try {
+        newVectors = await this.provider.embed(uncachedTexts)
+      } catch (err) {
+        const providerName = this.provider.id
+        const original = err instanceof Error ? err.message : String(err)
+        throw new Error(`Embedding provider "${providerName}" failed: ${original}`)
+      }
+
+      if (newVectors.length !== uncachedTexts.length) {
+        throw new Error(
+          `Embedding provider "${this.provider.id}" returned ${newVectors.length} vectors ` +
+          `for ${uncachedTexts.length} input texts — results would be corrupted`
+        )
+      }
+
       for (let j = 0; j < uncachedIndices.length; j++) {
         const idx = uncachedIndices[j]!
         results[idx] = newVectors[j]!
+        // LRU eviction: remove oldest entries when cache is full
+        if (this.vectorCache.size >= MAX_CACHE_SIZE) {
+          const firstKey = this.vectorCache.keys().next().value as string
+          this.vectorCache.delete(firstKey)
+        }
         this.vectorCache.set(texts[idx]!, newVectors[j]!)
       }
     }
@@ -100,27 +126,17 @@ export class EmbeddingService {
    * 1. Flattens each item to natural language text
    * 2. Embeds query + items
    * 3. Returns top-K by cosine similarity
-   *
-   * @param query - The user's question
-   * @param items - Array of data items (JSON objects)
-   * @param k - Number of top results (default: configured topK)
-   * @returns Indices and scores of the most relevant items
    */
   async findRelevant(query: string, items: unknown[], k?: number): Promise<RelevanceResult> {
     const effectiveK = k ?? this.topKValue
-    if (items.length === 0) return { indices: [], scores: [] }
+    if (items.length === 0) return { results: [] }
     if (items.length <= effectiveK) {
-      // All items fit — return all with dummy scores
       return {
-        indices: items.map((_, i) => i),
-        scores: items.map(() => 1.0),
+        results: items.map((_, i) => ({ index: i, score: 1.0 })),
       }
     }
 
-    // Flatten items to text
     const itemTexts = items.map(flattenForEmbedding)
-
-    // Embed query and items together (single batch for efficiency)
     const allTexts = [query, ...itemTexts]
     const allVectors = await this.embed(allTexts)
 
@@ -135,8 +151,8 @@ export class EmbeddingService {
    * Convenience method that returns the actual items, not just indices.
    */
   async reduceToRelevant<T>(query: string, items: T[], k?: number): Promise<T[]> {
-    const { indices } = await this.findRelevant(query, items, k)
-    return indices.map(i => items[i]!)
+    const { results } = await this.findRelevant(query, items, k)
+    return results.map(r => items[r.index]!)
   }
 
   /** Clear the embedding vector cache. */

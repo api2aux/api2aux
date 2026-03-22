@@ -27,14 +27,14 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 
 /**
  * Find the top-K vectors most similar to the query vector.
- * Returns indices and scores sorted by similarity (highest first).
+ * Returns results sorted by similarity (highest first).
  */
 export function topK(
   queryVector: number[],
   itemVectors: number[][],
   k: number,
 ): RelevanceResult {
-  if (itemVectors.length === 0) return { indices: [], scores: [] }
+  if (itemVectors.length === 0) return { results: [] }
 
   const scored = itemVectors.map((vec, index) => ({
     index,
@@ -43,10 +43,7 @@ export function topK(
 
   scored.sort((a, b) => b.score - a.score)
 
-  const top = scored.slice(0, Math.min(k, scored.length))
-
   return {
-    indices: top.map(s => s.index),
-    scores: top.map(s => s.score),
+    results: scored.slice(0, Math.min(k, scored.length)),
   }
 }

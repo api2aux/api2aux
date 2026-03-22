@@ -40,7 +40,7 @@ export class ChatEngine {
   private readonly parallelMerge: boolean
   private llmText: LLMTextFn | undefined
   private embedFn: ((texts: string[]) => Promise<number[][]>) | undefined
-  private readonly focusReduction: FocusReductionStrategy
+  private focusReduction: FocusReductionStrategy
 
   constructor(
     llm: LLMCompletionFn,
@@ -93,12 +93,13 @@ export class ChatEngine {
   }
 
   /** Get the resolved engine configuration. */
-  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText' | 'embedFn' | 'embedTopK' | 'focusReduction'>>> {
+  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText' | 'embedFn'>>> {
     return {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
       mergeStrategy: this.mergeStrategy,
       parallelMerge: this.parallelMerge,
+      focusReduction: this.focusReduction,
     }
   }
 
@@ -110,6 +111,16 @@ export class ChatEngine {
   /** Update the non-streaming LLM function used for merge/focus calls. */
   setLlmText(llmText: LLMTextFn | undefined): void {
     this.llmText = llmText
+  }
+
+  /** Update the embedding function used for embed-fields reduction. */
+  setEmbedFn(embedFn: ((texts: string[]) => Promise<number[][]>) | undefined): void {
+    this.embedFn = embedFn
+  }
+
+  /** Update the focus reduction strategy. */
+  setFocusReduction(strategy: FocusReductionStrategy): void {
+    this.focusReduction = strategy
   }
 
   /** Update the tool executor (e.g., when user changes API URL). */
@@ -236,7 +247,7 @@ export class ChatEngine {
         // Return the text response as-is (no focus step needed).
         const responseText = collectedResults.length === 0 ? NO_DATA_MESSAGE : (streamResult.content || 'Done.')
         this.history.push({ role: MessageRole.Assistant, content: responseText })
-        const structured = await this.buildArrayFallback(collectedResults)
+        const structured = this.buildArrayFallback(collectedResults)
         emit({ type: ChatEventType.TurnComplete, text: responseText, toolResults: collectedResults, structured })
         return { text: responseText, toolResults: collectedResults, structured, history: [...this.history] }
       }
@@ -419,7 +430,7 @@ export class ChatEngine {
   }
 
   /** Build an Array-strategy fallback response (no focus/merge). */
-  private async buildArrayFallback(collectedResults: ToolResultEntry[]): Promise<StructuredResponse> {
+  private buildArrayFallback(collectedResults: ToolResultEntry[]): StructuredResponse {
     return {
       strategy: MergeStrategy.Array,
       sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
@@ -430,8 +441,11 @@ export class ChatEngine {
   /**
    * Replace raw tool result messages in history with compact data + endpoint metadata.
    * For LLM-guided/schema-based merges: uses the focused data (already compact).
-   * For Array strategy (single result / fallback): uses truncated raw data.
+   * For Array strategy (single result / fallback): uses raw data.
    * The full raw data remains in collectedResults for UI consumption.
+   *
+   * Collects tool_call_ids from ALL assistant tool_calls messages in the current
+   * turn (not just the last one), so multi-round tool calling is compressed fully.
    */
   private compressToolHistory(
     collectedResults: ToolResultEntry[],
@@ -454,13 +468,14 @@ export class ChatEngine {
       '[End of API Result]',
     ].join('\n')
 
-    // Find tool_call_ids from the most recent assistant tool_calls message
+    // Find tool_call_ids from ALL assistant tool_calls messages in this turn.
+    // Walk backward from the end and stop when we hit the user message that started this turn.
     const toolCallIds = new Set<string>()
     for (let i = this.history.length - 1; i >= 0; i--) {
       const msg = this.history[i]!
+      if (msg.role === MessageRole.User) break
       if (msg.role === MessageRole.Assistant && msg.tool_calls) {
         for (const tc of msg.tool_calls) toolCallIds.add(tc.id)
-        break
       }
     }
 

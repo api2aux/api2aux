@@ -10,6 +10,8 @@ export interface EmbeddingProvider {
   readonly id: string
   /** Display name for UI. */
   readonly name: string
+  /** Dimensionality of the vectors this provider produces (e.g., 384 for gte-small, 1536 for text-embedding-3-small). */
+  readonly dimensions: number
   /** Convert an array of texts into embedding vectors. */
   embed(texts: string[]): Promise<number[][]>
   /** Whether the provider is ready to embed (model loaded, API key set, etc.). */
@@ -17,23 +19,20 @@ export interface EmbeddingProvider {
 }
 
 /** Configuration for the embedding service. */
-export interface EmbeddingServiceConfig {
-  /** Default provider to use. */
-  provider: 'local' | 'openai'
-  /** Model ID for the local provider (default: 'Xenova/gte-small'). */
-  localModel?: string
-  /** OpenAI API key (reuses chat key if not set). */
-  openaiApiKey?: string
-  /** OpenAI model (default: 'text-embedding-3-small'). */
-  openaiModel?: string
-  /** Number of top results to return from findRelevant (default: 8). */
-  topK?: number
+export type EmbeddingServiceConfig =
+  | { provider: 'local'; localModel?: string; topK?: number }
+  | { provider: 'openai'; openaiApiKey: string; openaiModel?: string; topK?: number }
+
+/** A single result entry from a relevance search. */
+export interface RelevanceEntry {
+  /** Index of the item in the original array. */
+  readonly index: number
+  /** Cosine similarity score in [-1, 1]. */
+  readonly score: number
 }
 
-/** Result of a relevance search. */
+/** Result of a relevance search — entries ordered by score (highest first). */
 export interface RelevanceResult {
-  /** Indices of the top-K most relevant items in the original array. */
-  indices: number[]
-  /** Cosine similarity scores for each selected item (same order as indices). */
-  scores: number[]
+  /** Top-K results ordered by relevance (highest score first). */
+  results: readonly RelevanceEntry[]
 }
