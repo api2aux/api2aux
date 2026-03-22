@@ -23,7 +23,38 @@ export function usePagination({
 }: UsePaginationProps): UsePaginationReturn {
   const totalPages = Math.ceil(totalItems / itemsPerPage)
 
-  // Handle edge case where totalPages is 0 (empty data)
+  // Clamp currentPage to valid range [1, totalPages] (or 1 when empty)
+  const validPage = totalPages === 0 ? 1 : Math.max(1, Math.min(currentPage, totalPages))
+
+  // Smart page number truncation — must be called unconditionally (rules of hooks)
+  const pageNumbers = useMemo(() => {
+    if (totalPages === 0) return []
+
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+
+    // Show first page, last page, current +/- 1, with '...' ellipses where gaps exist
+    const pages: (number | '...')[] = []
+
+    pages.push(1)
+
+    const showLeftEllipsis = validPage > 3
+    const showRightEllipsis = validPage < totalPages - 2
+
+    if (showLeftEllipsis) pages.push('...')
+
+    const start = Math.max(2, validPage - 1)
+    const end = Math.min(totalPages - 1, validPage + 1)
+    for (let i = start; i <= end; i++) pages.push(i)
+
+    if (showRightEllipsis) pages.push('...')
+
+    if (totalPages > 1) pages.push(totalPages)
+
+    return pages
+  }, [totalPages, validPage])
+
   if (totalPages === 0) {
     return {
       currentPage: 1,
@@ -36,63 +67,16 @@ export function usePagination({
     }
   }
 
-  // Clamp currentPage to valid range [1, totalPages]
-  const validPage = Math.max(1, Math.min(currentPage, totalPages))
-
   const firstIndex = (validPage - 1) * itemsPerPage
   const lastIndex = Math.min(firstIndex + itemsPerPage, totalItems)
-
-  const hasNextPage = validPage < totalPages
-  const hasPrevPage = validPage > 1
-
-  // Smart page number truncation
-  const pageNumbers = useMemo(() => {
-    if (totalPages <= 7) {
-      // Show all pages if 7 or fewer
-      return Array.from({ length: totalPages }, (_, i) => i + 1)
-    }
-
-    // Show first page, last page, current +/- 1, with '...' ellipses where gaps exist
-    const pages: (number | '...')[] = []
-
-    // Always show first page
-    pages.push(1)
-
-    // Determine range around current page
-    const showLeftEllipsis = validPage > 3
-    const showRightEllipsis = validPage < totalPages - 2
-
-    if (showLeftEllipsis) {
-      pages.push('...')
-    }
-
-    // Show pages around current
-    const start = Math.max(2, validPage - 1)
-    const end = Math.min(totalPages - 1, validPage + 1)
-
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-
-    if (showRightEllipsis) {
-      pages.push('...')
-    }
-
-    // Always show last page
-    if (totalPages > 1) {
-      pages.push(totalPages)
-    }
-
-    return pages
-  }, [totalPages, validPage])
 
   return {
     currentPage: validPage,
     totalPages,
     firstIndex,
     lastIndex,
-    hasNextPage,
-    hasPrevPage,
+    hasNextPage: validPage < totalPages,
+    hasPrevPage: validPage > 1,
     pageNumbers,
   }
 }
