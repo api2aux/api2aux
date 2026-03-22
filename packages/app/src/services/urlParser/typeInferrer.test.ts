@@ -409,6 +409,28 @@ describe('inferParameterType', () => {
     })
   })
 
+  describe('version detection suppression', () => {
+    it('treats "version" param with decimal value as string, not number', () => {
+      const result = inferParameterType('version', '2.1')
+      expect(result.type).toBe('string')
+    })
+
+    it('treats "ver" param with decimal value as string', () => {
+      const result = inferParameterType('ver', '3.0')
+      expect(result.type).toBe('string')
+    })
+
+    it('treats "api_version" param as string', () => {
+      const result = inferParameterType('api_version', '1.5')
+      expect(result.type).toBe('string')
+    })
+
+    it('treats "apiVersion" param as string', () => {
+      const result = inferParameterType('apiVersion', '2')
+      expect(result.type).toBe('string')
+    })
+  })
+
   describe('string fallback', () => {
     it('returns string for unknown patterns with HIGH confidence', () => {
       const result = inferParameterType('foo', 'bar')
