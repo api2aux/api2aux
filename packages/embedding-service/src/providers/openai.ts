@@ -63,7 +63,9 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
         const status = lastError instanceof EmbedHttpError ? lastError.statusCode : 0
         if (status === 429 || (status >= 500 && status < 600)) {
           if (attempt < MAX_RETRIES) {
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+            const delayMs = 1000 * (attempt + 1)
+            console.warn(`[embedding-service] OpenAI embed attempt ${attempt + 1}/${MAX_RETRIES + 1} failed (${status}), retrying in ${delayMs}ms:`, lastError.message)
+            await new Promise(r => setTimeout(r, delayMs))
             continue
           }
         }

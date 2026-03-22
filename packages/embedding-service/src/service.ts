@@ -102,7 +102,7 @@ export class EmbeddingService {
       } catch (err) {
         const providerName = this.provider.id
         const original = err instanceof Error ? err.message : String(err)
-        throw new Error(`Embedding provider "${providerName}" failed: ${original}`)
+        throw new Error(`Embedding provider "${providerName}" failed: ${original}`, { cause: err })
       }
 
       if (newVectors.length !== uncachedTexts.length) {

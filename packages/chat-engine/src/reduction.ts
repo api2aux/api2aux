@@ -28,20 +28,23 @@ export async function reduceToolResultsForFocus(
   strategy: FocusReduction,
   embedFn?: EmbedFn,
   llmText?: LLMTextFn,
+  onWarning?: (message: string) => void,
 ): Promise<ToolResultEntry[]> {
   const reduced: ToolResultEntry[] = []
 
   for (const result of toolResults) {
     let reducedData: unknown
     try {
-      reducedData = await reduceData(result.data, query, strategy, embedFn, llmText)
+      reducedData = await reduceData(result.data, query, strategy, embedFn, llmText, onWarning)
     } catch (err) {
       // Distinguish programming errors from expected failures
+      const msg = err instanceof Error ? err.message : String(err)
       if (err instanceof TypeError || err instanceof ReferenceError) {
         console.error('[chat-engine] Focus reduction hit unexpected error (possible bug):', err)
       } else {
-        console.warn('[chat-engine] Focus reduction failed, using raw data:', err instanceof Error ? err.message : String(err))
+        console.warn('[chat-engine] Focus reduction failed, using raw data:', msg)
       }
+      onWarning?.(`Focus reduction (${strategy}) failed, showing raw data: ${msg}`)
       reducedData = result.data
     }
     reduced.push(reducedData !== result.data ? { ...result, data: reducedData } : result)
@@ -57,6 +60,7 @@ async function reduceData(
   strategy: FocusReduction,
   embedFn?: EmbedFn,
   llmText?: LLMTextFn,
+  onWarning?: (message: string) => void,
 ): Promise<unknown> {
   switch (strategy) {
     case 'truncate-values':
@@ -67,7 +71,7 @@ async function reduceData(
       throw new Error('embed-fields strategy requested but embedFn not provided — check ChatEngineConfig')
 
     case 'llm-fields':
-      if (llmText) return llmFieldSelection(data, query, llmText)
+      if (llmText) return llmFieldSelection(data, query, llmText, onWarning)
       throw new Error('llm-fields strategy requested but llmText not provided — check ChatEngineConfig')
 
     default:
@@ -234,6 +238,7 @@ export async function llmFieldSelection(
   data: unknown,
   query: string,
   llmText: LLMTextFn,
+  onWarning?: (message: string) => void,
 ): Promise<unknown> {
   const { items, wrapper, arrayKey } = extractItems(data)
   if (!items || items.length === 0) return data
@@ -257,6 +262,7 @@ export async function llmFieldSelection(
   const parsed = extractJson(content)
   if (!Array.isArray(parsed)) {
     console.warn('[chat-engine] llm-fields returned non-array, falling back to truncate-values')
+    onWarning?.('llm-fields returned non-array response, falling back to truncate-values')
     return truncateValues(data)
   }
 

@@ -106,7 +106,7 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: 'api2aux-chat',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         config: state.config,
@@ -115,14 +115,6 @@ export const useChatStore = create<ChatState>()(
         embeddingProvider: state.embeddingProvider,
         focusReduction: state.focusReduction,
       }),
-      migrate: (persisted: unknown, version: number) => {
-        const state = persisted as Record<string, unknown>
-        // v2→v3: reset panelSize (was saved as pixels, now percentage)
-        if (version < 3) {
-          state.panelSize = 30
-        }
-        return state
-      },
     }
   )
 )

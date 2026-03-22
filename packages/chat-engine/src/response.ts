@@ -181,6 +181,7 @@ async function mergeLlmGuided(
   userMessage: string,
   llm: LLMTextFn,
   reducedResults?: ToolResultEntry[],
+  apiUrl?: string,
 ): Promise<StructuredResponse> {
   const prompt = toolResults.length === 1 ? FOCUS_PROMPT : MERGE_PROMPT
 
@@ -200,8 +201,8 @@ async function mergeLlmGuided(
     })
     .join('\n\n')
 
-  // Check focus cache — same query + same data = same focused result
-  const focusKey = `${userMessage}::${hashString(resultsText)}`
+  // Check focus cache — same API + same query + same data = same focused result
+  const focusKey = `${apiUrl ?? ''}::${userMessage}::${hashString(resultsText)}`
   const cachedFocus = focusCache.get(focusKey)
   if (cachedFocus !== undefined) {
     return {
@@ -270,6 +271,7 @@ export async function formatStructuredResponse(
   userMessage: string,
   llm: LLMTextFn,
   reducedResults?: ToolResultEntry[],
+  apiUrl?: string,
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
@@ -281,6 +283,7 @@ export async function formatStructuredResponse(
   userMessage: string,
   llm: LLMTextFn,
   reducedResults?: ToolResultEntry[],
+  apiUrl?: string,
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
@@ -288,6 +291,7 @@ export async function formatStructuredResponse(
   userMessage?: string,
   llm?: LLMTextFn,
   reducedResults?: ToolResultEntry[],
+  apiUrl?: string,
 ): Promise<StructuredResponse> {
   if (toolResults.length === 0) {
     return mergeArray(toolResults)
@@ -302,7 +306,7 @@ export async function formatStructuredResponse(
 
     case MergeStrategy.LlmGuided:
       if (llm && userMessage) {
-        return mergeLlmGuided(toolResults, userMessage, llm, reducedResults)
+        return mergeLlmGuided(toolResults, userMessage, llm, reducedResults, apiUrl)
       }
       console.error(
         '[chat-engine] LLM-guided merge requested but llm/userMessage not provided — this is a configuration error. Falling back to array strategy.',

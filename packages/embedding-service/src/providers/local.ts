@@ -95,7 +95,8 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
         this.initError = err instanceof Error ? err : new Error(String(err))
         throw new Error(
           `Failed to initialize local embedding provider (model: ${this.model}): ${this.initError.message}. ` +
-          `Ensure @huggingface/transformers is installed, or switch to the OpenAI embedding provider.`
+          `Ensure @huggingface/transformers is installed, or switch to the OpenAI embedding provider.`,
+          { cause: err },
         )
       }
     }
@@ -105,7 +106,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
       const output = await extractor(texts, { pooling: 'mean', normalize: true })
       return output.tolist()
     } catch (err) {
-      throw new Error(`Local embedding inference failed for ${texts.length} text(s): ${err instanceof Error ? err.message : String(err)}`)
+      throw new Error(`Local embedding inference failed for ${texts.length} text(s): ${err instanceof Error ? err.message : String(err)}`, { cause: err })
     }
   }
 

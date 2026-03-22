@@ -202,7 +202,11 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
       const durationMs = Date.now() - t0
       addCallLogEntry({ type: 'api', toolName, args, status: 'success', response: result, durationMs, timestamp: Date.now() } satisfies ApiCallEntry)
       if (apiCacheEnabled) {
-        useChatStore.getState().apiCache.set(cacheKey, result)
+        useChatStore.setState((s) => {
+          const newCache = new Map(s.apiCache)
+          newCache.set(cacheKey, result)
+          return { apiCache: newCache }
+        })
       }
       return result
     } catch (err) {

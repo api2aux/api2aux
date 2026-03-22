@@ -181,7 +181,9 @@ export class ChatEngine {
           const modified = plugin.modifySystemPrompt(systemPrompt, this.context)
           if (modified !== null) systemPrompt = modified
         } catch (err) {
-          console.error(`[chat-engine] Plugin "${plugin.id}" modifySystemPrompt threw:`, err instanceof Error ? err.message : String(err))
+          const msg = err instanceof Error ? err.message : String(err)
+          console.error(`[chat-engine] Plugin "${plugin.id}" modifySystemPrompt threw:`, msg)
+          emit({ type: ChatEventType.Error, error: `Plugin "${plugin.id}" modifySystemPrompt failed: ${msg}` })
         }
       }
     }
@@ -312,7 +314,9 @@ export class ChatEngine {
             try {
               toolResult = plugin.processToolResult(toolCall.function.name, toolResult)
             } catch (err) {
-              console.error(`[chat-engine] Plugin "${plugin.id}" processToolResult threw:`, err instanceof Error ? err.message : String(err))
+              const msg = err instanceof Error ? err.message : String(err)
+              console.error(`[chat-engine] Plugin "${plugin.id}" processToolResult threw:`, msg)
+              emit({ type: ChatEventType.Error, error: `Plugin "${plugin.id}" processToolResult failed: ${msg}` })
             }
           }
         }
@@ -351,7 +355,7 @@ export class ChatEngine {
 
     let structured: StructuredResponse
     try {
-      structured = await this.buildStructuredResponse(collectedResults, text)
+      structured = await this.buildStructuredResponse(collectedResults, text, emit)
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       console.error('[chat-engine] buildStructuredResponse failed:', errorMsg)
@@ -398,7 +402,9 @@ export class ChatEngine {
         try {
           responseText = plugin.processResponse(responseText, collectedResults)
         } catch (err) {
-          console.error(`[chat-engine] Plugin "${plugin.id}" processResponse threw:`, err instanceof Error ? err.message : String(err))
+          const msg = err instanceof Error ? err.message : String(err)
+          console.error(`[chat-engine] Plugin "${plugin.id}" processResponse threw:`, msg)
+          emit({ type: ChatEventType.Error, error: `Plugin "${plugin.id}" processResponse failed: ${msg}` })
         }
       }
     }
@@ -506,6 +512,7 @@ export class ChatEngine {
   private async buildStructuredResponse(
     toolResults: ToolResultEntry[],
     userMessage: string,
+    emit: ChatEngineEventHandler,
   ): Promise<StructuredResponse> {
     // Prefer non-streaming LLM for focus/merge — creates a separate HTTP request
     // that resolves independently of the streaming SSE connection.
@@ -523,6 +530,7 @@ export class ChatEngine {
       this.focusReduction,
       this.embedFn,
       this.llmText,
+      (warning) => emit({ type: ChatEventType.Error, error: warning }),
     )
 
     return formatStructuredResponse(
@@ -531,6 +539,7 @@ export class ChatEngine {
       userMessage,
       mergeLlm,
       reducedResults,
+      this.context.url,
     )
   }
 }
