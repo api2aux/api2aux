@@ -360,8 +360,6 @@ export class ChatEngine {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       console.error('[chat-engine] buildStructuredResponse failed:', errorMsg)
-      // Surface the error so the UI can show a degraded-mode indicator
-      emit({ type: ChatEventType.Error, error: `Focus/merge failed (using raw data): ${errorMsg}` })
       structured = {
         strategy: MergeStrategy.Array,
         sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
