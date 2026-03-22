@@ -1590,4 +1590,102 @@ describe('ChatEngine', () => {
       expect(tools[0]!.function.name).toBe('search_items')
     })
   })
+
+  describe('compressToolHistory', () => {
+    it('compresses tool messages in history after a tool-calling turn', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        .mockImplementationOnce(async () => toolCallResponse('list_users', { page: '1' }))
+        .mockImplementationOnce(async () => textResponse('ignored'))
+        // Phase B text response (with Array strategy, no merge LLM call needed)
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('Here are the users.')
+          return textResponse('Here are the users.')
+        })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1, name: 'Alice' }])
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: MergeStrategy.Array,
+      })
+      await engine.sendMessage('List users', onEvent)
+
+      const history = engine.getHistory()
+      const toolMsg = history.find(m => m.role === MessageRole.Tool)
+      expect(toolMsg).toBeDefined()
+      // Tool message should be compressed — not contain the raw JSON data
+      expect(toolMsg!.content).toContain('[API Result')
+    })
+
+    it('compresses all tool messages across multi-round tool calling', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        // Round 1: two parallel tool calls
+        .mockImplementationOnce(async () => twoToolCallResponse())
+        // Round 2: LLM stops calling tools
+        .mockImplementationOnce(async () => textResponse('ignored'))
+        // Phase B text response (with Array strategy, no merge LLM call)
+        .mockImplementationOnce(async (_msgs, _tools, onToken) => {
+          onToken('Done.')
+          return textResponse('Done.')
+        })
+
+      const executor: ToolExecutorFn = vi.fn()
+        .mockResolvedValueOnce([{ id: 1 }])
+        .mockResolvedValueOnce([{ orderId: 100 }])
+
+      const engine = new ChatEngine(llm, executor, multiContext, {
+        mergeStrategy: MergeStrategy.Array,
+      })
+      await engine.sendMessage('Get all data', onEvent)
+
+      const history = engine.getHistory()
+      const toolMessages = history.filter(m => m.role === MessageRole.Tool)
+      // Both tool messages should be compressed
+      expect(toolMessages.length).toBeGreaterThanOrEqual(2)
+      expect(toolMessages[0]!.content).toContain('[API Result')
+      // Subsequent tool messages reference the first
+      expect(toolMessages[1]!.content).toContain('[See first tool result')
+    })
+  })
+
+  describe('Phase B error handling', () => {
+    it('emits error event when Phase B text-generation LLM throws', async () => {
+      const llm: LLMCompletionFn = vi.fn()
+        // Phase A: tool call succeeds
+        .mockImplementationOnce(async () => toolCallResponse('list_users', {}))
+        // Phase A: end of tool calls
+        .mockImplementationOnce(async () => textResponse('ignored'))
+        // buildStructuredResponse → mergeLlm (Array strategy skips this, so use Array)
+        // Phase B: text generation fails
+        .mockImplementationOnce(async () => { throw new Error('Phase B rate limited') })
+
+      const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
+
+      const engine = new ChatEngine(llm, executor, testContext, {
+        mergeStrategy: MergeStrategy.Array,
+      })
+
+      await expect(engine.sendMessage('List users', onEvent)).rejects.toThrow('Phase B rate limited')
+
+      // Should have emitted structured ready (from successful tool calls) before failing
+      const structuredEvent = events.find(e => e.type === ChatEventType.StructuredReady)
+      expect(structuredEvent).toBeDefined()
+
+      // Should have emitted error event for Phase B failure
+      const errorEvent = events.find(e => e.type === ChatEventType.Error)
+      expect(errorEvent).toBeDefined()
+      if (errorEvent?.type === ChatEventType.Error) {
+        expect(errorEvent.error).toBe('Phase B rate limited')
+      }
+    })
+  })
+
+  describe('getConfig defaults', () => {
+    it('includes focusReduction default', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+      const engine = new ChatEngine(llm, executor, testContext)
+      const config = engine.getConfig()
+      expect(config.focusReduction).toBe('truncate-values')
+    })
+  })
 })

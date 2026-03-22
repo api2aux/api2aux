@@ -46,6 +46,7 @@ export interface ApiCallEntry {
   type: 'api'
   toolName: string
   args: Record<string, unknown>
+  /** 'success' and 'cached' have `response`; 'error' has `error`. */
   status: 'success' | 'error' | 'cached'
   response?: unknown
   error?: string

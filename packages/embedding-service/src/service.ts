@@ -103,6 +103,14 @@ export class EmbeddingService {
         )
       }
 
+      // Spot-check: verify the first vector matches the declared dimensionality
+      if (newVectors.length > 0 && newVectors[0]!.length !== this.provider.dimensions) {
+        throw new Error(
+          `Embedding provider "${this.provider.id}" returned vectors of dimension ${newVectors[0]!.length} ` +
+          `but declared dimensions=${this.provider.dimensions} — similarity scores would be meaningless`
+        )
+      }
+
       for (let j = 0; j < uncachedIndices.length; j++) {
         const idx = uncachedIndices[j]!
         results[idx] = newVectors[j]!

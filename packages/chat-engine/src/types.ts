@@ -189,7 +189,7 @@ export const FocusReduction = {
   /** Select relevant fields via lightweight LLM call. Most accurate. */
   LlmFields: 'llm-fields',
 } as const
-export type FocusReductionStrategy = typeof FocusReduction[keyof typeof FocusReduction]
+export type FocusReduction = typeof FocusReduction[keyof typeof FocusReduction]
 
 // ── Engine Context & Config ──
 
@@ -218,7 +218,7 @@ export interface ChatEngineConfig {
   /** Embedding function for field-level reduction strategies (embed-fields). Used by reduceToolResultsForFocus to select relevant fields via embedding similarity. */
   embedFn?: (texts: string[]) => Promise<number[][]>
   /** Strategy for reducing data before the focus/merge LLM call. Default: 'truncate-values'. */
-  focusReduction?: FocusReductionStrategy
+  focusReduction?: FocusReduction
 }
 
 // ── Events ──

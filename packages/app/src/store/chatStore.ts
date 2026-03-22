@@ -93,7 +93,11 @@ export const useChatStore = create<ChatState>()(
       clearApiCache: () => set({ apiCache: new Map() }),
       setEmbeddingProvider: (embeddingProvider) => set({ embeddingProvider }),
       setFocusReduction: (focusReduction) => set({ focusReduction }),
-      addCallLogEntry: (entry) => set((s) => ({ callLog: [...s.callLog, entry] })),
+      addCallLogEntry: (entry) => set((s) => {
+        const log = [...s.callLog, entry]
+        // Cap at 500 entries to prevent unbounded memory growth in long sessions
+        return { callLog: log.length > 500 ? log.slice(-500) : log }
+      }),
       clearCallLog: () => set({ callLog: [] }),
     }),
     {

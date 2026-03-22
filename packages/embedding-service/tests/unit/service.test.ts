@@ -229,4 +229,18 @@ describe('EmbeddingService', () => {
 
     await expect(service.embed(['a', 'b'])).rejects.toThrow('returned 1 vectors for 2 input texts')
   })
+
+  it('throws when provider returns vectors of wrong dimensionality', async () => {
+    const service = new EmbeddingService({ provider: 'local' })
+    const badProvider: EmbeddingProvider = {
+      id: 'bad-dims',
+      name: 'Bad Dims',
+      dimensions: 3,
+      isReady: () => true,
+      embed: async () => [[1, 2]], // Returns 2-d vectors but declared 3-d
+    }
+    ;(service as unknown as { provider: EmbeddingProvider }).provider = badProvider
+
+    await expect(service.embed(['a'])).rejects.toThrow('returned vectors of dimension 2 but declared dimensions=3')
+  })
 })

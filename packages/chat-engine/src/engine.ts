@@ -27,7 +27,6 @@ import { formatStructuredResponse } from './response'
 import { buildResponsePrompt } from './context'
 import { reduceToolResultsForFocus } from './reduction'
 import { FocusReduction } from './types'
-import type { FocusReductionStrategy } from './types'
 
 export class ChatEngine {
   private history: ChatMessage[] = []
@@ -41,7 +40,7 @@ export class ChatEngine {
   private readonly mergeStrategy: MergeStrategy
   private llmText: LLMTextFn | undefined
   private embedFn: ((texts: string[]) => Promise<number[][]>) | undefined
-  private focusReduction: FocusReductionStrategy
+  private focusReduction: FocusReduction
 
   constructor(
     llm: LLMCompletionFn,
@@ -114,7 +113,7 @@ export class ChatEngine {
   }
 
   /** Update the focus reduction strategy. */
-  setFocusReduction(strategy: FocusReductionStrategy): void {
+  setFocusReduction(strategy: FocusReduction): void {
     this.focusReduction = strategy
   }
 
@@ -462,7 +461,11 @@ export class ChatEngine {
       serialized = JSON.stringify({ focused: focusedData, calls: metadata })
     } catch (err) {
       console.warn('[chat-engine] Failed to serialize focused data for history compression:', err instanceof Error ? err.message : String(err))
-      serialized = JSON.stringify({ calls: metadata, error: 'Data could not be serialized' })
+      try {
+        serialized = JSON.stringify({ calls: metadata, error: 'Data could not be serialized' })
+      } catch {
+        serialized = '[API Result — data could not be serialized]'
+      }
     }
     const compressed = [
       '[API Result — focused data for the user\'s question]',

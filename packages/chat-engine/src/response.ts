@@ -189,7 +189,7 @@ async function mergeLlmGuided(
     .join('\n\n')
 
   // Check focus cache — same query + same data = same focused result
-  const focusKey = `${userMessage}::${resultsText.length}::${resultsText.slice(0, 500)}`
+  const focusKey = `${userMessage}::${resultsText.length}::${resultsText.slice(0, 250)}::${resultsText.slice(-250)}`
   const cachedFocus = focusCache.get(focusKey)
   if (cachedFocus !== undefined) {
     return {
@@ -207,17 +207,20 @@ async function mergeLlmGuided(
   // Separate LLM call from JSON parse so infrastructure errors propagate
   // while malformed LLM output falls back gracefully.
   let content: string
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
     content = await Promise.race([
       llm(messages),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Focus LLM timed out')), FOCUS_LLM_TIMEOUT_MS),
-      ),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Focus LLM timed out')), FOCUS_LLM_TIMEOUT_MS)
+      }),
     ])
   } catch (err) {
     // LLM infrastructure error (network, auth, rate limit, timeout) — let it propagate
     // so the caller can handle it visibly rather than silently degrading.
     throw err
+  } finally {
+    clearTimeout(timer)
   }
 
   const parsed = extractJson(content)

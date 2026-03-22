@@ -10,13 +10,9 @@
  * - llm-fields: select relevant fields via lightweight LLM call
  */
 
-import type { ToolResultEntry, LLMTextFn, ChatMessage, FocusReductionStrategy } from './types'
-import { MessageRole, FocusReduction } from './types'
+import type { ToolResultEntry, LLMTextFn, ChatMessage, FocusReduction } from './types'
+import { MessageRole } from './types'
 import { extractJson } from './response'
-
-// Re-export for backward compatibility
-export { FocusReduction }
-export type { FocusReductionStrategy }
 
 type EmbedFn = (texts: string[]) => Promise<number[][]>
 
@@ -29,7 +25,7 @@ type EmbedFn = (texts: string[]) => Promise<number[][]>
 export async function reduceToolResultsForFocus(
   toolResults: ToolResultEntry[],
   query: string,
-  strategy: FocusReductionStrategy,
+  strategy: FocusReduction,
   embedFn?: EmbedFn,
   llmText?: LLMTextFn,
 ): Promise<ToolResultEntry[]> {
@@ -58,7 +54,7 @@ export async function reduceToolResultsForFocus(
 async function reduceData(
   data: unknown,
   query: string,
-  strategy: FocusReductionStrategy,
+  strategy: FocusReduction,
   embedFn?: EmbedFn,
   llmText?: LLMTextFn,
 ): Promise<unknown> {
@@ -68,12 +64,12 @@ async function reduceData(
 
     case 'embed-fields':
       if (embedFn) return embedFieldSelection(data, query, embedFn)
-      console.warn('[chat-engine] embed-fields strategy requested but embedFn not provided; falling back to truncate-values')
+      console.error('[chat-engine] embed-fields strategy requested but embedFn not provided — this is a configuration error. Falling back to truncate-values.')
       return truncateValues(data)
 
     case 'llm-fields':
       if (llmText) return llmFieldSelection(data, query, llmText)
-      console.warn('[chat-engine] llm-fields strategy requested but llmText not provided; falling back to truncate-values')
+      console.error('[chat-engine] llm-fields strategy requested but llmText not provided — this is a configuration error. Falling back to truncate-values.')
       return truncateValues(data)
 
     default:

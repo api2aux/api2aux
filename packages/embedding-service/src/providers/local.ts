@@ -168,6 +168,10 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
         pending.reject(new Error('Embedding worker crashed'))
         this.pendingRequests.delete(id)
       }
+      // Reset worker state so the next call creates a fresh worker
+      this.worker?.terminate()
+      this.worker = null
+      this.ready = false
     }
 
     return worker
