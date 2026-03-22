@@ -1077,12 +1077,9 @@ describe('ChatEngine', () => {
       expect(srIdx).toBeLessThan(tokenIdx)
       expect(tokenIdx).toBeLessThan(tcIdx)
 
-      // Single tool result: focus LLM is skipped, raw data returned
       expect(result.structured.strategy).toBe(MergeStrategy.LlmGuided)
-      expect(Array.isArray(result.structured.data)).toBe(true)
-
-      // llmText should NOT be called for single tool result (focus LLM skipped)
-      expect(llmText).not.toHaveBeenCalled()
+      expect(result.structured.data).toEqual({ focused: true })
+      expect(llmText).toHaveBeenCalledOnce()
     })
 
     it('emits StructuredReady even with Array strategy', async () => {
@@ -1263,8 +1260,10 @@ describe('ChatEngine', () => {
       // Exactly one StructuredReady emitted
       const structuredReadyEvents = events.filter(e => e.type === ChatEventType.StructuredReady)
       expect(structuredReadyEvents).toHaveLength(1)
-      // Single tool result: raw data returned (focus LLM skipped)
-      expect(Array.isArray(result.structured.data)).toBe(true)
+      if (structuredReadyEvents[0]?.type === ChatEventType.StructuredReady) {
+        expect(structuredReadyEvents[0].structured.data).toEqual({ merged: true })
+      }
+      expect(result.structured.data).toEqual({ merged: true })
     })
 
     it('catches buildStructuredResponse throw at engine level', async () => {
@@ -1344,8 +1343,7 @@ describe('ChatEngine', () => {
       expect(dpIdx).toBeLessThan(srIdx)
       expect(srIdx).toBeLessThan(tokenIdx)
       expect(tokenIdx).toBeLessThan(tcIdx)
-      // Single tool result: raw data returned (focus LLM skipped)
-      expect(Array.isArray(result.structured.data)).toBe(true)
+      expect(result.structured.data).toEqual({ focused: true })
     })
 
     it('updates llmText via setLlmText', async () => {
@@ -1414,8 +1412,7 @@ describe('ChatEngine', () => {
       // Extract JSON between the framing markers
       const jsonLine = rawContent.split('\n').find(l => l.startsWith('{'))!
       const compressed = JSON.parse(jsonLine)
-      // Single tool result: focus LLM skipped, raw data used as focused
-      expect(compressed.focused).toEqual([{ id: 1, name: 'Alice' }])
+      expect(compressed.focused).toEqual({ focused: true })
       expect(compressed.calls).toHaveLength(1)
       expect(compressed.calls[0].tool).toBe('list_users')
     })
@@ -1555,8 +1552,7 @@ describe('ChatEngine', () => {
       expect(toolMsg!.content).toContain('[API Result')
       const jsonLine = toolMsg!.content!.split('\n').find(l => l.startsWith('{'))!
       const content = JSON.parse(jsonLine)
-      // Single tool result: focus LLM skipped, raw data used as focused
-      expect(Array.isArray(content.focused)).toBe(true)
+      expect(content.focused).toEqual({ focused: true })
     })
   })
 

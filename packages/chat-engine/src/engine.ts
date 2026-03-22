@@ -489,36 +489,16 @@ export class ChatEngine {
     toolResults: ToolResultEntry[],
     userMessage: string,
   ): Promise<StructuredResponse> {
-    // For a single tool result with LlmGuided strategy, skip the focus LLM entirely —
-    // apply the reduction strategy locally and return directly. This avoids LLM latency,
-    // timeouts, and the LLM's tendency to filter items despite "do NOT filter" instructions.
-    // The focus/merge LLM is only useful when combining data from multiple endpoints.
-    if (toolResults.length === 1 && this.mergeStrategy === MergeStrategy.LlmGuided) {
-      const reducedResults = await reduceToolResultsForFocus(
-        toolResults,
-        userMessage,
-        this.focusReduction,
-        this.embedFn,
-        this.llmText,
-      )
-      const reduced = reducedResults[0] ?? toolResults[0]!
-      return {
-        strategy: MergeStrategy.LlmGuided,
-        sources: [{ toolName: toolResults[0]!.toolName, toolArgs: toolResults[0]!.toolArgs }],
-        data: reduced.data,
-      }
-    }
-
-    // Multiple tool results: use the merge LLM to combine them intelligently.
-    // Prefer non-streaming LLM — creates a separate HTTP request that resolves
-    // independently of the streaming SSE connection.
+    // Prefer non-streaming LLM for focus/merge — creates a separate HTTP request
+    // that resolves independently of the streaming SSE connection.
     const mergeLlm: LLMTextFn = this.llmText
       ?? (async (messages) => {
           const result = await this.llm(messages, [], () => {})
           return result.content
         })
 
-    // Reduce data per strategy before sending to merge LLM
+    // Reduce data before sending to focus/merge LLM so input (and output) is small.
+    // For single results this ensures the focus LLM only outputs matching items, not all.
     const reducedResults = await reduceToolResultsForFocus(
       toolResults,
       userMessage,

@@ -212,7 +212,7 @@ describe('formatStructuredResponse', () => {
       )
 
       const systemMsg = (capturedMessages as Array<{ role: string; content: string }>).find(m => m.role === 'system')
-      expect(systemMsg?.content).toContain('data formatting assistant')
+      expect(systemMsg?.content).toContain('data assistant')
       expect(systemMsg?.content).not.toContain('data merging assistant')
     })
 
