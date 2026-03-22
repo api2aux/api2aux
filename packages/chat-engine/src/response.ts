@@ -189,7 +189,7 @@ async function mergeLlmGuided(
     .join('\n\n')
 
   // Check focus cache — same query + same data = same focused result
-  const focusKey = `${userMessage}::${resultsText.slice(0, 500)}`
+  const focusKey = `${userMessage}::${resultsText.length}::${resultsText.slice(0, 500)}`
   const cachedFocus = focusCache.get(focusKey)
   if (cachedFocus !== undefined) {
     return {
@@ -222,7 +222,7 @@ async function mergeLlmGuided(
 
   const parsed = extractJson(content)
   if (parsed !== null) {
-    // LRU eviction: remove oldest entries when cache is full
+    // FIFO eviction: remove oldest entry when cache is full
     if (focusCache.size >= MAX_FOCUS_CACHE_SIZE) {
       const firstKey = focusCache.keys().next().value as string
       focusCache.delete(firstKey)

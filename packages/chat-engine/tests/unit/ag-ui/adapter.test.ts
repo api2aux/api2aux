@@ -381,7 +381,6 @@ describe('createAgent', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
-    // Suppress expected warning about parallelMerge without llmText
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 

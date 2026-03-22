@@ -10,19 +10,13 @@
  * - llm-fields: select relevant fields via lightweight LLM call
  */
 
-import type { ToolResultEntry, LLMTextFn, ChatMessage } from './types'
-import { MessageRole } from './types'
+import type { ToolResultEntry, LLMTextFn, ChatMessage, FocusReductionStrategy } from './types'
+import { MessageRole, FocusReduction } from './types'
 import { extractJson } from './response'
 
-export const FocusReduction = {
-  /** Keep all fields, truncate long values. No extra calls. */
-  TruncateValues: 'truncate-values',
-  /** Select relevant fields via embedding similarity. Uses embedding service. */
-  EmbedFields: 'embed-fields',
-  /** Select relevant fields via lightweight LLM call. Most accurate. */
-  LlmFields: 'llm-fields',
-} as const
-export type FocusReductionStrategy = typeof FocusReduction[keyof typeof FocusReduction]
+// Re-export for backward compatibility
+export { FocusReduction }
+export type { FocusReductionStrategy }
 
 type EmbedFn = (texts: string[]) => Promise<number[][]>
 

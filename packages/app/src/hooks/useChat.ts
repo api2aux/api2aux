@@ -105,8 +105,8 @@ function filterToKnownParams(args: Record<string, unknown>, apiUrl: string): Rec
     }
     return filtered
   } catch {
-    console.warn('[useChat] filterToKnownParams: failed to parse URL, hallucination guardrail bypassed:', apiUrl)
-    return args
+    console.error('[useChat] filterToKnownParams: failed to parse URL, returning empty args (fail-closed):', apiUrl)
+    return {}
   }
 }
 
@@ -276,14 +276,18 @@ export function useChat() {
   const getEngine = useCallback(() => {
     if (!url || !context) return null
 
-    // Initialize embedding service (lazy, shared across engine recreations)
+    // Initialize or update embedding service
+    const { embeddingProvider, config: chatConfig } = useChatStore.getState()
     if (!embeddingRef.current) {
-      const { embeddingProvider, config: chatConfig } = useChatStore.getState()
       embeddingRef.current = new EmbeddingService(
         embeddingProvider === 'openai'
           ? { provider: 'openai', openaiApiKey: chatConfig.apiKey }
           : { provider: 'local' },
       )
+    } else if (embeddingRef.current.getProviderId() !== embeddingProvider) {
+      // User changed embedding provider in settings — update and clear stale caches
+      embeddingRef.current.setProvider(embeddingProvider, { apiKey: chatConfig.apiKey })
+      clearFocusCache()
     }
     const embedFn = (texts: string[]) => embeddingRef.current!.embed(texts)
 
@@ -310,6 +314,10 @@ export function useChat() {
       engineRef.current.setExecutor(createToolExecutor(url))
       engineRef.current.setEmbedFn(embedFn)
       const { focusReduction } = useChatStore.getState()
+      // Clear focus cache when strategy changes — stale results may not match new strategy
+      if (engineRef.current.getConfig().focusReduction !== focusReduction) {
+        clearFocusCache()
+      }
       engineRef.current.setFocusReduction(focusReduction)
     }
     return engineRef.current

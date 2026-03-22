@@ -25,6 +25,9 @@ export class EmbeddingService {
     this.topKValue = config.topK ?? DEFAULT_TOP_K
 
     if (config.provider === 'openai') {
+      if (!config.openaiApiKey) {
+        console.warn('[embedding-service] OpenAI provider requested but API key is empty — embedding calls will fail until a key is provided via setProvider()')
+      }
       this.openaiProvider = new OpenAIEmbeddingProvider(config.openaiApiKey, config.openaiModel)
       this.provider = this.openaiProvider
     } else {
@@ -103,7 +106,7 @@ export class EmbeddingService {
       for (let j = 0; j < uncachedIndices.length; j++) {
         const idx = uncachedIndices[j]!
         results[idx] = newVectors[j]!
-        // LRU eviction: remove oldest entries when cache is full
+        // FIFO eviction: remove oldest entry when cache is full
         if (this.vectorCache.size >= MAX_CACHE_SIZE) {
           const firstKey = this.vectorCache.keys().next().value as string
           this.vectorCache.delete(firstKey)

@@ -12,10 +12,25 @@ const DEFAULT_MODEL = 'text-embedding-3-small'
 const OPENAI_TIMEOUT_MS = 30_000
 const MAX_RETRIES = 2
 
+/** HTTP error with structured status code for retry decisions. */
+class EmbedHttpError extends Error {
+  readonly statusCode: number
+  constructor(statusCode: number, body: string) {
+    super(`OpenAI embedding failed (${statusCode}): ${body}`)
+    this.statusCode = statusCode
+  }
+}
+
+const MODEL_DIMENSIONS: Record<string, number> = {
+  'text-embedding-3-small': 1536,
+  'text-embedding-3-large': 3072,
+  'text-embedding-ada-002': 1536,
+}
+
 export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   readonly id = 'openai'
   readonly name = 'OpenAI API'
-  readonly dimensions = 1536
+  readonly dimensions: number
 
   private apiKey: string
   private model: string
@@ -23,6 +38,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   constructor(apiKey: string, model?: string) {
     this.apiKey = apiKey
     this.model = model ?? DEFAULT_MODEL
+    this.dimensions = MODEL_DIMENSIONS[this.model] ?? 1536
   }
 
   isReady(): boolean {
@@ -37,14 +53,15 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     if (texts.length === 0) return []
     if (!this.apiKey) throw new Error('OpenAI API key not configured for embedding provider')
 
-    let lastError: Error | null = null
+    let lastError: EmbedHttpError | Error | null = null
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         return await this.doEmbed(texts)
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err))
         // Only retry on transient failures (429 rate limit, 5xx server errors)
-        if (lastError.message.includes('(429)') || lastError.message.includes('(5')) {
+        const status = lastError instanceof EmbedHttpError ? lastError.statusCode : 0
+        if (status === 429 || (status >= 500 && status < 600)) {
           if (attempt < MAX_RETRIES) {
             await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
             continue
@@ -72,7 +89,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
-      throw new Error(`OpenAI embedding failed (${response.status}): ${errorText}`)
+      throw new EmbedHttpError(response.status, errorText)
     }
 
     let data: { data?: Array<{ embedding: number[]; index: number }> }

@@ -17,7 +17,7 @@ API response → flatten to text → embed → cosine similarity → top-K → f
 JSON objects are converted to natural language text for embedding. The approach is **domain-agnostic** — works for products, doctors, recipes, weather, or any structured data:
 
 1. **All scalar fields included** except URLs and base64 blobs (which carry no semantic value)
-2. **Ordered by string length** — longer strings (title, description) come first, giving them higher attention weight in the embedding model
+2. **Ordered by value length** — longer strings (title, description) come first, ensuring the most informative fields survive the 2000-char truncation limit
 3. **Natural language format** — `"fieldName: value"` pairs, not raw JSON (better retrieval than raw JSON)
 4. **Nested arrays summarized** — e.g., `"reviews: 3 items, avg rating 4.0"`
 5. **Nested objects skipped** — they add noise without clear semantic value

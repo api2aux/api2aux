@@ -4,8 +4,9 @@
  * Converts arbitrary JSON objects into natural language text suitable for
  * embedding models. All scalar fields are included except URLs and base64
  * blobs (which carry no semantic value for embedding). Nested objects are
- * skipped; nested arrays are summarized. Fields are ordered by string
- * length so semantically rich fields (title, description) appear first.
+ * skipped; nested arrays are summarized. Fields are ordered by value
+ * length (descending), so fields with longer values like title and
+ * description appear first and survive the 2000-char truncation limit.
  * This approach is domain-agnostic and works for any API.
  *
  * Why flatten? Raw JSON wastes ~25% of tokens on structural syntax

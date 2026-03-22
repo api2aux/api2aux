@@ -1057,7 +1057,7 @@ describe('ChatEngine', () => {
 
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
-        parallelMerge: true,
+
         llmText,
       })
       const result = await engine.sendMessage('test', onEvent)
@@ -1096,7 +1096,7 @@ describe('ChatEngine', () => {
 
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: MergeStrategy.Array,
-        parallelMerge: false,
+
       })
       await engine.sendMessage('test', onEvent)
 
@@ -1116,7 +1116,7 @@ describe('ChatEngine', () => {
       const executor: ToolExecutorFn = vi.fn()
 
       const engine = new ChatEngine(llm, executor, testContext, {
-        parallelMerge: true,
+
       })
       await engine.sendMessage('test', onEvent)
 
@@ -1124,17 +1124,6 @@ describe('ChatEngine', () => {
       // No Phase B means no StructuredReady or DataProcessing
       expect(eventTypes).not.toContain(ChatEventType.StructuredReady)
       expect(eventTypes).not.toContain(ChatEventType.DataProcessing)
-    })
-
-    it('includes parallelMerge in getConfig', () => {
-      const llm: LLMCompletionFn = vi.fn()
-      const executor: ToolExecutorFn = vi.fn()
-
-      const engine = new ChatEngine(llm, executor, testContext, { parallelMerge: false })
-      expect(engine.getConfig().parallelMerge).toBe(false)
-
-      const engine2 = new ChatEngine(llm, executor, testContext)
-      expect(engine2.getConfig().parallelMerge).toBe(true) // default
     })
 
     it('falls back to Array strategy when merge LLM fails', async () => {
@@ -1157,7 +1146,7 @@ describe('ChatEngine', () => {
 
       const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
-        parallelMerge: true,
+
         llmText,
       })
       const result = await engine.sendMessage('test', onEvent)
@@ -1252,7 +1241,7 @@ describe('ChatEngine', () => {
       const executor: ToolExecutorFn = vi.fn().mockResolvedValue([{ id: 1 }])
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
-        parallelMerge: true,
+
         llmText,
       })
       const result = await engine.sendMessage('test', onEvent)
@@ -1287,7 +1276,7 @@ describe('ChatEngine', () => {
 
       const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
-        parallelMerge: false,
+
       })
 
       const result = await engine.sendMessage('test', onEvent)
@@ -1326,7 +1315,7 @@ describe('ChatEngine', () => {
 
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
-        parallelMerge: true,
+
         llmText,
       })
       const result = await engine.sendMessage('test', onEvent)
@@ -1365,7 +1354,7 @@ describe('ChatEngine', () => {
 
       const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: MergeStrategy.LlmGuided,
-        parallelMerge: false,
+
       })
       // Set after construction
       engine.setLlmText(llmText)
@@ -1394,7 +1383,7 @@ describe('ChatEngine', () => {
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: 'llm-guided',
         llmText,
-        parallelMerge: false,
+
       })
       const result = await engine.sendMessage('list users', onEvent)
 
@@ -1434,7 +1423,7 @@ describe('ChatEngine', () => {
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: 'llm-guided',
         llmText,
-        parallelMerge: false,
+
       })
       await engine.sendMessage('test', onEvent)
 
@@ -1491,7 +1480,7 @@ describe('ChatEngine', () => {
       const engine = new ChatEngine(llm, executor, multiContext, {
         mergeStrategy: 'llm-guided',
         llmText,
-        parallelMerge: false,
+
       })
       await engine.sendMessage('show users and orders', onEvent)
 
@@ -1534,7 +1523,7 @@ describe('ChatEngine', () => {
       const engine = new ChatEngine(llm, executor, testContext, {
         mergeStrategy: 'llm-guided',
         llmText,
-        parallelMerge: false,
+
       })
 
       await engine.sendMessage('first question', onEvent)

@@ -3,7 +3,8 @@
  *
  * Manages multi-round LLM tool calling, event emission, plugin hooks,
  * and a no-knowledge guardrail (replaces the LLM's response with a fallback
- * message when no tool calls returned usable data during the turn).
+ * message when no tool call completed successfully during the turn — either
+ * because the LLM chose not to call any tools, or because all calls errored).
  */
 
 import type {
@@ -20,12 +21,13 @@ import type {
   StructuredResponse,
 } from './types'
 import { ChatEventType, MergeStrategy, MessageRole } from './types'
-import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from './defaults'
+import { MAX_ROUNDS, TRUNCATION_LIMIT, NO_DATA_MESSAGE } from './defaults'
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
 import { buildResponsePrompt } from './context'
-import { reduceToolResultsForFocus, FocusReduction } from './reduction'
-import type { FocusReductionStrategy } from './reduction'
+import { reduceToolResultsForFocus } from './reduction'
+import { FocusReduction } from './types'
+import type { FocusReductionStrategy } from './types'
 
 export class ChatEngine {
   private history: ChatMessage[] = []
@@ -37,7 +39,6 @@ export class ChatEngine {
   private readonly maxRounds: number
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
-  private readonly parallelMerge: boolean
   private llmText: LLMTextFn | undefined
   private embedFn: ((texts: string[]) => Promise<number[][]>) | undefined
   private focusReduction: FocusReductionStrategy
@@ -65,14 +66,9 @@ export class ChatEngine {
     }
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
-    this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
     this.llmText = config?.llmText
     this.embedFn = config?.embedFn
     this.focusReduction = config?.focusReduction ?? FocusReduction.TruncateValues
-
-    if (this.parallelMerge && !this.llmText && this.mergeStrategy === MergeStrategy.LlmGuided) {
-      console.warn('[chat-engine] parallelMerge is enabled with LlmGuided strategy but llmText is not provided — merge calls will reuse the streaming LLM with a no-op token handler')
-    }
 
     // Validate resolved config values
     if (!Number.isFinite(this.maxRounds) || this.maxRounds < 1) {
@@ -98,7 +94,6 @@ export class ChatEngine {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
       mergeStrategy: this.mergeStrategy,
-      parallelMerge: this.parallelMerge,
       focusReduction: this.focusReduction,
     }
   }
@@ -244,8 +239,8 @@ export class ChatEngine {
         if (collectedResults.length > 0) break
 
         // No tools were ever called — LLM answered directly or hit guardrail/maxRounds.
-        // Return the text response as-is (no focus step needed).
-        const responseText = collectedResults.length === 0 ? NO_DATA_MESSAGE : (streamResult.content || 'Done.')
+        // collectedResults is guaranteed empty here (non-empty breaks on line above).
+        const responseText = NO_DATA_MESSAGE
         this.history.push({ role: MessageRole.Assistant, content: responseText })
         const structured = this.buildArrayFallback(collectedResults)
         emit({ type: ChatEventType.TurnComplete, text: responseText, toolResults: collectedResults, structured })
@@ -462,9 +457,16 @@ export class ChatEngine {
       : structured.data
 
     // Wrap with text framing so the LLM treats it as context data, not something to echo
+    let serialized: string
+    try {
+      serialized = JSON.stringify({ focused: focusedData, calls: metadata })
+    } catch (err) {
+      console.warn('[chat-engine] Failed to serialize focused data for history compression:', err instanceof Error ? err.message : String(err))
+      serialized = JSON.stringify({ calls: metadata, error: 'Data could not be serialized' })
+    }
     const compressed = [
       '[API Result — focused data for the user\'s question]',
-      JSON.stringify({ focused: focusedData, calls: metadata }),
+      serialized,
       '[End of API Result]',
     ].join('\n')
 

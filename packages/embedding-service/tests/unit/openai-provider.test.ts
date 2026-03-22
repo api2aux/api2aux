@@ -145,8 +145,18 @@ describe('OpenAIEmbeddingProvider', () => {
     expect(provider.isReady()).toBe(true)
   })
 
-  it('has correct dimensions', () => {
+  it('has correct dimensions for default model', () => {
     const provider = new OpenAIEmbeddingProvider('test-key')
+    expect(provider.dimensions).toBe(1536)
+  })
+
+  it('has correct dimensions for text-embedding-3-large', () => {
+    const provider = new OpenAIEmbeddingProvider('test-key', 'text-embedding-3-large')
+    expect(provider.dimensions).toBe(3072)
+  })
+
+  it('falls back to 1536 for unknown models', () => {
+    const provider = new OpenAIEmbeddingProvider('test-key', 'custom-finetune')
     expect(provider.dimensions).toBe(1536)
   })
 

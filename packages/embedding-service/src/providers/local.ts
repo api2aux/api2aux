@@ -101,8 +101,12 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     }
 
     const extractor = this.pipeline as (texts: string[], options: { pooling: string; normalize: boolean }) => Promise<{ tolist: () => number[][] }>
-    const output = await extractor(texts, { pooling: 'mean', normalize: true })
-    return output.tolist()
+    try {
+      const output = await extractor(texts, { pooling: 'mean', normalize: true })
+      return output.tolist()
+    } catch (err) {
+      throw new Error(`Local embedding inference failed for ${texts.length} text(s): ${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 
   private createWorker(): Worker {
@@ -169,10 +173,11 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     return worker
   }
 
-  /** Terminate the worker and clean up. */
+  /** Terminate the worker and clean up. Rejects any in-flight requests. */
   destroy(): void {
     for (const [, pending] of this.pendingRequests) {
       clearTimeout(pending.timer)
+      pending.reject(new Error('Embedding provider destroyed while request was pending'))
     }
     this.pendingRequests.clear()
     this.worker?.terminate()

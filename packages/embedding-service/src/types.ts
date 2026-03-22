@@ -34,5 +34,5 @@ export interface RelevanceEntry {
 /** Result of a relevance search — entries ordered by score (highest first). */
 export interface RelevanceResult {
   /** Top-K results ordered by relevance (highest score first). */
-  results: readonly RelevanceEntry[]
+  readonly results: readonly RelevanceEntry[]
 }
