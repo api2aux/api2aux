@@ -16,7 +16,7 @@ export type {
   StructuredResponse,
 } from '@api2aux/chat-engine'
 
-import type { ToolResultEntry, StructuredResponse } from '@api2aux/chat-engine'
+import type { ToolResultEntry, StructuredResponse, ChatMessage } from '@api2aux/chat-engine'
 
 /** A message in the chat UI. Analogous to ChatMessage but with a UI-oriented shape (text instead of content, tool-result role, loading/error states). */
 export interface UIMessage {
@@ -39,6 +39,34 @@ export interface UIMessage {
   error?: string
   timestamp: number
 }
+
+// ── Call log (debug) ──
+
+export interface ApiCallEntry {
+  type: 'api'
+  toolName: string
+  args: Record<string, unknown>
+  /** 'success' and 'cached' have `response`; 'error' has `error`. */
+  status: 'success' | 'error' | 'cached'
+  response?: unknown
+  error?: string
+  durationMs: number
+  timestamp: number
+}
+
+export interface LlmCallEntry {
+  type: 'llm'
+  purpose: 'stream' | 'focus'
+  model: string
+  messages: ChatMessage[]
+  response?: string
+  toolCalls?: Array<{ name: string; args: string }>
+  error?: string
+  durationMs: number
+  timestamp: number
+}
+
+export type CallLogEntry = ApiCallEntry | LlmCallEntry
 
 export type ProviderId = 'openrouter' | 'anthropic' | 'openai' | 'groq' | 'deepseek' | 'xai' | 'moonshot'
 

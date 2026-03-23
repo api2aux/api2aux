@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
-import type { ChatMessage as LLMMessage } from '../../services/llm/types'
+import type { ChatMessage as LLMMessage, CallLogEntry } from '../../services/llm/types'
 import { useChat } from '../../hooks/useChat'
 import { useChatStore } from '../../store/chatStore'
 import { useAppStore } from '../../store/appStore'
@@ -10,7 +10,7 @@ import { ChatSettings } from './ChatSettings'
 export function ChatPanel() {
   const { setOpen, chatApiUrl } = useChatStore()
   const url = useAppStore((s) => s.url)
-  const { messages, sendMessage, clearMessages, sending, hasApiKey, contextStats, llmHistory } = useChat()
+  const { messages, sendMessage, clearMessages, sending, hasApiKey, contextStats, llmHistory, callLog } = useChat()
   const [showSettings, setShowSettings] = useState(false)
   const [showContext, setShowContext] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -167,7 +167,7 @@ export function ChatPanel() {
 
       {/* Context dialog */}
       {showContext && (
-        <ContextDialog history={llmHistory} onClose={() => setShowContext(false)} />
+        <ContextDialog history={llmHistory} callLog={callLog} onClose={() => setShowContext(false)} />
       )}
 
       {/* Input */}
@@ -205,12 +205,13 @@ function formatContent(text: string | null): string {
   }
 }
 
-function ContextDialog({ history, onClose }: { history: LLMMessage[]; onClose: () => void }) {
+function ContextDialog({ history, callLog, onClose }: { history: LLMMessage[]; callLog: CallLogEntry[]; onClose: () => void }) {
+  const [tab, setTab] = useState<'context' | 'calls'>('calls')
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
-    const text = JSON.stringify(history, null, 2)
-    navigator.clipboard.writeText(text).then(() => {
+    const data = tab === 'context' ? history : callLog
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -219,16 +220,33 @@ function ContextDialog({ history, onClose }: { history: LLMMessage[]; onClose: (
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-background border border-border rounded-lg shadow-xl w-150 max-w-[90vw] max-h-[80vh] flex flex-col"
+        className="bg-background border border-border rounded-lg shadow-xl w-[700px] max-w-[95vw] max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold">LLM Context ({history.length} messages)</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-semibold">Debug</h3>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setTab('calls')}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${tab === 'calls' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >
+                Call History ({callLog.length})
+              </button>
+              <button
+                onClick={() => setTab('context')}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${tab === 'context' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >
+                LLM Context ({history.length})
+              </button>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              title="Copy full context as JSON"
+              title="Copy as JSON"
             >
               {copied ? (
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -252,44 +270,181 @@ function ContextDialog({ history, onClose }: { history: LLMMessage[]; onClose: (
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No messages in context yet.</p>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {tab === 'calls' ? (
+            <CallHistoryTab callLog={callLog} />
           ) : (
-            history.map((msg, i) => {
-              const toolCallId = msg.role === 'tool' ? msg.tool_call_id : undefined
-              const toolCalls = msg.role === 'assistant' && msg.content === null ? msg.tool_calls : undefined
-              return (
-                <div key={i} className="text-xs space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${roleBadge(msg.role)}`}>
-                      {msg.role}
-                    </span>
-                    {toolCallId && (
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        id: {toolCallId}
-                      </span>
-                    )}
-                  </div>
-                  {toolCalls && toolCalls.length > 0 ? (
-                    <div className="space-y-1">
-                      {toolCalls.map((tc, j) => (
-                        <pre key={j} className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
-                          {tc.function.name}({formatContent(tc.function.arguments)})
-                        </pre>
-                      ))}
-                    </div>
-                  ) : (
-                    <pre className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
-                      {formatContent(msg.content)}
-                    </pre>
-                  )}
-                </div>
-              )
-            })
+            <LlmContextTab history={history} />
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function CallHistoryTab({ callLog }: { callLog: CallLogEntry[] }) {
+  if (callLog.length === 0) {
+    return <p className="text-sm text-muted-foreground">No calls recorded yet. Send a message to see call history.</p>
+  }
+  return (
+    <div className="space-y-3">
+      {callLog.map((entry, i) => (
+        entry.type === 'api'
+          ? <ApiCallCard key={i} entry={entry} />
+          : <LlmCallCard key={i} entry={entry} />
+      ))}
+    </div>
+  )
+}
+
+function ApiCallCard({ entry }: { entry: import('../../services/llm/types').ApiCallEntry }) {
+  const [open, setOpen] = useState(false)
+  const statusColor = entry.status === 'cached' ? 'bg-blue-500/15 text-blue-400' : entry.status === 'error' ? 'bg-destructive/15 text-destructive' : 'bg-green-500/15 text-green-400'
+  const argStr = Object.entries(entry.args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')
+
+  return (
+    <div className="text-xs border border-border rounded-md overflow-hidden">
+      <button
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/50 text-left"
+        onClick={() => setOpen((s) => !s)}
+      >
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400">API</span>
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor}`}>{entry.status}</span>
+        <span className="font-mono text-foreground flex-1 truncate">{entry.toolName}{argStr ? `(${argStr})` : ''}</span>
+        {entry.durationMs > 0 && <span className="text-muted-foreground shrink-0">{entry.durationMs}ms</span>}
+        <svg className={`w-3 h-3 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="border-t border-border p-3 space-y-2 bg-muted/30">
+          {Object.keys(entry.args).length > 0 && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Args</p>
+              <pre className="bg-muted rounded p-2 text-[11px] font-mono whitespace-pre-wrap overflow-x-auto">{JSON.stringify(entry.args, null, 2)}</pre>
+            </div>
+          )}
+          {entry.error && (
+            <div>
+              <p className="text-[10px] font-medium text-destructive uppercase tracking-wide mb-1">Error</p>
+              <pre className="bg-destructive/10 rounded p-2 text-[11px] font-mono whitespace-pre-wrap text-destructive">{entry.error}</pre>
+            </div>
+          )}
+          {entry.response !== undefined && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Response</p>
+              <pre className="bg-muted rounded p-2 text-[11px] font-mono whitespace-pre-wrap overflow-x-auto max-h-64">{JSON.stringify(entry.response, null, 2)}</pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LlmCallCard({ entry }: { entry: import('../../services/llm/types').LlmCallEntry }) {
+  const [open, setOpen] = useState(false)
+  const purposeColor = entry.purpose === 'focus' ? 'bg-purple-500/15 text-purple-400' : 'bg-primary/15 text-primary'
+  const hasError = !!entry.error
+
+  return (
+    <div className="text-xs border border-border rounded-md overflow-hidden">
+      <button
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/50 text-left"
+        onClick={() => setOpen((s) => !s)}
+      >
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-foreground">LLM</span>
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${purposeColor}`}>{entry.purpose}</span>
+        {hasError && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/15 text-destructive">error</span>}
+        <span className="text-muted-foreground flex-1 truncate">{entry.model} · {entry.messages.length} msgs in</span>
+        {entry.toolCalls && entry.toolCalls.length > 0 && (
+          <span className="text-amber-400 shrink-0">{entry.toolCalls.length} tool{entry.toolCalls.length > 1 ? 's' : ''}</span>
+        )}
+        <span className="text-muted-foreground shrink-0">{entry.durationMs}ms</span>
+        <svg className={`w-3 h-3 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="border-t border-border p-3 space-y-2 bg-muted/30">
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Input ({entry.messages.length} messages)</p>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {entry.messages.map((msg, i) => (
+                <div key={i} className="space-y-0.5">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${roleBadge(msg.role)}`}>{msg.role}</span>
+                  <pre className="bg-muted rounded p-2 text-[11px] font-mono whitespace-pre-wrap overflow-x-auto">{formatContent(msg.content)}</pre>
+                </div>
+              ))}
+            </div>
+          </div>
+          {entry.toolCalls && entry.toolCalls.length > 0 && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Tool calls</p>
+              {entry.toolCalls.map((tc, i) => (
+                <pre key={i} className="bg-muted rounded p-2 text-[11px] font-mono whitespace-pre-wrap overflow-x-auto">
+                  {tc.name}({formatContent(tc.args)})
+                </pre>
+              ))}
+            </div>
+          )}
+          {entry.error && (
+            <div>
+              <p className="text-[10px] font-medium text-destructive uppercase tracking-wide mb-1">Error</p>
+              <pre className="bg-destructive/10 rounded p-2 text-[11px] font-mono whitespace-pre-wrap text-destructive">{entry.error}</pre>
+            </div>
+          )}
+          {entry.response && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Response</p>
+              <pre className="bg-muted rounded p-2 text-[11px] font-mono whitespace-pre-wrap overflow-x-auto max-h-48">{entry.response}</pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LlmContextTab({ history }: { history: LLMMessage[] }) {
+  if (history.length === 0) {
+    return <p className="text-sm text-muted-foreground">No messages in context yet.</p>
+  }
+  return (
+    <div className="space-y-3">
+      {history.map((msg, i) => {
+        const toolCallId = msg.role === 'tool' ? msg.tool_call_id : undefined
+        const toolCalls = msg.role === 'assistant' && msg.content === null ? msg.tool_calls : undefined
+        return (
+          <div key={i} className="text-xs space-y-1">
+            <div className="flex items-center gap-2">
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${roleBadge(msg.role)}`}>
+                {msg.role}
+              </span>
+              {toolCallId && (
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  id: {toolCallId}
+                </span>
+              )}
+            </div>
+            {toolCalls && toolCalls.length > 0 ? (
+              <div className="space-y-1">
+                {toolCalls.map((tc, j) => (
+                  <pre key={j} className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
+                    {tc.function.name}({formatContent(tc.function.arguments)})
+                  </pre>
+                ))}
+              </div>
+            ) : (
+              <pre className="bg-muted rounded p-2 overflow-x-auto text-[11px] font-mono whitespace-pre-wrap">
+                {formatContent(msg.content)}
+              </pre>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

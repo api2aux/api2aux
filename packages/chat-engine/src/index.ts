@@ -28,7 +28,7 @@ export type {
   StructuredResponse,
 } from './types'
 
-export { MessageRole, ToolType, ApiParamIn, MergeStrategy, ChatEventType, HttpMethod, FinishReason } from './types'
+export { MessageRole, ToolType, ApiParamIn, MergeStrategy, ChatEventType, HttpMethod, FinishReason, FocusReduction } from './types'
 
 // === Defaults ===
 export { MAX_ROUNDS, TRUNCATION_LIMIT, NO_DATA_MESSAGE } from './defaults'
@@ -40,7 +40,10 @@ export { truncateToolResult, summarizeToolResult } from './truncation'
 export { buildToolsFromSpec, buildToolsFromUrl, buildSystemPrompt, buildResponsePrompt, buildChatContext } from './context'
 
 // === Response Formatting ===
-export { formatStructuredResponse, hasUsableStructuredData, extractJson } from './response'
+export { formatStructuredResponse, hasUsableStructuredData, extractJson, clearFocusCache } from './response'
+
+// === Focus Reduction ===
+export { reduceToolResultsForFocus, truncateValues } from './reduction'
 
 // === Engine ===
 export { ChatEngine } from './engine'

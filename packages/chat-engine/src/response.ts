@@ -10,6 +10,25 @@
 import type { ToolResultEntry, StructuredResponse, LLMTextFn, ChatMessage } from './types'
 import { MergeStrategy, MessageRole } from './types'
 
+// ── Focus result cache ──
+
+const MAX_FOCUS_CACHE_SIZE = 200
+const focusCache = new Map<string, unknown>()
+
+/** Simple djb2 string hash — fast, low-collision for cache keys. */
+function hashString(str: string): string {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0
+  }
+  return (hash >>> 0).toString(36)
+}
+
+/** Clear the focus result cache (call on API switch or user request). */
+export function clearFocusCache(): void {
+  focusCache.clear()
+}
+
 // ── JSON extraction helper ──
 
 /**
@@ -19,12 +38,13 @@ import { MergeStrategy, MessageRole } from './types'
  */
 export function extractJson(raw: string): unknown | null {
   const trimmed = raw.trim()
-  try { return JSON.parse(trimmed) } catch {}
+  let lastError: unknown
+  try { return JSON.parse(trimmed) } catch (e) { lastError = e }
 
   // Markdown code block: ```json ... ```
   const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
   if (fenceMatch) {
-    try { return JSON.parse(fenceMatch[1]!) } catch {}
+    try { return JSON.parse(fenceMatch[1]!) } catch (e) { lastError = e }
   }
 
   // Outermost { } or [ ]
@@ -33,10 +53,14 @@ export function extractJson(raw: string): unknown | null {
     const closer = trimmed[start] === '{' ? '}' : ']'
     const end = trimmed.lastIndexOf(closer)
     if (end > start) {
-      try { return JSON.parse(trimmed.slice(start, end + 1)) } catch {}
+      try { return JSON.parse(trimmed.slice(start, end + 1)) } catch (e) { lastError = e }
     }
   }
 
+  // All parse attempts failed — log for debugging
+  const preview = trimmed.length > 200 ? trimmed.slice(0, 200) + '...' : trimmed
+  const errMsg = lastError instanceof Error ? lastError.message : String(lastError)
+  console.warn('[chat-engine] extractJson: all parse attempts failed. Last error:', errMsg, 'Raw:', preview)
   return null
 }
 
@@ -111,6 +135,7 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
 
   // If no entities with ID fields were found, fall back to array strategy
   if (entityMap.size === 0) {
+    console.warn('[chat-engine] Schema-based merge found no entities with ID fields; falling back to array strategy')
     return mergeArray(toolResults)
   }
 
@@ -121,9 +146,30 @@ function mergeSchemaBased(toolResults: ToolResultEntry[]): StructuredResponse {
   }
 }
 
-const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document that best answers the user's question. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
+const MERGE_PROMPT = `You are a data merging assistant. Given the following API results, merge them into a single JSON document. Include ALL items from each result that are relevant to the user's question. Preserve key fields needed for comparison or display. Return ONLY valid JSON, nothing else.`
 
-const FOCUS_PROMPT = `You are a data formatting assistant. Given the following API result, extract and organize the data that best answers the user's question into a single JSON document. Select the most relevant entities and fields. Return ONLY valid JSON, nothing else.`
+const FOCUS_PROMPT = `You are a data assistant. Given an API result and a user's question, extract only the data that directly answers the question.
+
+Key rule: API responses often wrap actual data inside envelope objects with pagination metadata (total, skip, limit, count, page, offset). Return the actual data items, not the pagination metadata — unless the user specifically asks about counts or totals.
+
+Example 1:
+API result: {"products":[{"id":1,"name":"Chair","price":50},{"id":2,"name":"Table","price":100}],"total":20,"skip":0,"limit":10}
+Question: show me chairs
+Output: [{"id":1,"name":"Chair","price":50}]
+
+Example 2:
+API result: {"data":[{"id":1,"category":"food","name":"Apple"},{"id":2,"category":"drink","name":"Cola"}],"meta":{"total":100,"page":1}}
+Question: show me food
+Output: [{"id":1,"category":"food","name":"Apple"}]
+
+Example 3:
+API result: {"products":[{"id":1,"name":"Chair"}],"total":20,"skip":0,"limit":10}
+Question: how many products are there?
+Output: {"total":20}
+
+Return ONLY valid JSON, nothing else.`
+
+const FOCUS_LLM_TIMEOUT_MS = 10_000
 
 /**
  * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
@@ -134,10 +180,15 @@ async function mergeLlmGuided(
   toolResults: ToolResultEntry[],
   userMessage: string,
   llm: LLMTextFn,
+  reducedResults?: ToolResultEntry[],
+  apiUrl?: string,
 ): Promise<StructuredResponse> {
   const prompt = toolResults.length === 1 ? FOCUS_PROMPT : MERGE_PROMPT
 
-  const resultsText = toolResults
+  // Use pre-reduced results if available (from reduceToolResultsForFocus)
+  const effectiveResults = reducedResults ?? toolResults
+
+  const resultsText = effectiveResults
     .map((r, i) => {
       let dataStr: string
       try {
@@ -150,6 +201,17 @@ async function mergeLlmGuided(
     })
     .join('\n\n')
 
+  // Check focus cache — same API + same query + same data = same focused result
+  const focusKey = `${apiUrl ?? ''}::${userMessage}::${hashString(resultsText)}`
+  const cachedFocus = focusCache.get(focusKey)
+  if (cachedFocus !== undefined) {
+    return {
+      strategy: MergeStrategy.LlmGuided,
+      sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
+      data: cachedFocus,
+    }
+  }
+
   const messages: ChatMessage[] = [
     { role: MessageRole.System, content: prompt },
     { role: MessageRole.User, content: `User's question: ${userMessage}\n\n${resultsText}` },
@@ -158,16 +220,30 @@ async function mergeLlmGuided(
   // Separate LLM call from JSON parse so infrastructure errors propagate
   // while malformed LLM output falls back gracefully.
   let content: string
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    content = await llm(messages)
+    content = await Promise.race([
+      llm(messages),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Focus LLM timed out')), FOCUS_LLM_TIMEOUT_MS)
+      }),
+    ])
   } catch (err) {
-    // LLM infrastructure error (network, auth, rate limit) — let it propagate
+    // LLM infrastructure error (network, auth, rate limit, timeout) — let it propagate
     // so the caller can handle it visibly rather than silently degrading.
     throw err
+  } finally {
+    clearTimeout(timer)
   }
 
   const parsed = extractJson(content)
   if (parsed !== null) {
+    // FIFO eviction: remove oldest entry when cache is full
+    if (focusCache.size >= MAX_FOCUS_CACHE_SIZE) {
+      const firstKey = focusCache.keys().next().value as string
+      focusCache.delete(firstKey)
+    }
+    focusCache.set(focusKey, parsed)
     return {
       strategy: MergeStrategy.LlmGuided,
       sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
@@ -194,6 +270,8 @@ export async function formatStructuredResponse(
   strategy: typeof MergeStrategy.LlmGuided,
   userMessage: string,
   llm: LLMTextFn,
+  reducedResults?: ToolResultEntry[],
+  apiUrl?: string,
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
@@ -204,12 +282,16 @@ export async function formatStructuredResponse(
   strategy: MergeStrategy,
   userMessage: string,
   llm: LLMTextFn,
+  reducedResults?: ToolResultEntry[],
+  apiUrl?: string,
 ): Promise<StructuredResponse>
 export async function formatStructuredResponse(
   toolResults: ToolResultEntry[],
   strategy: MergeStrategy = MergeStrategy.LlmGuided,
   userMessage?: string,
   llm?: LLMTextFn,
+  reducedResults?: ToolResultEntry[],
+  apiUrl?: string,
 ): Promise<StructuredResponse> {
   if (toolResults.length === 0) {
     return mergeArray(toolResults)
@@ -224,10 +306,10 @@ export async function formatStructuredResponse(
 
     case MergeStrategy.LlmGuided:
       if (llm && userMessage) {
-        return mergeLlmGuided(toolResults, userMessage, llm)
+        return mergeLlmGuided(toolResults, userMessage, llm, reducedResults, apiUrl)
       }
-      console.warn(
-        '[chat-engine] LLM-guided merge requested but llm/userMessage not provided; falling back to array strategy',
+      console.error(
+        '[chat-engine] LLM-guided merge requested but llm/userMessage not provided — this is a configuration error. Falling back to array strategy.',
       )
       return mergeArray(toolResults)
 

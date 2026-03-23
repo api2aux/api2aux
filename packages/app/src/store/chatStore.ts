@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { UIMessage, ChatConfig } from '../services/llm/types'
+import type { UIMessage, ChatConfig, CallLogEntry } from '../services/llm/types'
 import { getProvider } from '../services/llm/providers/registry'
 
 interface ChatState {
@@ -36,6 +36,11 @@ interface ChatState {
   apiCache: Map<string, unknown>
   setApiCacheEnabled: (enabled: boolean) => void
   clearApiCache: () => void
+
+  /** Debug call log (session-only, not persisted) */
+  callLog: CallLogEntry[]
+  addCallLogEntry: (entry: CallLogEntry) => void
+  clearCallLog: () => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -75,24 +80,27 @@ export const useChatStore = create<ChatState>()(
       setSending: (sending) => set({ sending }),
       setApiCacheEnabled: (apiCacheEnabled) => set({ apiCacheEnabled }),
       clearApiCache: () => set({ apiCache: new Map() }),
+      callLog: [],
+      addCallLogEntry: (entry) => set((s) => {
+        const log = [...s.callLog, entry]
+        // Cap at 500 entries to prevent unbounded memory growth in long sessions
+        if (log.length > 500) {
+          console.info(`[chat] Call log truncated from ${log.length} to 500 entries`)
+          return { callLog: log.slice(-500) }
+        }
+        return { callLog: log }
+      }),
+      clearCallLog: () => set({ callLog: [] }),
     }),
     {
       name: 'api2aux-chat',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         config: state.config,
         panelSize: state.panelSize,
         apiCacheEnabled: state.apiCacheEnabled,
       }),
-      migrate: (persisted: unknown, version: number) => {
-        const state = persisted as Record<string, unknown>
-        // v2→v3: reset panelSize (was saved as pixels, now percentage)
-        if (version < 3) {
-          state.panelSize = 30
-        }
-        return state
-      },
     }
   )
 )
