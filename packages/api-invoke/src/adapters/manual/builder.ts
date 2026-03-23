@@ -162,7 +162,7 @@ export class APIBuilder {
     const id = options.id ?? `${method.toLowerCase()}_${path.replace(/[{}\/]/g, '_').replace(/^_|_$/g, '').replace(/_+/g, '_')}`
 
     // Auto-detect path params from {param} placeholders
-    const pathParamNames = [...path.matchAll(/\{(\w+)\}/g)].map(m => m[1])
+    const pathParamNames = [...path.matchAll(/\{(\w+)\}/g)].map(m => m[1]!)
 
     const parameters: Parameter[] = []
 

@@ -1,16 +1,14 @@
 {
-  "name": "api-invoke",
+  "name": "@api2aux/api-invoke",
   "version": "0.2.1",
   "description": "Parse any API spec and execute operations — OpenAPI, raw URLs, or manual endpoints",
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "types": "./dist/index.d.ts"
     }
   },
   "files": [
@@ -18,9 +16,10 @@
   ],
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
+    "test": "vitest",
+    "test:run": "vitest run",
     "test:e2e": "export $(grep -v '^#' .env | xargs) 2>/dev/null; vitest run --config vitest.e2e.config.ts",
-    "test:watch": "vitest",
+    "test:watch": "vitest --watch",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "docs": "typedoc",
@@ -35,20 +34,21 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jorgeroa/api-invoke.git"
+    "url": "https://github.com/jorgeroa/api2aux.git",
+    "directory": "packages/api-invoke"
   },
-  "homepage": "https://github.com/jorgeroa/api-invoke#readme",
+  "homepage": "https://github.com/jorgeroa/api2aux/tree/main/packages/api-invoke#readme",
   "bugs": {
-    "url": "https://github.com/jorgeroa/api-invoke/issues"
+    "url": "https://github.com/jorgeroa/api2aux/issues"
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.1.0"
   },
   "devDependencies": {
     "openapi-types": "^12.1.3",
-    "tsup": "^8.0.0",
+    "tsup": "^8.5.1",
     "typedoc": "^0.28.17",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.18"
   }
 }

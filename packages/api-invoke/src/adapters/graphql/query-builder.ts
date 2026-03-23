@@ -121,10 +121,10 @@ function buildSelectionSet(
 }
 
 function buildUnionSelection(
-  type: IntrospectionType,
-  typeMap: Map<string, IntrospectionType>,
-  depth: number,
-  visited: Set<string>,
+  _type: IntrospectionType,
+  _typeMap: Map<string, IntrospectionType>,
+  _depth: number,
+  _visited: Set<string>,
 ): string {
   // For unions/interfaces, we need the possibleTypes — but introspection query
   // doesn't include them by default. Fall back to __typename only.

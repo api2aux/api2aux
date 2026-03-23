@@ -52,9 +52,9 @@ export function parseRawUrls(endpoints: RawEndpoint[]): ParsedAPI {
   // Derive baseUrl from first endpoint
   let firstParsed: URL
   try {
-    firstParsed = new URL(endpoints[0].url)
+    firstParsed = new URL(endpoints[0]!.url)
   } catch {
-    throw new Error(`Invalid URL "${endpoints[0].url}". Expected an absolute URL like "https://api.example.com/path".`)
+    throw new Error(`Invalid URL "${endpoints[0]!.url}". Expected an absolute URL like "https://api.example.com/path".`)
   }
   const baseUrl = firstParsed.origin
 

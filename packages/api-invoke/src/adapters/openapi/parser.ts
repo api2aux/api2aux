@@ -298,7 +298,7 @@ function extractRequestBody(
     } else if (consumes.includes(ContentType.MULTIPART)) {
       contentType = ContentType.MULTIPART
     } else if (consumes.length > 0) {
-      contentType = consumes[0]
+      contentType = consumes[0]!
     }
 
     return {
