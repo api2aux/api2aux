@@ -3,7 +3,7 @@ import { X, Copy, Check, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { methodBadgeClass } from '@/lib/method-colors'
-import type { BuiltRequest } from 'api-invoke'
+import type { BuiltRequest } from '@api2aux/api-invoke'
 
 interface RequestPreviewProps {
   request: BuiltRequest | null

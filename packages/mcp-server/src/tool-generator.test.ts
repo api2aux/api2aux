@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { generateTools } from './tool-generator'
-import type { Operation } from 'api-invoke'
-import { HttpMethod, ParamLocation } from 'api-invoke'
+import type { Operation } from '@api2aux/api-invoke'
+import { HttpMethod, ParamLocation } from '@api2aux/api-invoke'
 
 function makeOperation(overrides: Partial<Operation> = {}): Operation {
   return {

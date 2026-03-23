@@ -14,7 +14,8 @@
 
 ## api-invoke Usage
 
-- Use `api-invoke` for what it's designed for: parsing API specs, building/executing operations, auth injection, middleware chains, CORS proxying for API exploration.
+- `@api2aux/api-invoke` lives in `packages/api-invoke/` as a workspace package. No `pnpm link` needed — changes are reflected instantly.
+- Use it for what it's designed for: parsing API specs, building/executing operations, auth injection, middleware chains, CORS proxying for API exploration.
 - **Do NOT** use `api-invoke` (`executeRaw`, `executeOperation`, etc.) for simple HTTP calls (e.g., LLM chat completions). Plain `fetch()` is simpler and more appropriate. Wrapping basic requests in api-invoke's execution pipeline adds unnecessary complexity and has caused bugs (CORS issues, error re-wrapping that loses context).
 
 ## Testing
@@ -24,4 +25,4 @@
 
 ## Local Development
 
-- After `pnpm install`, run `pnpm link ../../../api-invoke` to use the local `api-invoke` source instead of the npm-published version. This is a symlink — edits to `api-invoke` are reflected instantly. Re-run after every `pnpm install`.
+- `api-invoke` is now part of the monorepo at `packages/api-invoke/`. No symlink needed — pnpm workspace resolution handles it automatically.

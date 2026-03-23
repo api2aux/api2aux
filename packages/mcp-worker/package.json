@@ -15,7 +15,7 @@
     "@api2aux/tool-utils": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "api-invoke": "^0.2.2",
+    "@api2aux/api-invoke": "workspace:*",
     "hono": "^4.7.0",
     "zod": "^3.25.0"
   },

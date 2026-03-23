@@ -32,7 +32,7 @@ import { ExamplesPage } from './pages/ExamplesPage'
 import { RequestPreview } from './components/forms/RequestPreview'
 import { StreamDisplay } from './components/renderers/StreamDisplay'
 import { AuthError } from './services/api/errors'
-import type { BuiltRequest } from 'api-invoke'
+import type { BuiltRequest } from '@api2aux/api-invoke'
 import 'react-loading-skeleton/dist/skeleton.css'
 
 /** Stable empty array to avoid re-render loops when passed as a prop */

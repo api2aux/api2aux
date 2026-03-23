@@ -1,5 +1,5 @@
-import { executeRaw, ApiInvokeError, ErrorKind, ParamLocation } from 'api-invoke'
-import type { Auth } from 'api-invoke'
+import { executeRaw, ApiInvokeError, ErrorKind, ParamLocation } from '@api2aux/api-invoke'
+import type { Auth } from '@api2aux/api-invoke'
 import { CORSError, NetworkError, APIError, ParseError, AuthError, GraphQLError } from './errors'
 import { proxy } from './proxy'
 import { useAuthStore } from '../../store/authStore'

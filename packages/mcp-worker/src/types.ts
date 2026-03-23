@@ -3,10 +3,10 @@
  * Uses Operation from api-invoke directly.
  */
 
-import type { Operation, AuthConfigType, ParamLocation } from 'api-invoke'
+import type { Operation, AuthConfigType, ParamLocation } from '@api2aux/api-invoke'
 
-export { toAuth, AuthConfigType } from 'api-invoke'
-export type { AuthConfig } from 'api-invoke'
+export { toAuth, AuthConfigType } from '@api2aux/api-invoke'
+export type { AuthConfig } from '@api2aux/api-invoke'
 
 // ── Storage interface (runtime-agnostic) ─────────────────────────────
 

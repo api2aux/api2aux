@@ -2,8 +2,8 @@
  * Configuration types for the MCP server.
  */
 
-export { toAuth, AuthConfigType } from 'api-invoke'
-export type { AuthConfig } from 'api-invoke'
+export { toAuth, AuthConfigType } from '@api2aux/api-invoke'
+export type { AuthConfig } from '@api2aux/api-invoke'
 
 export interface ServerConfig {
   /** API URL to proxy (for raw JSON APIs) */

@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import type { Operation, AuthConfigType, ParamLocation } from 'api-invoke'
+import type { Operation, AuthConfigType, ParamLocation } from '@api2aux/api-invoke'
 import type { TenantConfig } from '../types'
 import { validateApiUrl } from '../services/security'
 

@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useRef, useEffect, startTransition } from 'react'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
-import { executeOperation } from 'api-invoke'
+import { executeOperation } from '@api2aux/api-invoke'
 import { credentialToAuth } from '../services/api/fetcher'
 import { proxy } from '../services/api/proxy'
 import { useAuthStore } from '../store/authStore'

@@ -49,7 +49,7 @@ export class SpecResolver {
       }
 
       // Dynamic import to avoid hard dependency on api-invoke at module level
-      const { parseOpenAPISpec } = await import('api-invoke')
+      const { parseOpenAPISpec } = await import('@api2aux/api-invoke')
       const parsed = await parseOpenAPISpec(specObject)
 
       // Store operations
