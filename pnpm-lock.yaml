@@ -10,6 +10,9 @@ importers:
 
   packages/api-catalog:
     dependencies:
+      '@api2aux/api-invoke':
+        specifier: workspace:*
+        version: link:../api-invoke
       '@hono/node-server':
         specifier: ^1.19.11
         version: 1.19.11(hono@4.12.7)
@@ -22,9 +25,6 @@ importers:
       '@scalar/hono-api-reference':
         specifier: ^0.10.3
         version: 0.10.3(hono@4.12.7)
-      api-invoke:
-        specifier: ^0.2.2
-        version: 0.2.2(openapi-types@12.1.3)
       better-auth:
         specifier: ^1.5.5
         version: 1.5.5(better-sqlite3@12.6.2)(drizzle-kit@0.31.9)(drizzle-orm@0.45.1(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.28.11))(mongodb@7.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@4.0.18(@types/node@24.10.13)(jiti@2.6.1)(jsdom@27.4.0(@noble/hashes@2.0.1))(lightningcss@1.30.2)(msw@2.12.10(@types/node@24.10.13)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.2))
@@ -133,6 +133,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.78.0
         version: 0.78.0(zod@3.25.76)
+      '@api2aux/api-invoke':
+        specifier: workspace:*
+        version: link:../api-invoke
       '@api2aux/chat-engine':
         specifier: workspace:*
         version: link:../chat-engine
@@ -163,9 +166,6 @@ importers:
       '@radix-ui/react-toggle-group':
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      api-invoke:
-        specifier: ^0.2.2
-        version: 0.2.2(openapi-types@12.1.3)
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
@@ -321,6 +321,9 @@ importers:
         specifier: workspace:*
         version: link:../workflow-inference
     devDependencies:
+      '@api2aux/api-invoke':
+        specifier: workspace:*
+        version: link:../api-invoke
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.15
@@ -364,6 +367,9 @@ importers:
 
   packages/mcp-server:
     dependencies:
+      '@api2aux/api-invoke':
+        specifier: workspace:*
+        version: link:../api-invoke
       '@api2aux/semantic-analysis':
         specifier: workspace:*
         version: link:../semantic-analysis
@@ -376,9 +382,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.26.0
         version: 1.26.0(zod@3.25.76)
-      api-invoke:
-        specifier: ^0.2.2
-        version: 0.2.2(openapi-types@12.1.3)
       zod:
         specifier: ^3.25.0
         version: 3.25.76
@@ -395,6 +398,9 @@ importers:
 
   packages/mcp-worker:
     dependencies:
+      '@api2aux/api-invoke':
+        specifier: workspace:*
+        version: link:../api-invoke
       '@api2aux/tool-utils':
         specifier: workspace:*
         version: link:../tool-utils
@@ -404,9 +410,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.26.0
         version: 1.26.0(zod@3.25.76)
-      api-invoke:
-        specifier: ^0.2.2
-        version: 0.2.2(openapi-types@12.1.3)
       hono:
         specifier: ^4.7.0
         version: 4.11.9
@@ -429,9 +432,9 @@ importers:
 
   packages/semantic-analysis:
     dependencies:
-      api-invoke:
-        specifier: ^0.2.2
-        version: 0.2.2(openapi-types@12.1.3)
+      '@api2aux/api-invoke':
+        specifier: workspace:*
+        version: link:../api-invoke
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -3034,9 +3037,6 @@ packages:
 
   any-promise@1.3.0:
     resolution: {integrity: sha512-7UvmKalWRt1wgjL1RrGxoSJW/0QZFIegpeGvZG9kjp8vrRu55XTHbwnqq2GpXm9uLbcuhxm3IqX9OB4MZR1b2A==}
-
-  api-invoke@0.2.2:
-    resolution: {integrity: sha512-2PC36awptRWkRVdlm2hEyw0ByhMLqmJGiHvJEWeraWW5K7At2zX47TVDcpHsta89TkKhOrKhowGpEG3bLJ0O4w==}
 
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
@@ -8368,12 +8368,6 @@ snapshots:
   ansis@4.2.0: {}
 
   any-promise@1.3.0: {}
-
-  api-invoke@0.2.2(openapi-types@12.1.3):
-    dependencies:
-      '@apidevtools/swagger-parser': 12.1.0(openapi-types@12.1.3)
-    transitivePeerDependencies:
-      - openapi-types
 
   argparse@2.0.1: {}
 

@@ -28,6 +28,7 @@
     "@api2aux/workflow-inference": "workspace:*"
   },
   "devDependencies": {
+    "@api2aux/api-invoke": "workspace:*",
     "@types/node": "^22.0.0",
     "tsup": "^8.5.1",
     "typescript": "~5.9.3",
