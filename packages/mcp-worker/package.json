@@ -12,6 +12,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@api2aux/cors-proxy": "workspace:*",
     "@api2aux/tool-utils": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "@modelcontextprotocol/sdk": "^1.26.0",

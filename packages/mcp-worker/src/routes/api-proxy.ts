@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { proxyRequest, handleCorsPreflightResponse } from '../lib/proxy-core'
+import { proxyRequest, handleCorsPreflightResponse } from '@api2aux/cors-proxy'
 
 const apiProxy = new Hono()
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { filterProxyHeaders, handleCorsPreflightResponse, proxyRequest } from './proxy-core'
+import { filterProxyHeaders, handleCorsPreflightResponse, proxyRequest } from '../src/index'
 
 describe('filterProxyHeaders', () => {
   const targetOrigin = 'https://api.example.com'

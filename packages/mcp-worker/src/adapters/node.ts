@@ -22,7 +22,7 @@ const app = new Hono()
 // Mount MCP worker routes
 app.route('/', mcpApp)
 
-// CORS proxy — shared implementation from lib/proxy-core
+// CORS proxy — uses @api2aux/cors-proxy
 app.route('/', apiProxy)
 
 // Serve static app files (built app)
