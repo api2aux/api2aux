@@ -48,7 +48,6 @@ api2aux connects these layers: it takes raw OpenAPI specs, enriches them semanti
 
 ```bash
 pnpm install
-pnpm link ../../../api-invoke   # use local api-invoke source (re-run after pnpm install)
 pnpm dev
 ```
 
@@ -75,14 +74,16 @@ Copy `.env.example` and adjust as needed:
 
 | Package | Description |
 |---------|-------------|
+| `packages/api-invoke` | Runtime API client — parses OpenAPI, GraphQL, raw URLs and executes operations |
 | `packages/app` | React web app (Vite) — the human interface |
-| `packages/data2ui` | Framework-agnostic data-to-UI inference engine — parses JSON/YAML/XML, selects optimal components, produces a serializable UIPlan descriptor tree |
 | `packages/chat-engine` | Pluggable chat engine for LLM tool calling and structured API data extraction |
-| `packages/workflow-inference` | Deterministic API endpoint relationship inference (no LLM) |
-| `packages/semantic-analysis` | OpenAPI parser, semantic field classification, importance scoring, and grouping |
+| `packages/cors-proxy` | Platform-agnostic CORS proxy core (web-standard Request/Response) |
+| `packages/data2ui` | Framework-agnostic data-to-UI inference engine — parses JSON/YAML/XML, selects optimal components, produces a serializable UIPlan descriptor tree |
 | `packages/mcp-server` | Standalone MCP server CLI — the agent interface. Turns any API into tools for Claude Desktop, Cursor, etc. |
 | `packages/mcp-worker` | Hosted multi-tenant MCP server (Node.js) |
+| `packages/semantic-analysis` | OpenAPI parser, semantic field classification, importance scoring, and grouping |
 | `packages/tool-utils` | Shared tool name/description generation with semantic awareness |
+| `packages/workflow-inference` | Deterministic API endpoint relationship inference (no LLM) |
 
 ## Features
 
