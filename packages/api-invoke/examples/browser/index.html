@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>api-invoke — Browser Example</title>
+  <!-- Import map: dist/index.js imports @apidevtools/swagger-parser as a bare specifier; this resolves it to a CDN -->
+  <!-- After publishing to npm, replace with: "api-invoke": "https://esm.sh/api-invoke" (also update import in app.js) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@apidevtools/swagger-parser": "https://esm.sh/@apidevtools/swagger-parser"
+      }
+    }
+  </script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+    button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
+    pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; white-space: pre-wrap; min-height: 2rem; }
+    .meta { color: #666; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <script>
+    if (location.protocol === 'file:') {
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('output').textContent =
+          'This example must be served over HTTP.\n\n' +
+          'Run from the api-invoke/ directory:\n\n' +
+          '  npx serve .\n\n' +
+          'Then open http://localhost:3000/examples/browser/'
+        document.getElementById('fetch-btn').disabled = true
+      })
+    }
+  </script>
+
+  <h1>api-invoke in the browser</h1>
+  <p>Fetches a programming joke via a CORS proxy using <code>api-invoke</code>.</p>
+
+  <button id="fetch-btn">Fetch Joke</button>
+  <pre id="output">Click the button to fetch a joke.</pre>
+  <p class="meta" id="meta"></p>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
