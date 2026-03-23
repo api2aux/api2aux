@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 540" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <style>
+      .axis-label { font-size: 11.5px; fill: #94a3b8; font-weight: 500; }
+      .axis-title { font-size: 13px; fill: #cbd5e1; font-weight: 600; }
+      .quadrant-label { font-size: 13px; fill: #475569; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+      .tool-label { font-size: 11px; fill: #e2e8f0; }
+      .tool-label-highlight { font-size: 13px; fill: #93c5fd; font-weight: 700; }
+      .band-annotation { font-size: 9px; fill: #60a5fa; font-weight: 500; }
+      .legend-text { font-size: 10.5px; fill: #94a3b8; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="720" height="540" fill="#0f172a" rx="8"/>
+
+  <!-- Chart area: x=80..660, y=40..440 (580w x 400h) -->
+
+  <!-- Quadrant background fills -->
+  <rect x="80" y="40" width="290" height="200" fill="#1e293b" rx="2"/>
+  <rect x="370" y="40" width="290" height="200" fill="#172554" rx="2" opacity="0.45"/>
+  <rect x="80" y="240" width="290" height="200" fill="#1e293b" rx="2" opacity="0.5"/>
+  <rect x="370" y="240" width="290" height="200" fill="#1e293b" rx="2"/>
+
+  <!-- Quadrant dividers -->
+  <line x1="370" y1="40" x2="370" y2="440" stroke="#334155" stroke-width="1" stroke-dasharray="6,4"/>
+  <line x1="80" y1="240" x2="660" y2="240" stroke="#334155" stroke-width="1" stroke-dasharray="6,4"/>
+
+  <!-- Axes -->
+  <line x1="80" y1="440" x2="660" y2="440" stroke="#475569" stroke-width="1.5"/>
+  <line x1="80" y1="40" x2="80" y2="440" stroke="#475569" stroke-width="1.5"/>
+  <!-- Arrowheads -->
+  <polygon points="660,435 660,445 672,440" fill="#475569"/>
+  <polygon points="75,40 85,40 80,28" fill="#475569"/>
+
+  <!-- X-axis labels -->
+  <text x="140" y="462" class="axis-label">No Spec Awareness</text>
+  <text x="540" y="462" class="axis-label">Full OpenAPI Parsing</text>
+  <text x="370" y="484" class="axis-title" text-anchor="middle">Spec Awareness</text>
+
+  <!-- Y-axis labels -->
+  <text x="58" y="430" class="axis-label" text-anchor="middle" transform="rotate(-90 58 430)">Build-Time</text>
+  <text x="58" y="72" class="axis-label" text-anchor="middle" transform="rotate(-90 58 72)">Runtime</text>
+  <text x="32" y="240" class="axis-title" text-anchor="middle" transform="rotate(-90 32 240)">When Ready</text>
+
+  <!-- Quadrant labels — pushed to lower-center of each quadrant to avoid tools -->
+  <text x="225" y="210" class="quadrant-label" text-anchor="middle">Runtime</text>
+  <text x="225" y="228" class="quadrant-label" text-anchor="middle">Manual</text>
+  <text x="515" y="210" class="quadrant-label" text-anchor="middle">Runtime</text>
+  <text x="515" y="228" class="quadrant-label" text-anchor="middle">Spec-Aware</text>
+  <text x="225" y="335" class="quadrant-label" text-anchor="middle">Build-Time</text>
+  <text x="225" y="353" class="quadrant-label" text-anchor="middle">Manual</text>
+  <text x="515" y="310" class="quadrant-label" text-anchor="middle">Build-Time</text>
+  <text x="515" y="328" class="quadrant-label" text-anchor="middle">Spec-Driven</text>
+
+  <!-- ============================================ -->
+  <!-- api-invoke HORIZONTAL BAND across top row    -->
+  <!-- Two dots at each end connected by a solid band -->
+  <!-- ============================================ -->
+
+  <!-- Band body — solid enough to be clearly visible -->
+  <rect x="120" y="55" width="520" height="32" rx="16" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+
+  <!-- Left dot — "no spec" end -->
+  <circle cx="140" cy="71" r="6" fill="#2563eb" stroke="#60a5fa" stroke-width="1.5"/>
+
+  <!-- Right dot — "full spec" end -->
+  <circle cx="620" cy="71" r="6" fill="#2563eb" stroke="#60a5fa" stroke-width="1.5"/>
+
+  <!-- Connecting line inside band (visual reinforcement) -->
+  <line x1="148" y1="71" x2="612" y2="71" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>
+
+  <!-- Label centered on the band -->
+  <text x="380" y="76" class="tool-label-highlight" text-anchor="middle">api-invoke</text>
+
+  <!-- Annotations at each end -->
+  <text x="140" y="52" class="band-annotation" text-anchor="middle">raw URLs</text>
+  <text x="620" y="52" class="band-annotation" text-anchor="middle">full OpenAPI</text>
+
+  <!-- ============================================ -->
+  <!-- Other tools as dots                          -->
+  <!-- ============================================ -->
+
+  <!-- fetch / axios: x=12%, y=78% → cx=150, cy=128 -->
+  <circle cx="150" cy="114" r="5" fill="#94a3b8"/>
+  <text x="164" y="110" class="tool-label">fetch / axios</text>
+
+  <!-- got / ky: x=20%, y=72% → cx=196, cy=152 -->
+  <circle cx="196" cy="150" r="5" fill="#94a3b8"/>
+  <text x="210" y="146" class="tool-label">got / ky</text>
+
+  <!-- swagger-client: x=82%, y=65% → cx=556, cy=180 -->
+  <circle cx="556" cy="150" r="5" fill="#818cf8"/>
+  <text x="570" y="146" class="tool-label">swagger-client</text>
+
+  <!-- openapi-client-axios: x=68%, y=58% → cx=474, cy=208 -->
+  <circle cx="474" cy="180" r="5" fill="#818cf8"/>
+  <text x="488" y="176" class="tool-label">openapi-client-axios</text>
+
+  <!-- openapi-fetch: x=72%, y=45% → cx=498, cy=260 -->
+  <circle cx="498" cy="260" r="5" fill="#a78bfa"/>
+  <text x="512" y="256" class="tool-label">openapi-fetch</text>
+
+  <!-- openapi-generator: x=88%, y=10% → cx=590, cy=400 -->
+  <circle cx="590" cy="410" r="5" fill="#fb923c"/>
+  <text x="604" y="406" class="tool-label">openapi-generator</text>
+
+  <!-- @hey-api: x=74%, y=25% → cx=509, cy=340 -->
+  <circle cx="509" cy="370" r="5" fill="#fb923c"/>
+  <text x="523" y="366" class="tool-label">@hey-api</text>
+
+  <!-- orval: x=58%, y=15% → cx=416, cy=380 -->
+  <circle cx="416" cy="410" r="5" fill="#fb923c"/>
+  <text x="430" y="406" class="tool-label">orval</text>
+
+  <!-- ============================================ -->
+  <!-- Legend                                       -->
+  <!-- ============================================ -->
+  <line x1="100" y1="508" x2="620" y2="508" stroke="#1e293b" stroke-width="1"/>
+
+  <circle cx="108" cy="524" r="4" fill="#94a3b8"/>
+  <text x="118" y="528" class="legend-text">Raw HTTP</text>
+
+  <circle cx="200" cy="524" r="4" fill="#fb923c"/>
+  <text x="210" y="528" class="legend-text">Code Generators</text>
+
+  <circle cx="330" cy="524" r="4" fill="#818cf8"/>
+  <text x="340" y="528" class="legend-text">Runtime OpenAPI</text>
+
+  <circle cx="465" cy="524" r="4" fill="#a78bfa"/>
+  <text x="475" y="528" class="legend-text">Hybrid</text>
+
+  <!-- api-invoke legend: small band + dots -->
+  <rect x="535" y="518" width="32" height="12" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1"/>
+  <circle cx="541" cy="524" r="3" fill="#2563eb" stroke="#60a5fa" stroke-width="1"/>
+  <circle cx="561" cy="524" r="3" fill="#2563eb" stroke="#60a5fa" stroke-width="1"/>
+  <text x="575" y="528" class="legend-text" fill="#93c5fd" font-weight="700">api-invoke</text>
+</svg>
