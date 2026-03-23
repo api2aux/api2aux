@@ -60,7 +60,7 @@
   <text x="785" y="110" text-anchor="middle" fill="#c4b5fd" font-size="12" font-weight="700">MCP Tools + A2A</text>
 
   <!-- Bottom labels -->
-  <text x="75" y="140" text-anchor="middle" fill="#475569" font-size="9">parse/</text>
+  <text x="75" y="140" text-anchor="middle" fill="#475569" font-size="9">api-invoke</text>
   <text x="207" y="140" text-anchor="middle" fill="#475569" font-size="9">semantic-analysis</text>
   <text x="339" y="140" text-anchor="middle" fill="#475569" font-size="9">semantic-analysis</text>
   <text x="471" y="140" text-anchor="middle" fill="#475569" font-size="9">data2ui/select</text>
