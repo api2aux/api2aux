@@ -5,8 +5,8 @@
  * executeToolStream throws on HTTP errors.
  */
 
-import { executeOperation, executeOperationStream, withRetry } from 'api-invoke'
-import type { Operation, Auth, ExecutionResult, StreamingExecutionResult } from 'api-invoke'
+import { executeOperation, executeOperationStream, withRetry } from '@api2aux/api-invoke'
+import type { Operation, Auth, ExecutionResult, StreamingExecutionResult } from '@api2aux/api-invoke'
 
 export type { ExecutionResult, StreamingExecutionResult }
 

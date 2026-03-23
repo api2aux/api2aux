@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../../store/appStore'
-import type { SSEEvent } from 'api-invoke'
+import type { SSEEvent } from '@api2aux/api-invoke'
 
 interface StreamDisplayProps {
   onStop: () => void

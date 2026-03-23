@@ -4,7 +4,7 @@ import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import type { ImportanceScore, GroupingResult } from '../services/analysis/types'
 import type { ComponentSelection } from '@api2aux/data2ui'
 import type { DeployResult } from '../services/mcp/deploy'
-import type { SSEEvent } from 'api-invoke'
+import type { SSEEvent } from '@api2aux/api-invoke'
 
 const MAX_STREAM_EVENTS = 1000
 

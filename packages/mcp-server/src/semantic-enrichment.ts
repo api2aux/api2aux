@@ -12,8 +12,8 @@ import {
   enrichmentRegistry,
 } from '@api2aux/semantic-analysis'
 import type { OperationContext, OperationContextParam } from '@api2aux/semantic-analysis'
-import type { Operation, Parameter } from 'api-invoke'
-import { HttpMethod, ParamLocation, ContentType, HeaderName } from 'api-invoke'
+import type { Operation, Parameter } from '@api2aux/api-invoke'
+import { HttpMethod, ParamLocation, ContentType, HeaderName } from '@api2aux/api-invoke'
 import type { GeneratedTool } from './tool-generator'
 import type { Workflow } from '@api2aux/workflow-inference'
 

@@ -1,4 +1,4 @@
-import { corsProxy } from 'api-invoke'
+import { corsProxy } from '@api2aux/api-invoke'
 
 /**
  * Shared CORS proxy middleware instance.

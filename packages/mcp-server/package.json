@@ -29,7 +29,7 @@
     "@api2aux/tool-utils": "workspace:*",
     "@api2aux/workflow-inference": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "api-invoke": "^0.2.2",
+    "@api2aux/api-invoke": "workspace:*",
     "zod": "^3.25.0"
   },
   "devDependencies": {

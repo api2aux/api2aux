@@ -15,8 +15,8 @@ import {
   isSpecUrl,
   isSpecContent,
   isGraphQLUrl,
-} from 'api-invoke'
-import type { BuiltRequest, SSEEvent, RawEndpoint } from 'api-invoke'
+} from '@api2aux/api-invoke'
+import type { BuiltRequest, SSEEvent, RawEndpoint } from '@api2aux/api-invoke'
 import * as yaml from 'js-yaml'
 import { useAuthStore } from '../store/authStore'
 import { GraphQLError } from '../services/api/errors'

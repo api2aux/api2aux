@@ -88,7 +88,7 @@ export type {
   Middleware,
   Enricher,
   ClientOptions,
-} from 'api-invoke'
+} from '@api2aux/api-invoke'
 
 export {
   AuthConfigType,
@@ -99,7 +99,7 @@ export {
   HeaderName,
   SpecFormat,
   ErrorKind,
-} from 'api-invoke'
+} from '@api2aux/api-invoke'
 
 // === Shared Types ===
 export { FieldType, Confidence } from './types/schema'
