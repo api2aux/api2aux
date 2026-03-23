@@ -3,8 +3,8 @@
  * Uses api-invoke's defineAPI builder for readable, type-safe definitions.
  */
 
-import { defineAPI } from 'api-invoke'
-import type { ParsedAPI } from 'api-invoke'
+import { defineAPI } from '@api2aux/api-invoke'
+import type { ParsedAPI } from '@api2aux/api-invoke'
 
 export interface CatalogSeedEntry {
   name: string
