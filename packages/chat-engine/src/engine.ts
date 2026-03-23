@@ -3,7 +3,8 @@
  *
  * Manages multi-round LLM tool calling, event emission, plugin hooks,
  * and a no-knowledge guardrail (replaces the LLM's response with a fallback
- * message when no tool calls returned usable data during the turn).
+ * message when no tool call completed successfully during the turn — either
+ * because the LLM chose not to call any tools, or because all calls errored).
  */
 
 import type {
@@ -20,10 +21,12 @@ import type {
   StructuredResponse,
 } from './types'
 import { ChatEventType, MergeStrategy, MessageRole } from './types'
-import { MAX_ROUNDS, TRUNCATION_LIMIT, PARALLEL_MERGE, NO_DATA_MESSAGE } from './defaults'
+import { MAX_ROUNDS, TRUNCATION_LIMIT, NO_DATA_MESSAGE } from './defaults'
 import { truncateToolResult, summarizeToolResult } from './truncation'
 import { formatStructuredResponse } from './response'
 import { buildResponsePrompt } from './context'
+import { reduceToolResultsForFocus } from './reduction'
+import { FocusReduction } from './types'
 
 export class ChatEngine {
   private history: ChatMessage[] = []
@@ -35,8 +38,8 @@ export class ChatEngine {
   private readonly maxRounds: number
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
-  private readonly parallelMerge: boolean
   private llmText: LLMTextFn | undefined
+  private focusReduction: FocusReduction
 
   constructor(
     llm: LLMCompletionFn,
@@ -61,12 +64,8 @@ export class ChatEngine {
     }
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
-    this.parallelMerge = config?.parallelMerge ?? PARALLEL_MERGE
     this.llmText = config?.llmText
-
-    if (this.parallelMerge && !this.llmText && this.mergeStrategy === MergeStrategy.LlmGuided) {
-      console.warn('[chat-engine] parallelMerge is enabled with LlmGuided strategy but llmText is not provided — merge calls will reuse the streaming LLM with a no-op token handler')
-    }
+    this.focusReduction = config?.focusReduction ?? FocusReduction.TruncateValues
 
     // Validate resolved config values
     if (!Number.isFinite(this.maxRounds) || this.maxRounds < 1) {
@@ -92,7 +91,7 @@ export class ChatEngine {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
       mergeStrategy: this.mergeStrategy,
-      parallelMerge: this.parallelMerge,
+      focusReduction: this.focusReduction,
     }
   }
 
@@ -104,6 +103,11 @@ export class ChatEngine {
   /** Update the non-streaming LLM function used for merge/focus calls. */
   setLlmText(llmText: LLMTextFn | undefined): void {
     this.llmText = llmText
+  }
+
+  /** Update the focus reduction strategy. */
+  setFocusReduction(strategy: FocusReduction): void {
+    this.focusReduction = strategy
   }
 
   /** Update the tool executor (e.g., when user changes API URL). */
@@ -170,22 +174,19 @@ export class ChatEngine {
           const modified = plugin.modifySystemPrompt(systemPrompt, this.context)
           if (modified !== null) systemPrompt = modified
         } catch (err) {
-          console.error(`[chat-engine] Plugin "${plugin.id}" modifySystemPrompt threw:`, err instanceof Error ? err.message : String(err))
+          const msg = err instanceof Error ? err.message : String(err)
+          console.error(`[chat-engine] Plugin "${plugin.id}" modifySystemPrompt threw:`, msg)
+          emit({ type: ChatEventType.Error, error: `Plugin "${plugin.id}" modifySystemPrompt failed: ${msg}` })
         }
       }
     }
 
-    // Note: if a plugin throws here, the tools from the last successful plugin
-    // (or the original tools) are used. For security-critical plugins (e.g. tool
-    // filtering to restrict access), plugins should catch internally.
+    // modifyTools errors propagate — fail-closed is safer than silently skipping
+    // a security-critical plugin (e.g., tool filtering to restrict access).
     let tools = [...this.context.tools]
     for (const plugin of this.plugins ?? []) {
       if (plugin.modifyTools) {
-        try {
-          tools = plugin.modifyTools(tools, this.context)
-        } catch (err) {
-          console.error(`[chat-engine] Plugin "${plugin.id}" modifyTools threw:`, err instanceof Error ? err.message : String(err))
-        }
+        tools = plugin.modifyTools(tools, this.context)
       }
     }
 
@@ -227,10 +228,10 @@ export class ChatEngine {
         if (collectedResults.length > 0) break
 
         // No tools were ever called — LLM answered directly or hit guardrail/maxRounds.
-        // Return the text response as-is (no focus step needed).
-        const responseText = collectedResults.length === 0 ? NO_DATA_MESSAGE : (streamResult.content || 'Done.')
+        // collectedResults is guaranteed empty here (non-empty breaks on line above).
+        const responseText = NO_DATA_MESSAGE
         this.history.push({ role: MessageRole.Assistant, content: responseText })
-        const structured = await this.buildArrayFallback(collectedResults)
+        const structured = this.buildArrayFallback(collectedResults)
         emit({ type: ChatEventType.TurnComplete, text: responseText, toolResults: collectedResults, structured })
         return { text: responseText, toolResults: collectedResults, structured, history: [...this.history] }
       }
@@ -306,7 +307,9 @@ export class ChatEngine {
             try {
               toolResult = plugin.processToolResult(toolCall.function.name, toolResult)
             } catch (err) {
-              console.error(`[chat-engine] Plugin "${plugin.id}" processToolResult threw:`, err instanceof Error ? err.message : String(err))
+              const msg = err instanceof Error ? err.message : String(err)
+              console.error(`[chat-engine] Plugin "${plugin.id}" processToolResult threw:`, msg)
+              emit({ type: ChatEventType.Error, error: `Plugin "${plugin.id}" processToolResult failed: ${msg}` })
             }
           }
         }
@@ -345,9 +348,11 @@ export class ChatEngine {
 
     let structured: StructuredResponse
     try {
-      structured = await this.buildStructuredResponse(collectedResults, text)
+      structured = await this.buildStructuredResponse(collectedResults, text, emit)
     } catch (err) {
-      console.error('[chat-engine] buildStructuredResponse failed:', err instanceof Error ? err.message : String(err))
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      console.error('[chat-engine] buildStructuredResponse failed:', errorMsg)
+      emit({ type: ChatEventType.Error, error: `Data processing failed (showing raw results): ${errorMsg}` })
       structured = {
         strategy: MergeStrategy.Array,
         sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
@@ -390,7 +395,9 @@ export class ChatEngine {
         try {
           responseText = plugin.processResponse(responseText, collectedResults)
         } catch (err) {
-          console.error(`[chat-engine] Plugin "${plugin.id}" processResponse threw:`, err instanceof Error ? err.message : String(err))
+          const msg = err instanceof Error ? err.message : String(err)
+          console.error(`[chat-engine] Plugin "${plugin.id}" processResponse threw:`, msg)
+          emit({ type: ChatEventType.Error, error: `Plugin "${plugin.id}" processResponse failed: ${msg}` })
         }
       }
     }
@@ -413,7 +420,7 @@ export class ChatEngine {
   }
 
   /** Build an Array-strategy fallback response (no focus/merge). */
-  private async buildArrayFallback(collectedResults: ToolResultEntry[]): Promise<StructuredResponse> {
+  private buildArrayFallback(collectedResults: ToolResultEntry[]): StructuredResponse {
     return {
       strategy: MergeStrategy.Array,
       sources: collectedResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
@@ -424,8 +431,11 @@ export class ChatEngine {
   /**
    * Replace raw tool result messages in history with compact data + endpoint metadata.
    * For LLM-guided/schema-based merges: uses the focused data (already compact).
-   * For Array strategy (single result / fallback): uses truncated raw data.
+   * For Array strategy (single result / fallback): uses raw data.
    * The full raw data remains in collectedResults for UI consumption.
+   *
+   * Collects tool_call_ids from ALL assistant tool_calls messages in the current
+   * turn (not just the last one), so multi-round tool calling is compressed fully.
    */
   private compressToolHistory(
     collectedResults: ToolResultEntry[],
@@ -438,23 +448,36 @@ export class ChatEngine {
     }))
 
     const focusedData = structured.strategy === MergeStrategy.Array
-      ? collectedResults.map(r => truncateToolResult(r.data, this.truncationLimit))
+      ? collectedResults.map(r => r.data)
       : structured.data
 
     // Wrap with text framing so the LLM treats it as context data, not something to echo
+    let serialized: string
+    try {
+      serialized = JSON.stringify({ focused: focusedData, calls: metadata })
+    } catch (err) {
+      console.warn('[chat-engine] Failed to serialize focused data for history compression:', err instanceof Error ? err.message : String(err))
+      try {
+        serialized = JSON.stringify({ calls: metadata, error: 'Data could not be serialized' })
+      } catch (innerErr) {
+        console.warn('[chat-engine] Even metadata serialization failed:', innerErr instanceof Error ? innerErr.message : String(innerErr))
+        serialized = '[API Result — data could not be serialized]'
+      }
+    }
     const compressed = [
       '[API Result — focused data for the user\'s question]',
-      JSON.stringify({ focused: focusedData, calls: metadata }),
+      serialized,
       '[End of API Result]',
     ].join('\n')
 
-    // Find tool_call_ids from the most recent assistant tool_calls message
+    // Find tool_call_ids from ALL assistant tool_calls messages in this turn.
+    // Walk backward from the end and stop when we hit the user message that started this turn.
     const toolCallIds = new Set<string>()
     for (let i = this.history.length - 1; i >= 0; i--) {
       const msg = this.history[i]!
+      if (msg.role === MessageRole.User) break
       if (msg.role === MessageRole.Assistant && msg.tool_calls) {
         for (const tc of msg.tool_calls) toolCallIds.add(tc.id)
-        break
       }
     }
 
@@ -482,21 +505,34 @@ export class ChatEngine {
   private async buildStructuredResponse(
     toolResults: ToolResultEntry[],
     userMessage: string,
+    emit: ChatEngineEventHandler,
   ): Promise<StructuredResponse> {
-    // Prefer non-streaming LLM for merge/focus — creates a separate HTTP request
+    // Prefer non-streaming LLM for focus/merge — creates a separate HTTP request
     // that resolves independently of the streaming SSE connection.
-    // Falls back to wrapping the streaming LLM with a no-op token handler.
     const mergeLlm: LLMTextFn = this.llmText
       ?? (async (messages) => {
           const result = await this.llm(messages, [], () => {})
           return result.content
         })
 
+    // Reduce data before sending to focus/merge LLM so input (and output) is small.
+    // For single results this ensures the focus LLM only outputs matching items, not all.
+    const reducedResults = await reduceToolResultsForFocus(
+      toolResults,
+      userMessage,
+      this.focusReduction,
+      undefined,
+      this.llmText,
+      (warning) => emit({ type: ChatEventType.Error, error: warning }),
+    )
+
     return formatStructuredResponse(
       toolResults,
       this.mergeStrategy,
       userMessage,
       mergeLlm,
+      reducedResults,
+      this.context.url,
     )
   }
 }
