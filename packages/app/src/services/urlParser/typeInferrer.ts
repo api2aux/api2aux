@@ -36,6 +36,7 @@ const DATE_NAME_HINTS = /date|time|created|updated|timestamp/i
 const EMAIL_NAME_HINTS = /email|mail/i
 const COORDINATE_NAME_HINTS = /coord|lat|lng|location|position/i
 const ZIP_NAME_HINTS = /zip|postal/i
+const VERSION_NAME_HINTS = /version|ver|api.?ver/i
 
 // Value patterns
 const BOOLEAN_PATTERN = /^(true|false)$/
@@ -93,6 +94,12 @@ function tryNumber(name: string, value: string): TypeInferenceResult | null {
   // treat as string rather than number (conservative approach)
   // e.g., name="zip", value="1234" or "123456" should be string, not number
   if (hasNameHint(name, ZIP_NAME_HINTS) && /^\d+$/.test(value)) {
+    return null
+  }
+
+  // Version strings (e.g., "2.1") look numeric but should remain strings —
+  // HTML input[type=number] applies locale-specific formatting (2,1 vs 2.1)
+  if (hasNameHint(name, VERSION_NAME_HINTS)) {
     return null
   }
 

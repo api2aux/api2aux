@@ -15,11 +15,42 @@ import { PaginationControls } from '../pagination/PaginationControls'
  * Click on a card to open the DetailModal.
  */
 export function CardListRenderer({ data, schema, path, depth, importance }: RendererProps) {
+  // ALL hooks must be called unconditionally before any early returns (React rules of hooks)
   const { selectedItem, handleItemClick, clearSelection } = useItemDrilldown(
     schema.kind === 'array' ? schema.items : schema, path, data, schema
   )
   const { getPaginationConfig, setPaginationConfig } = useConfigStore()
 
+  const cardPageOptions = [12, 24, 48, 96]
+  const paginationConfig = getPaginationConfig(path, 12)
+  const effectivePerPage = cardPageOptions.includes(paginationConfig.itemsPerPage)
+    ? paginationConfig.itemsPerPage
+    : cardPageOptions.reduce((a, b) => Math.abs(b - paginationConfig.itemsPerPage) < Math.abs(a - paginationConfig.itemsPerPage) ? b : a)
+
+  const pagination = usePagination({
+    totalItems: Array.isArray(data) ? data.length : 0,
+    itemsPerPage: effectivePerPage,
+    currentPage: paginationConfig.currentPage,
+  })
+
+  // Derive fields safely — may be empty if schema is invalid (used in useMemo below)
+  const itemSchema = schema.kind === 'array' && schema.items.kind === 'object' ? schema.items : null
+  const fields = useMemo(
+    () => itemSchema ? Array.from(itemSchema.fields.entries()) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itemSchema]
+  )
+
+  const fieldsToDisplay = useMemo(() => {
+    if (!importance || fields.length === 0) return fields
+    const filtered = fields.filter(([fieldName]) => {
+      const score = importance.get(`${path}[].${fieldName}`)
+      return !score || score.tier === 'primary' || score.tier === 'secondary'
+    })
+    return filtered.length > 0 ? filtered : fields
+  }, [fields, importance, path])
+
+  // Validation guards (after all hooks)
   if (schema.kind !== 'array') {
     return <div className="text-red-500">CardListRenderer expects array schema</div>
   }
@@ -28,28 +59,13 @@ export function CardListRenderer({ data, schema, path, depth, importance }: Rend
     return <div className="text-red-500">CardListRenderer expects array data</div>
   }
 
-  // Handle empty arrays
   if (data.length === 0) {
     return <div className="text-muted-foreground italic p-4">No data</div>
   }
 
-  // Extract fields from the item schema (must be object)
   if (schema.items.kind !== 'object') {
     return <div className="text-red-500">CardListRenderer expects array of objects</div>
   }
-
-  // Pagination state
-  const cardPageOptions = [12, 24, 48, 96]
-  const paginationConfig = getPaginationConfig(path, 12)
-  // Snap to nearest valid option if persisted value isn't in the list (e.g. migrated from old defaults)
-  const effectivePerPage = cardPageOptions.includes(paginationConfig.itemsPerPage)
-    ? paginationConfig.itemsPerPage
-    : cardPageOptions.reduce((a, b) => Math.abs(b - paginationConfig.itemsPerPage) < Math.abs(a - paginationConfig.itemsPerPage) ? b : a)
-  const pagination = usePagination({
-    totalItems: data.length,
-    itemsPerPage: effectivePerPage,
-    currentPage: paginationConfig.currentPage,
-  })
 
   const paginatedData = data.slice(pagination.firstIndex, pagination.lastIndex)
 
@@ -60,27 +76,6 @@ export function CardListRenderer({ data, schema, path, depth, importance }: Rend
   const handleItemsPerPageChange = (items: number) => {
     setPaginationConfig(path, { itemsPerPage: items, currentPage: 1 })
   }
-
-  const fields = Array.from(schema.items.fields.entries())
-
-  // Filter fields by importance tier (primary + secondary only)
-  const fieldsToDisplay = useMemo(() => {
-    if (!importance) {
-      // No importance data - show all fields (v1.2 behavior preserved)
-      return fields
-    }
-
-    const filtered = fields.filter(([fieldName]) => {
-      const fieldPath = `${path}[].${fieldName}`
-      const score = importance.get(fieldPath)
-      // Show primary and secondary, hide tertiary
-      return !score || score.tier === 'primary' || score.tier === 'secondary'
-    })
-
-    // Safety fallback: if tier filtering removes all fields, show all fields
-    // This prevents empty cards when all fields score as tertiary
-    return filtered.length > 0 ? filtered : fields
-  }, [fields, importance, path])
 
   return (
     <div>
