@@ -1,7 +1,0 @@
-node_modules/
-dist/
-docs/
-*.tsbuildinfo
-.env
-.planning/
-.DS_Store
