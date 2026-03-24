@@ -169,8 +169,6 @@ Output: {"total":20}
 
 Return ONLY valid JSON, nothing else.`
 
-const FOCUS_LLM_TIMEOUT_MS = 30_000
-
 /**
  * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
  * LLM infrastructure errors (network, auth, rate limit) propagate to the caller.
@@ -217,24 +215,10 @@ async function mergeLlmGuided(
     { role: MessageRole.User, content: `User's question: ${userMessage}\n\n${resultsText}` },
   ]
 
-  // Separate LLM call from JSON parse so infrastructure errors propagate
-  // while malformed LLM output falls back gracefully.
-  let content: string
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    content = await Promise.race([
-      llm(messages),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Focus LLM timed out')), FOCUS_LLM_TIMEOUT_MS)
-      }),
-    ])
-  } catch (err) {
-    // LLM infrastructure error (network, auth, rate limit, timeout) — let it propagate
-    // so the caller can handle it visibly rather than silently degrading.
-    throw err
-  } finally {
-    clearTimeout(timer)
-  }
+  // LLM infrastructure errors (network, auth, rate limit) propagate to the caller.
+  // No timeout needed — the LLM provider handles its own connection timeouts,
+  // and streaming keeps the connection active so idle timeouts don't fire.
+  const content = await llm(messages)
 
   const parsed = extractJson(content)
   if (parsed !== null) {

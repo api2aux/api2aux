@@ -10,7 +10,7 @@
 import { useCallback, useRef, useMemo } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useChatStore } from '../store/chatStore'
-import { chatCompletionStream, chatCompletion } from '../services/llm/client'
+import { chatCompletionStream } from '../services/llm/client'
 import { buildChatContext, ChatEngine, ChatEventType, hasUsableStructuredData } from '@api2aux/chat-engine'
 import type { LLMCompletionFn, ToolExecutorFn, ChatEngineEvent, ChatMessage } from '@api2aux/chat-engine'
 import { generateToolName } from '@api2aux/tool-utils'
@@ -241,13 +241,15 @@ export function useChat() {
     }
   }, [config])
 
-  // Non-streaming LLM for merge/focus — runs in a separate async context, with call logging
+  // Streaming LLM for merge/focus — uses streaming to avoid idle-connection timeouts
+  // that plague non-streaming calls with large payloads, while logging as 'focus' purpose
   const llmTextFn = useMemo(() => {
     return async (messages: ChatMessage[]) => {
       const { addCallLogEntry } = useChatStore.getState()
       const t0 = Date.now()
       try {
-        const response = await chatCompletion(messages, config)
+        const result = await chatCompletionStream(messages, [], config, () => {})
+        const response = result.content
         addCallLogEntry({ type: 'llm', purpose: 'focus', model: config.model, messages, response, durationMs: Date.now() - t0, timestamp: Date.now() } satisfies LlmCallEntry)
         return response
       } catch (err) {
