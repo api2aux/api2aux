@@ -104,7 +104,7 @@ function mergeArray(toolResults: ToolResultEntry[]): StructuredResponse {
   return {
     strategy: MergeStrategy.Array,
     sources: toolResults.map(r => ({ toolName: r.toolName, toolArgs: r.toolArgs })),
-    data: toolResults.map(r => r.data),
+    data: toolResults.length === 1 ? toolResults[0]!.data : toolResults.map(r => r.data),
   }
 }
 
@@ -169,7 +169,7 @@ Output: {"total":20}
 
 Return ONLY valid JSON, nothing else.`
 
-const FOCUS_LLM_TIMEOUT_MS = 10_000
+const FOCUS_LLM_TIMEOUT_MS = 30_000
 
 /**
  * LLM-guided strategy: use an extra LLM call to merge multiple results or focus a single result.
@@ -321,11 +321,11 @@ export async function formatStructuredResponse(
   }
 }
 
-/** True when structured data used a non-Array strategy and the resulting data is non-empty. */
+/** True when structured data is non-empty and worth displaying (rejects multi-source Array fallbacks). */
 export function hasUsableStructuredData(
   s: StructuredResponse,
-): s is Exclude<StructuredResponse, { strategy: typeof MergeStrategy.Array }> {
-  if (s.strategy === MergeStrategy.Array) return false
+): boolean {
+  if (s.strategy === MergeStrategy.Array && s.sources.length > 1) return false
   const { data } = s
   if (data == null) return false
   if (Array.isArray(data) && data.length === 0) return false
