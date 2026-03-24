@@ -33,13 +33,14 @@ describe('formatStructuredResponse', () => {
   })
 
   describe('Array strategy', () => {
-    it('returns results as separate entries', async () => {
+    it('returns single result data unwrapped', async () => {
       const resp = await formatStructuredResponse(singleResult, MergeStrategy.Array)
       expect(resp.strategy).toBe(MergeStrategy.Array)
       expect(resp.sources).toHaveLength(1)
       expect(resp.sources[0]!.toolName).toBe('list_users')
+      // Single source: data is the raw result, not wrapped in another array
       expect(Array.isArray(resp.data)).toBe(true)
-      expect((resp.data as unknown[])).toHaveLength(1)
+      expect((resp.data as unknown[])).toHaveLength(2) // 2 users, not 1 wrapped entry
     })
 
     it('handles multiple results', async () => {
@@ -275,8 +276,21 @@ describe('formatStructuredResponse', () => {
 })
 
 describe('hasUsableStructuredData', () => {
-  it('returns false for Array strategy', () => {
-    const s: StructuredResponse = { strategy: MergeStrategy.Array, sources: [], data: [] }
+  it('returns false for multi-source Array strategy', () => {
+    const sources = [{ toolName: 'a', toolArgs: {} }, { toolName: 'b', toolArgs: {} }]
+    const s: StructuredResponse = { strategy: MergeStrategy.Array, sources, data: [{}, {}] }
+    expect(hasUsableStructuredData(s)).toBe(false)
+  })
+
+  it('returns true for single-source Array strategy with data', () => {
+    const sources = [{ toolName: 'a', toolArgs: {} }]
+    const s: StructuredResponse = { strategy: MergeStrategy.Array, sources, data: [{ id: 1 }] }
+    expect(hasUsableStructuredData(s)).toBe(true)
+  })
+
+  it('returns false for single-source Array with empty data', () => {
+    const sources = [{ toolName: 'a', toolArgs: {} }]
+    const s: StructuredResponse = { strategy: MergeStrategy.Array, sources, data: [] }
     expect(hasUsableStructuredData(s)).toBe(false)
   })
 
