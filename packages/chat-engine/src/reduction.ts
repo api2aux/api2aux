@@ -67,16 +67,16 @@ const MAX_ARRAY_ITEMS = 5
 
 /** Keep all fields, truncate long values. */
 export function truncateValues(data: unknown): unknown {
-  return truncateValuesInternal(data, 0)
+  return truncateValuesInternal(data, 0, false)
 }
 
-function truncateValuesInternal(data: unknown, depth: number): unknown {
+function truncateValuesInternal(data: unknown, depth: number, insideArrayItem: boolean): unknown {
   if (data === null || data === undefined) return data
   if (typeof data !== 'object') return truncateScalar(data)
 
   if (Array.isArray(data)) {
     // Top-level arrays: preserve all items, truncate each
-    return data.map(item => truncateValuesInternal(item, depth + 1))
+    return data.map(item => truncateValuesInternal(item, depth + 1, true))
   }
 
   const obj = data as Record<string, unknown>
@@ -97,9 +97,9 @@ function truncateValuesInternal(data: unknown, depth: number): unknown {
     } else if (typeof value === 'number' || typeof value === 'boolean') {
       result[key] = value
     } else if (Array.isArray(value)) {
-      result[key] = truncateArray(key, value, depth)
+      result[key] = truncateArray(key, value, depth, insideArrayItem)
     } else if (typeof value === 'object') {
-      result[key] = truncateValuesInternal(value, depth + 1)
+      result[key] = truncateValuesInternal(value, depth + 1, insideArrayItem)
     }
   }
 
@@ -113,15 +113,16 @@ function truncateScalar(value: unknown): unknown {
   return value
 }
 
-function truncateArray(key: string, arr: unknown[], depth: number): unknown {
+function truncateArray(key: string, arr: unknown[], depth: number, insideArrayItem: boolean): unknown {
   if (arr.length === 0) return arr
 
-  // Array of objects: at top level (depth 0), truncate each item's values.
-  // At deeper levels (nested arrays like reviews), summarize to a count.
+  // Array of objects: preserve when it's a primary data array (top-level or inside
+  // an envelope object like { result: { providers: [...] } }). Summarize when it's
+  // a nested detail array inside an array item (like recipe.reviews).
   if (typeof arr[0] === 'object' && arr[0] !== null && !Array.isArray(arr[0])) {
-    if (depth === 0) {
-      // Top-level data array — preserve every item, truncate each item's values
-      return arr.map(item => truncateValuesInternal(item, depth + 1))
+    if (!insideArrayItem) {
+      // Primary data array — preserve every item, truncate each item's values
+      return arr.map(item => truncateValuesInternal(item, depth + 1, true))
     }
     return summarizeObjectArray(key, arr)
   }
