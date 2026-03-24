@@ -258,7 +258,7 @@ interface StructuredResponseBase {
 
 /** Discriminated union — narrow on `strategy` to get a typed `data` shape. */
 export type StructuredResponse =
-  | StructuredResponseBase & { strategy: typeof MergeStrategy.Array; data: unknown[] }
+  | StructuredResponseBase & { strategy: typeof MergeStrategy.Array; data: unknown }
   | StructuredResponseBase & { strategy: typeof MergeStrategy.SchemaBased; data: Record<string, unknown>[] }
   | StructuredResponseBase & { strategy: typeof MergeStrategy.LlmGuided; data: unknown }
 
