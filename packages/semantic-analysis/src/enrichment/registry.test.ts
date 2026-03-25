@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { EnrichmentPluginRegistry } from './registry'
-import type { EnrichmentPlugin, OperationContext, ToolEnrichmentHint } from '../types/enrichment'
+import type { EnrichmentPlugin, OperationContext, ToolEnrichmentHint, DomainSignature } from '../types/enrichment'
 import type { PluginSemanticCategory } from '../types/plugins'
 
 /** Create a minimal enrichment plugin for testing. */
@@ -317,5 +317,275 @@ describe('EnrichmentPluginRegistry.getDisambiguators', () => {
     const disambiguators = reg.getDisambiguators()
     expect(disambiguators).toHaveLength(1)
     expect(disambiguators[0].id).toBe('@test/b')
+  })
+})
+
+// ============================================================================
+// getToolHints with hierarchy
+// ============================================================================
+describe('EnrichmentPluginRegistry.getToolHints hierarchy', () => {
+  it('child overrides parent parameterHints for same operation', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({
+      id: '@domain/base',
+      enrichTools: () => {
+        const m = new Map<string, ToolEnrichmentHint>()
+        m.set('list_users', { descriptionSuffix: 'Base.', parameterHints: { q: 'Search (base)' } })
+        return m
+      },
+    }))
+    reg.register(mockPlugin({
+      id: '@domain/child',
+      extends: '@domain/base',
+      enrichTools: () => {
+        const m = new Map<string, ToolEnrichmentHint>()
+        m.set('list_users', { descriptionSuffix: 'Child.', parameterHints: { q: 'Search (child)' } })
+        return m
+      },
+    }))
+    const result = reg.getToolHints([mockOp()])
+    const hint = result.get('list_users')!
+    expect(hint.descriptionSuffix).toBe('Base. Child.')
+    expect(hint.parameterHints!.q).toBe('Search (child)')
+  })
+})
+
+// ============================================================================
+// Hierarchy resolution order
+// ============================================================================
+describe('EnrichmentPluginRegistry hierarchy resolution', () => {
+  it('orders parent before child', () => {
+    const reg = freshRegistry()
+    // Register child first, parent second — resolution should still put parent first
+    reg.register(mockPlugin({ id: '@domain/child', extends: '@domain/base' }))
+    reg.register(mockPlugin({ id: '@domain/base' }))
+    const order = reg.getEffectivePlugins()
+    expect(order.map(p => p.id)).toEqual(['@domain/base', '@domain/child'])
+  })
+
+  it('orders three-level chain correctly', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@domain/grandchild', extends: '@domain/child' }))
+    reg.register(mockPlugin({ id: '@domain/base' }))
+    reg.register(mockPlugin({ id: '@domain/child', extends: '@domain/base' }))
+    const order = reg.getEffectivePlugins()
+    expect(order.map(p => p.id)).toEqual(['@domain/base', '@domain/child', '@domain/grandchild'])
+  })
+
+  it('sorts by priority within the same tier', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a', priority: 10 }))
+    reg.register(mockPlugin({ id: '@b', priority: 5 }))
+    reg.register(mockPlugin({ id: '@c', priority: 0 }))
+    const order = reg.getEffectivePlugins()
+    expect(order.map(p => p.id)).toEqual(['@c', '@b', '@a'])
+  })
+
+  it('handles multiple independent roots', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@health/base' }))
+    reg.register(mockPlugin({ id: '@finance/base' }))
+    reg.register(mockPlugin({ id: '@health/acme', extends: '@health/base' }))
+    const order = reg.getEffectivePlugins()
+    // Both roots at depth 0, then child at depth 1
+    const rootIds = order.slice(0, 2).map(p => p.id)
+    expect(rootIds).toContain('@health/base')
+    expect(rootIds).toContain('@finance/base')
+    expect(order[2].id).toBe('@health/acme')
+  })
+
+  it('throws on circular extends (A → B → A)', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a', extends: '@b' }))
+    reg.register(mockPlugin({ id: '@b', extends: '@a' }))
+    expect(() => reg.getEffectivePlugins()).toThrow(/circular/i)
+  })
+
+  it('throws on self-referencing extends', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a', extends: '@a' }))
+    expect(() => reg.getEffectivePlugins()).toThrow(/circular/i)
+  })
+
+  it('throws on missing parent', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@child', extends: '@nonexistent' }))
+    expect(() => reg.getEffectivePlugins()).toThrow(/unknown plugin/i)
+  })
+
+  it('returns empty array for empty registry', () => {
+    const reg = freshRegistry()
+    expect(reg.getEffectivePlugins()).toEqual([])
+  })
+
+  it('circular error includes full cycle path', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a', extends: '@b' }))
+    reg.register(mockPlugin({ id: '@b', extends: '@c' }))
+    reg.register(mockPlugin({ id: '@c', extends: '@a' }))
+    expect(() => reg.getEffectivePlugins()).toThrow(/→/)
+  })
+
+  it('invalidates cache on register', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a' }))
+    const first = reg.getEffectivePlugins()
+    expect(first).toHaveLength(1)
+    reg.register(mockPlugin({ id: '@b' }))
+    const second = reg.getEffectivePlugins()
+    expect(second).toHaveLength(2)
+  })
+
+  it('invalidates cache on unregister', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a' }))
+    reg.register(mockPlugin({ id: '@b' }))
+    expect(reg.getEffectivePlugins()).toHaveLength(2)
+    reg.unregister('@b')
+    expect(reg.getEffectivePlugins()).toHaveLength(1)
+  })
+})
+
+// ============================================================================
+// Override semantics: tagOperations — child replaces parent tag with same ID
+// ============================================================================
+describe('EnrichmentPluginRegistry tagOperations override semantics', () => {
+  it('child replaces parent tag with the same tag ID', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({
+      id: '@domain/base',
+      tagOperations: () => [[{ id: 'crud:list', label: 'List', confidence: 0.7 }]],
+    }))
+    reg.register(mockPlugin({
+      id: '@domain/child',
+      extends: '@domain/base',
+      tagOperations: () => [[{ id: 'crud:list', label: 'List Items', confidence: 0.95 }]],
+    }))
+    const ops = [mockOp()]
+    const result = reg.tagOperations(ops)
+    const tags = result.get('list_users')!
+    expect(tags).toHaveLength(1)
+    expect(tags[0].confidence).toBe(0.95)
+    expect(tags[0].label).toBe('List Items')
+  })
+
+  it('child adds new tag IDs alongside parent tags', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({
+      id: '@domain/base',
+      tagOperations: () => [[{ id: 'crud:list', label: 'List', confidence: 0.8 }]],
+    }))
+    reg.register(mockPlugin({
+      id: '@domain/child',
+      extends: '@domain/base',
+      tagOperations: () => [[{ id: 'auth:public', label: 'Public', confidence: 0.9 }]],
+    }))
+    const ops = [mockOp()]
+    const result = reg.tagOperations(ops)
+    const tags = result.get('list_users')!
+    expect(tags).toHaveLength(2)
+    expect(tags.map(t => t.id).sort()).toEqual(['auth:public', 'crud:list'])
+  })
+})
+
+// ============================================================================
+// getDomainSignatures
+// ============================================================================
+describe('EnrichmentPluginRegistry.getDomainSignatures', () => {
+  it('collects only plugins with domain signatures', () => {
+    const reg = freshRegistry()
+    const sig: DomainSignature = { keywords: ['patient', 'diagnosis'] }
+    reg.register(mockPlugin({ id: '@health/base', domainSignature: sig }))
+    reg.register(mockPlugin({ id: '@other/base' }))
+    const sigs = reg.getDomainSignatures()
+    expect(sigs.size).toBe(1)
+    expect(sigs.get('@health/base')).toBe(sig)
+  })
+
+  it('returns empty map when no plugins have signatures', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@test/a' }))
+    expect(reg.getDomainSignatures().size).toBe(0)
+  })
+})
+
+// ============================================================================
+// getDomainImportantFieldNames
+// ============================================================================
+describe('EnrichmentPluginRegistry.getDomainImportantFieldNames', () => {
+  it('extracts literal field names from namePatterns and nameKeywords', () => {
+    const reg = freshRegistry()
+    const cat: PluginSemanticCategory = {
+      id: '@test/sku',
+      name: 'SKU',
+      description: 'Product SKU',
+      namePatterns: [/^sku$/i, /^product_code$/],
+      nameKeywords: ['item_number'],
+      validate: () => true,
+    }
+    reg.register(mockPlugin({ id: '@test/a', fieldCategories: [cat] }))
+    const names = reg.getDomainImportantFieldNames()
+    expect(names.has('sku')).toBe(true)
+    expect(names.has('product_code')).toBe(true)
+    expect(names.has('item_number')).toBe(true)
+  })
+
+  it('skips non-literal regex patterns', () => {
+    const reg = freshRegistry()
+    const cat: PluginSemanticCategory = {
+      id: '@test/complex',
+      name: 'Complex',
+      description: 'Complex pattern',
+      namePatterns: [/sku|product/i, /price\d+/],
+      validate: () => true,
+    }
+    reg.register(mockPlugin({ id: '@test/a', fieldCategories: [cat] }))
+    const names = reg.getDomainImportantFieldNames()
+    // These patterns contain regex metacharacters, so they should be skipped
+    expect(names.size).toBe(0)
+  })
+
+  it('returns empty set when no plugins have field categories', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@test/a' }))
+    expect(reg.getDomainImportantFieldNames().size).toBe(0)
+  })
+})
+
+// ============================================================================
+// DomainSignature validation at registration
+// ============================================================================
+describe('EnrichmentPluginRegistry domainSignature validation', () => {
+  it('throws on empty keywords array', () => {
+    const reg = freshRegistry()
+    expect(() => reg.register(mockPlugin({
+      id: '@test/a',
+      domainSignature: { keywords: [] },
+    }))).toThrow(/keywords must not be empty/i)
+  })
+
+  it('throws on threshold out of range (> 1)', () => {
+    const reg = freshRegistry()
+    expect(() => reg.register(mockPlugin({
+      id: '@test/a',
+      domainSignature: { keywords: ['patient'], threshold: 1.5 },
+    }))).toThrow(/threshold must be between 0 and 1/i)
+  })
+
+  it('throws on threshold out of range (< 0)', () => {
+    const reg = freshRegistry()
+    expect(() => reg.register(mockPlugin({
+      id: '@test/a',
+      domainSignature: { keywords: ['patient'], threshold: -0.1 },
+    }))).toThrow(/threshold must be between 0 and 1/i)
+  })
+
+  it('accepts valid domainSignature', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({
+      id: '@test/a',
+      domainSignature: { keywords: ['patient'], threshold: 0.5 },
+    }))
+    expect(reg.size).toBe(1)
   })
 })
