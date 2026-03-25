@@ -45,14 +45,17 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
   const authPanelOpen = useAppStore((s) => s.authPanelOpen)
   const setAuthPanelOpen = useAppStore((s) => s.setAuthPanelOpen)
   const authPanelDismissedForUrl = useAppStore((s) => s.authPanelDismissedForUrl)
+  // Use effective base URL for auth lookups when a spec is loaded
+  const effectiveBaseUrl = useAppStore((s) => s.getEffectiveBaseUrl())
+  const authUrl = (parsedSpec ? effectiveBaseUrl : url) || url
 
   // Auth state
   const getAuthStatus = useAuthStore((state) => state.getAuthStatus)
   const getCredentials = useAuthStore((state) => state.getCredentials)
 
   // Derive lock icon status from auth state
-  const authStatus = getAuthStatus(url)
-  const apiCreds = getCredentials(url)
+  const authStatus = getAuthStatus(authUrl)
+  const apiCreds = getCredentials(authUrl)
   const hasActiveCredential = apiCreds?.activeType !== null && apiCreds?.activeType !== undefined
 
   const lockStatus: AuthStatus =
@@ -412,7 +415,7 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
 
         {/* Auth Panel */}
         <AuthPanel
-          url={url}
+          url={authUrl}
           isOpen={authPanelOpen}
           onToggle={handleAuthPanelToggle}
           authError={authError}

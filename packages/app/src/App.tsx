@@ -8,6 +8,7 @@ import { useSchemaAnalysis } from './hooks/useSchemaAnalysis'
 import { hydrateFromHash } from './services/sharing/hydrator'
 import { loadAndRegisterPlugins } from './services/plugins/loader'
 import { URLInput } from './components/URLInput'
+import { BaseUrlField } from './components/BaseUrlField'
 import { DynamicRenderer } from './components/DynamicRenderer'
 import { ErrorDisplay } from './components/error/ErrorDisplay'
 import { SkeletonTable } from './components/loading/SkeletonTable'
@@ -68,6 +69,7 @@ function App() {
     reset,
     detailPanelOpen
   } = useAppStore()
+  const baseUrl = useAppStore((s) => s.getEffectiveBaseUrl())
   const streaming = useAppStore((s) => s.streaming)
   const hasStreamEvents = useAppStore((s) => s.streamEvents.length > 0)
   const clearStream = useAppStore((s) => s.clearStream)
@@ -174,7 +176,7 @@ function App() {
         if (idx !== selectedOperationIndex) setSelectedOperation(idx)
         // Only auto-invoke for raw URLs — specs are for browsing, not auto-calling
         if (parsedSpec.specFormat === 'raw-url') {
-          fetchOperation(parsedSpec.baseUrl, safeOp, {})
+          fetchOperation(baseUrl, safeOp, {})
         }
       }
     }
@@ -187,7 +189,7 @@ function App() {
   // Get endpoint for current state
   const getEndpoint = () => {
     if (parsedSpec && selectedOperation) {
-      return `${parsedSpec.baseUrl}${selectedOperation.path}`
+      return `${baseUrl}${selectedOperation.path}`
     }
     if (url) {
       return url.split('?')[0]
@@ -206,9 +208,9 @@ function App() {
         streamAbortRef.current?.abort()
         const controller = new AbortController()
         streamAbortRef.current = controller
-        fetchOperationStream(parsedSpec.baseUrl, selectedOperation, values, bodyJson, controller.signal)
+        fetchOperationStream(baseUrl, selectedOperation, values, bodyJson, controller.signal)
       } else {
-        fetchOperation(parsedSpec.baseUrl, selectedOperation, values, bodyJson)
+        fetchOperation(baseUrl, selectedOperation, values, bodyJson)
       }
     }
   }
@@ -222,7 +224,7 @@ function App() {
   // Handle request preview
   const handlePreview = (values: Record<string, string>, bodyJson?: string) => {
     if (parsedSpec && selectedOperation) {
-      const built = previewRequest(parsedSpec.baseUrl, selectedOperation, values, bodyJson)
+      const built = previewRequest(baseUrl, selectedOperation, values, bodyJson)
       setPreviewData(built)
       setPreviewOpen(true)
     }
@@ -241,7 +243,7 @@ function App() {
     delete updatedValues[key]
 
     if (parsedSpec && selectedOperation) {
-      fetchOperation(parsedSpec.baseUrl, selectedOperation, updatedValues)
+      fetchOperation(baseUrl, selectedOperation, updatedValues)
     } else if (url) {
       // Direct API URL flow
       const { parameters: originalParams } = parseUrlParameters(url)
@@ -261,7 +263,7 @@ function App() {
 
     // Trigger re-fetch with empty values
     if (parsedSpec && selectedOperation) {
-      fetchOperation(parsedSpec.baseUrl, selectedOperation, {})
+      fetchOperation(baseUrl, selectedOperation, {})
     } else if (url) {
       // Direct API URL flow - fetch base URL with no params
       setUrl(endpoint)
@@ -436,7 +438,7 @@ function App() {
                           <Badge variant="warning" className="text-[10px] px-1.5 py-0">beta</Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">{parsedSpec.baseUrl}</p>
+                      <BaseUrlField specBaseUrl={parsedSpec.baseUrl} />
                     </div>
 
                     {/* No GET operations message */}
@@ -449,7 +451,7 @@ function App() {
                     {/* Layout Container with Parameters and Results */}
                     {parsedSpec.operations.length > 0 && selectedOperation && (
                       <LayoutContainer
-                        endpoint={`${parsedSpec.baseUrl}${selectedOperation.path}`}
+                        endpoint={`${baseUrl}${selectedOperation.path}`}
                         parameters={
                           <ParameterForm
                             parameters={selectedOperation.parameters}
@@ -458,15 +460,15 @@ function App() {
                             onPreview={handlePreview}
                             submitLabel={isStreamingOperation ? 'Stream' : undefined}
                             loading={loading}
-                            endpoint={`${parsedSpec.baseUrl}${selectedOperation.path}`}
-                            baseUrl={`${parsedSpec.baseUrl}${selectedOperation.path}`}
+                            endpoint={`${baseUrl}${selectedOperation.path}`}
+                            baseUrl={`${baseUrl}${selectedOperation.path}`}
                           />
                         }
                         results={
                           <>
                             {/* Applied Filter Chips */}
                             <AppliedFilters
-                              filters={getValues(`${parsedSpec.baseUrl}${selectedOperation.path}`)}
+                              filters={getValues(`${baseUrl}${selectedOperation.path}`)}
                               onRemove={handleFilterRemove}
                               onClearAll={handleFilterClearAll}
                             />
@@ -555,7 +557,7 @@ function App() {
                         <Badge variant="warning" className="text-[10px] px-1.5 py-0">beta</Badge>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">{parsedSpec.baseUrl}</p>
+                    <BaseUrlField specBaseUrl={parsedSpec.baseUrl} />
                   </div>
 
                   {/* No GET operations message */}
@@ -577,7 +579,7 @@ function App() {
                   {/* Layout Container with Parameters and Results */}
                   {parsedSpec.operations.length > 0 && selectedOperation && (
                     <LayoutContainer
-                      endpoint={`${parsedSpec.baseUrl}${selectedOperation.path}`}
+                      endpoint={`${baseUrl}${selectedOperation.path}`}
                       parameters={
                         <ParameterForm
                           parameters={selectedOperation.parameters}
@@ -586,15 +588,15 @@ function App() {
                           onPreview={handlePreview}
                           submitLabel={isStreamingOperation ? 'Stream' : undefined}
                           loading={loading}
-                          endpoint={`${parsedSpec.baseUrl}${selectedOperation.path}`}
-                          baseUrl={`${parsedSpec.baseUrl}${selectedOperation.path}`}
+                          endpoint={`${baseUrl}${selectedOperation.path}`}
+                          baseUrl={`${baseUrl}${selectedOperation.path}`}
                         />
                       }
                       results={
                         <>
                           {/* Applied Filter Chips */}
                           <AppliedFilters
-                            filters={getValues(`${parsedSpec.baseUrl}${selectedOperation.path}`)}
+                            filters={getValues(`${baseUrl}${selectedOperation.path}`)}
                             onRemove={handleFilterRemove}
                             onClearAll={handleFilterClearAll}
                           />

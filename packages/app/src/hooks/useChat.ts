@@ -28,6 +28,11 @@ function nextId(): string {
   return `msg-${Date.now()}-${++messageCounter}`
 }
 
+/** Get the effective base URL (override or spec default). Reads directly from the store to avoid threading the override through every call site. */
+function getEffectiveBaseUrl(): string {
+  return useAppStore.getState().getEffectiveBaseUrl()
+}
+
 // ── UI-only helpers (stay in the app) ──
 
 /** Sync the UI operation selector + parameter chips to reflect a chat tool call. */
@@ -42,7 +47,7 @@ function syncOperationUI(toolName: string, toolArgs: Record<string, unknown>) {
   useAppStore.setState({ selectedOperationIndex: opIndex })
 
   const operation = parsedSpec.operations[opIndex]!
-  const endpoint = `${parsedSpec.baseUrl}${operation.path}`
+  const endpoint = `${getEffectiveBaseUrl()}${operation.path}`
   const paramValues: Record<string, string> = {}
   for (const [key, value] of Object.entries(toolArgs)) {
     if (value !== undefined && value !== '') {
@@ -169,8 +174,9 @@ function createToolExecutor(apiUrl: string): ToolExecutorFn {
         }
       }
 
-      const credential = useAuthStore.getState().getActiveCredential(parsedSpec.baseUrl)
-      const result = await executeOperation(parsedSpec.baseUrl, operation, execArgs, {
+      const effectiveBase = getEffectiveBaseUrl()
+      const credential = useAuthStore.getState().getActiveCredential(effectiveBase)
+      const result = await executeOperation(effectiveBase, operation, execArgs, {
         auth: credential ? credentialToAuth(credential) : undefined,
         middleware: [proxy],
       })
