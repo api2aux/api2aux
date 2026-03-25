@@ -199,6 +199,8 @@ export interface ChatEngineContext {
   readonly tools: readonly Tool[]
   /** Base system prompt (from buildSystemPrompt). May be modified by plugins before each LLM call. */
   readonly systemPrompt: string
+  /** Field names considered domain-important by enrichment plugins. Preserved at full length during reduction. */
+  readonly domainFields?: ReadonlySet<string>
 }
 
 /** Engine configuration. */

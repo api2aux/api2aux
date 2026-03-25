@@ -147,6 +147,8 @@ export type {
 // === Enrichment Registry ===
 export { EnrichmentPluginRegistry, enrichmentRegistry } from './enrichment/registry'
 export { composeEnrichmentPlugin } from './enrichment/compose'
+export { detectDomain } from './enrichment/domain-detector'
+export type { DomainDetectionResult } from './enrichment/domain-detector'
 
 // === Orchestrator ===
 export { analyzeApiResponse, analyzeSchema } from './orchestrator'

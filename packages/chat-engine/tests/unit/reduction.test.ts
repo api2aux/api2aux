@@ -112,6 +112,43 @@ describe('truncateValues', () => {
     expect(truncateValues('hello')).toBe('hello')
   })
 
+  it('preserves domain-important fields at full length', () => {
+    const longMrn = 'MRN-' + 'x'.repeat(300)
+    const data = { mrn: longMrn, description: 'y'.repeat(300) }
+    const domainFields = new Set(['mrn'])
+    const result = truncateValues(data, domainFields) as Record<string, string>
+    expect(result.mrn).toBe(longMrn) // preserved
+    expect(result.description).toHaveLength(203) // truncated
+  })
+
+  it('domain field matching is case-insensitive', () => {
+    const longValue = 'x'.repeat(300)
+    const data = { MRN: longValue }
+    const domainFields = new Set(['mrn'])
+    const result = truncateValues(data, domainFields) as Record<string, string>
+    expect(result.MRN).toBe(longValue)
+  })
+
+  it('preserves domain fields inside arrays of objects', () => {
+    const longMrn = 'MRN-' + 'x'.repeat(300)
+    const data = {
+      patients: [
+        { id: 1, mrn: longMrn, notes: 'z'.repeat(300) },
+      ],
+    }
+    const domainFields = new Set(['mrn'])
+    const result = truncateValues(data, domainFields) as { patients: Array<Record<string, string>> }
+    expect(result.patients[0]!.mrn).toBe(longMrn) // preserved through truncateArray
+    expect(result.patients[0]!.notes).toHaveLength(203) // truncated
+  })
+
+  it('behaves identically when domainFields is undefined', () => {
+    const longStr = 'x'.repeat(300)
+    const data = { mrn: longStr }
+    const result = truncateValues(data) as Record<string, string>
+    expect(result.mrn).toHaveLength(203) // truncated without domain fields
+  })
+
   it('does not collapse top-level wrapper object arrays into summaries', () => {
     const data = {
       recipes: [

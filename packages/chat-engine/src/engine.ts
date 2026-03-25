@@ -524,6 +524,7 @@ export class ChatEngine {
       undefined,
       this.llmText,
       (warning) => emit({ type: ChatEventType.Error, error: warning }),
+      this.context.domainFields,
     )
 
     return formatStructuredResponse(
