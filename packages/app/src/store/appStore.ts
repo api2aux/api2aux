@@ -98,6 +98,7 @@ interface AppState {
   // Base URL override (when spec's resolved base URL is wrong, e.g. CDN host)
   baseUrlOverride: string | null
   setBaseUrlOverride: (url: string | null) => void
+  getEffectiveBaseUrl: () => string
 
   // Auth panel state (lives in store to survive component remounts)
   authPanelOpen: boolean
@@ -182,6 +183,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     additionalEndpoints: [],
     analysisCache: new Map(),
     mcpDeployResult: null,
+    baseUrlOverride: null,
     authPanelOpen: false,
     authPanelDismissedForUrl: null,
   }),
@@ -218,9 +220,20 @@ export const useAppStore = create<AppState>()((set, get) => ({
   streamComplete: () => set({ streaming: false, loading: false }),
   clearStream: () => set({ streaming: false, streamEvents: [] }),
 
-  // Base URL override
+  // Base URL override — defaults to null; cleared when URL changes (see setUrl)
   baseUrlOverride: null,
-  setBaseUrlOverride: (url) => set({ baseUrlOverride: url }),
+  setBaseUrlOverride: (url) => {
+    if (url === null) {
+      set({ baseUrlOverride: null })
+      return
+    }
+    const trimmed = url.trim().replace(/\/$/, '')
+    set({ baseUrlOverride: trimmed || null })
+  },
+  getEffectiveBaseUrl: () => {
+    const { baseUrlOverride, parsedSpec } = get()
+    return baseUrlOverride ?? parsedSpec?.baseUrl ?? ''
+  },
 
   // Detail panel
   setDetailPanelOpen: (open) => set({ detailPanelOpen: open }),
@@ -231,6 +244,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     parsedSpec: null,
     selectedOperationIndex: 0,
     parameterValues: {},
+    baseUrlOverride: null,
   }),
   specSuccess: (spec) => set({
     parsedSpec: spec,

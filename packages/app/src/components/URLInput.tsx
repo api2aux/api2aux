@@ -45,10 +45,9 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
   const authPanelOpen = useAppStore((s) => s.authPanelOpen)
   const setAuthPanelOpen = useAppStore((s) => s.setAuthPanelOpen)
   const authPanelDismissedForUrl = useAppStore((s) => s.authPanelDismissedForUrl)
-  const baseUrlOverride = useAppStore((s) => s.baseUrlOverride)
-
-  // Use effective base URL for auth when a spec is loaded (credentials are stored by origin)
-  const authUrl = (parsedSpec ? (baseUrlOverride ?? parsedSpec.baseUrl) : url) || url
+  // Use effective base URL for auth lookups when a spec is loaded
+  const effectiveBaseUrl = useAppStore((s) => s.getEffectiveBaseUrl())
+  const authUrl = (parsedSpec ? effectiveBaseUrl : url) || url
 
   // Auth state
   const getAuthStatus = useAuthStore((state) => state.getAuthStatus)

@@ -69,8 +69,7 @@ function App() {
     reset,
     detailPanelOpen
   } = useAppStore()
-  const baseUrlOverride = useAppStore((s) => s.baseUrlOverride)
-  const baseUrl = baseUrlOverride ?? parsedSpec?.baseUrl ?? ''
+  const baseUrl = useAppStore((s) => s.getEffectiveBaseUrl())
   const streaming = useAppStore((s) => s.streaming)
   const hasStreamEvents = useAppStore((s) => s.streamEvents.length > 0)
   const clearStream = useAppStore((s) => s.clearStream)

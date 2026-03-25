@@ -16,6 +16,16 @@ function isSuspiciousBaseUrl(baseUrl: string): boolean {
     const host = new URL(baseUrl).hostname
     return SPEC_HOSTING_HOSTS.some(h => host === h || host.endsWith('.' + h))
   } catch {
+    // Not a valid URL — can't be a known CDN host
+    return false
+  }
+}
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
     return false
   }
 }
@@ -34,6 +44,7 @@ export function BaseUrlField({ specBaseUrl }: BaseUrlFieldProps) {
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(effectiveUrl)
+  const [invalid, setInvalid] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -43,24 +54,35 @@ export function BaseUrlField({ specBaseUrl }: BaseUrlFieldProps) {
     }
   }, [editing])
 
-  // Sync draft when external value changes
+  // Keep draft in sync with external value, but only when not actively editing
   useEffect(() => {
-    if (!editing) setDraft(effectiveUrl)
+    if (!editing) {
+      setDraft(effectiveUrl)
+      setInvalid(false)
+    }
   }, [effectiveUrl, editing])
 
   const handleSubmit = () => {
     const trimmed = draft.trim().replace(/\/$/, '')
-    if (trimmed && trimmed !== specBaseUrl) {
-      setBaseUrlOverride(trimmed)
-    } else {
+    if (!trimmed || trimmed === specBaseUrl) {
       setBaseUrlOverride(null)
+      setInvalid(false)
+      setEditing(false)
+      return
     }
+    if (!isValidHttpUrl(trimmed)) {
+      setInvalid(true)
+      return
+    }
+    setBaseUrlOverride(trimmed)
+    setInvalid(false)
     setEditing(false)
   }
 
   const handleReset = () => {
     setBaseUrlOverride(null)
     setDraft(specBaseUrl)
+    setInvalid(false)
     setEditing(false)
   }
 
@@ -71,18 +93,20 @@ export function BaseUrlField({ specBaseUrl }: BaseUrlFieldProps) {
           ref={inputRef}
           type="text"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => { setDraft(e.target.value); setInvalid(false) }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSubmit()
-            if (e.key === 'Escape') { setDraft(effectiveUrl); setEditing(false) }
+            if (e.key === 'Escape') { setDraft(effectiveUrl); setInvalid(false); setEditing(false) }
           }}
           onBlur={handleSubmit}
-          className="flex-1 text-sm bg-transparent border border-border rounded px-2 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className={`flex-1 text-sm bg-transparent border rounded px-2 py-0.5 text-foreground focus:outline-none focus:ring-1 ${
+            invalid ? 'border-red-500 focus:ring-red-500' : 'border-border focus:ring-primary'
+          }`}
           spellCheck={false}
         />
         {isOverridden && (
           <button
-            onClick={handleReset}
+            onMouseDown={(e) => { e.preventDefault(); handleReset() }}
             className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             title="Reset to spec value"
           >
