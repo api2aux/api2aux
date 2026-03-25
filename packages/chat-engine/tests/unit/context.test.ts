@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { buildToolsFromUrl, buildToolsFromSpec, buildSystemPrompt, buildChatContext } from '../../src/context'
+import { enrichmentRegistry } from '@api2aux/semantic-analysis'
 import type { ApiSpec } from '../../src/types'
 
 const minimalSpec: ApiSpec = {
@@ -162,5 +163,98 @@ describe('buildChatContext', () => {
   it('passes URL parameters through', () => {
     const ctx = buildChatContext('https://api.example.com/data', null, [{ name: 'q' }])
     expect(ctx.tools[0]!.function.parameters.properties).toHaveProperty('q')
+  })
+
+  it('returns undefined domainFields when no enrichment plugins registered', () => {
+    const ctx = buildChatContext('https://api.example.com', minimalSpec)
+    expect(ctx.domainFields).toBeUndefined()
+  })
+})
+
+// ── Domain context from enrichment plugins ──
+
+describe('domain context in system prompt and chat context', () => {
+  afterEach(() => {
+    enrichmentRegistry.clear()
+  })
+
+  it('includes domain context section when plugins with domainSignature are registered', () => {
+    enrichmentRegistry.register({
+      id: '@test/health',
+      name: 'Healthcare',
+      version: '1.0.0',
+      domainSignature: { keywords: ['patient', 'diagnosis'] },
+    })
+    const prompt = buildSystemPrompt('https://api.example.com', minimalSpec)
+    expect(prompt).toContain('Domain context:')
+    expect(prompt).toContain('Healthcare')
+    expect(prompt).toContain('patient')
+    expect(prompt).toContain('diagnosis')
+  })
+
+  it('includes domain-important field names when plugins have fieldCategories', () => {
+    enrichmentRegistry.register({
+      id: '@test/health',
+      name: 'Healthcare',
+      version: '1.0.0',
+      domainSignature: { keywords: ['patient'] },
+      fieldCategories: [{
+        id: '@test/identifier',
+        name: 'identifier',
+        description: 'Test identifier category',
+        namePatterns: [/^mrn$/],
+        nameKeywords: ['patient_id'],
+        validate: () => true,
+      }],
+    })
+    const prompt = buildSystemPrompt('https://api.example.com', minimalSpec)
+    expect(prompt).toContain('Domain-important fields')
+    expect(prompt).toContain('mrn')
+    expect(prompt).toContain('patient_id')
+  })
+
+  it('does not include domain context when no plugins registered', () => {
+    const prompt = buildSystemPrompt('https://api.example.com', minimalSpec)
+    expect(prompt).not.toContain('Domain context:')
+  })
+
+  it('buildChatContext populates domainFields from enrichment plugins', () => {
+    enrichmentRegistry.register({
+      id: '@test/health',
+      name: 'Healthcare',
+      version: '1.0.0',
+      domainSignature: { keywords: ['patient'] },
+      fieldCategories: [{
+        id: '@test/identifier',
+        name: 'identifier',
+        description: 'Test identifier category',
+        namePatterns: [/^mrn$/],
+        nameKeywords: ['patient_id'],
+        validate: () => true,
+      }],
+    })
+    const ctx = buildChatContext('https://api.example.com', minimalSpec)
+    expect(ctx.domainFields).toBeDefined()
+    expect(ctx.domainFields!.has('mrn')).toBe(true)
+    expect(ctx.domainFields!.has('patient_id')).toBe(true)
+  })
+
+  it('system prompt and domainFields use the same field names (consistency)', () => {
+    enrichmentRegistry.register({
+      id: '@test/health',
+      name: 'Healthcare',
+      version: '1.0.0',
+      domainSignature: { keywords: ['patient'] },
+      fieldCategories: [{
+        id: '@test/identifier',
+        name: 'identifier',
+        description: 'Test identifier category',
+        namePatterns: [/^mrn$/],
+        validate: () => true,
+      }],
+    })
+    const ctx = buildChatContext('https://api.example.com', minimalSpec)
+    expect(ctx.systemPrompt).toContain('mrn')
+    expect(ctx.domainFields!.has('mrn')).toBe(true)
   })
 })

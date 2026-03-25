@@ -316,7 +316,7 @@ function buildToolCatalog(spec: ApiSpec): string | null {
 /**
  * Build the system prompt that describes the API and instructs the LLM.
  */
-export function buildSystemPrompt(url: string, spec?: ApiSpec | null): string {
+export function buildSystemPrompt(url: string, spec?: ApiSpec | null, domainFieldNames?: ReadonlySet<string>): string {
   let hostname: string
   try {
     hostname = new URL(url).hostname
@@ -386,7 +386,7 @@ export function buildSystemPrompt(url: string, spec?: ApiSpec | null): string {
           domainParts.push(`Key domain concepts: ${keywords.join(', ')}.`)
         }
 
-        const fieldNames = enrichmentRegistry.getDomainImportantFieldNames()
+        const fieldNames = domainFieldNames ?? enrichmentRegistry.getDomainImportantFieldNames()
         if (fieldNames.size > 0) {
           domainParts.push(`Domain-important fields (prioritize in responses): ${Array.from(fieldNames).join(', ')}.`)
         }
@@ -477,8 +477,6 @@ export function buildChatContext(
     ? buildToolsFromSpec(spec)
     : buildToolsFromUrl(url, urlParams)
 
-  const systemPrompt = buildSystemPrompt(url, spec)
-
   let domainFields: ReadonlySet<string> | undefined
   try {
     const fields = enrichmentRegistry.getDomainImportantFieldNames()
@@ -486,6 +484,8 @@ export function buildChatContext(
   } catch (err) {
     console.error('[chat-engine] enrichmentRegistry.getDomainImportantFieldNames() failed:', err)
   }
+
+  const systemPrompt = buildSystemPrompt(url, spec, domainFields)
 
   return { url, spec, tools, systemPrompt, domainFields }
 }

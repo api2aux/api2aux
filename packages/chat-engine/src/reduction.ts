@@ -101,7 +101,7 @@ function truncateValuesInternal(data: unknown, depth: number, insideArrayItem: b
     } else if (typeof value === 'number' || typeof value === 'boolean') {
       result[key] = value
     } else if (Array.isArray(value)) {
-      result[key] = truncateArray(key, value, depth, insideArrayItem)
+      result[key] = truncateArray(key, value, depth, insideArrayItem, domainFields)
     } else if (typeof value === 'object') {
       result[key] = truncateValuesInternal(value, depth + 1, insideArrayItem, domainFields)
     }
@@ -117,7 +117,7 @@ function truncateScalar(value: unknown): unknown {
   return value
 }
 
-function truncateArray(key: string, arr: unknown[], depth: number, insideArrayItem: boolean): unknown {
+function truncateArray(key: string, arr: unknown[], depth: number, insideArrayItem: boolean, domainFields?: ReadonlySet<string>): unknown {
   if (arr.length === 0) return arr
 
   // Array of objects: preserve when it's a primary data array (top-level or inside
@@ -126,7 +126,7 @@ function truncateArray(key: string, arr: unknown[], depth: number, insideArrayIt
   if (typeof arr[0] === 'object' && arr[0] !== null && !Array.isArray(arr[0])) {
     if (!insideArrayItem) {
       // Primary data array — preserve every item, truncate each item's values
-      return arr.map(item => truncateValuesInternal(item, depth + 1, true))
+      return arr.map(item => truncateValuesInternal(item, depth + 1, true, domainFields))
     }
     return summarizeObjectArray(key, arr)
   }

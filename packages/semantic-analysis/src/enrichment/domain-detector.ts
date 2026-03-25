@@ -10,13 +10,13 @@ import type { DomainSignature, OperationContext } from '../types/enrichment'
 /** Result of scoring an API spec against a domain signature. */
 export interface DomainDetectionResult {
   /** Plugin ID that owns this signature. */
-  pluginId: string
+  readonly pluginId: string
   /** Human-readable plugin name. */
-  pluginName: string
-  /** Overall match score (0-1). */
-  score: number
+  readonly pluginName: string
+  /** Overall match score in the range [0, 1]. */
+  readonly score: number
   /** Human-readable descriptions of what matched. */
-  matchedSignals: string[]
+  readonly matchedSignals: readonly string[]
 }
 
 const DEFAULT_THRESHOLD = 0.3
@@ -131,7 +131,8 @@ function scorePathPatterns(
 
   let matched = 0
   for (const pattern of patterns) {
-    if (allPaths.some(path => pattern.test(path))) {
+    pattern.lastIndex = 0
+    if (allPaths.some(path => { pattern.lastIndex = 0; return pattern.test(path) })) {
       matched++
       signals.push(`path pattern ${pattern} matched`)
     }
@@ -151,7 +152,8 @@ function scoreFieldPatterns(
 
   let matched = 0
   for (const pattern of patterns) {
-    if (allFields.some(field => pattern.test(field))) {
+    pattern.lastIndex = 0
+    if (allFields.some(field => { pattern.lastIndex = 0; return pattern.test(field) })) {
       matched++
       signals.push(`field pattern ${pattern} matched`)
     }
