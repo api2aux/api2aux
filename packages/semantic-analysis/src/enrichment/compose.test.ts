@@ -227,4 +227,106 @@ describe('composeEnrichmentPlugin', () => {
     })
     expect(composed.domainSignature).toBe(childSig)
   })
+
+  it('uiHints: additive composition concatenates base and overrides', () => {
+    const base = mockPlugin({
+      id: '@domain/base',
+      uiHints: () => [{ fieldPattern: '*.email', suggestedComponent: 'core/email-link', confidence: 0.9 }],
+    })
+    const composed = composeEnrichmentPlugin(base, {
+      id: '@domain/child',
+      name: 'Child',
+      version: '1.0.0',
+      uiHints: () => [{ fieldPattern: '*.avatar', suggestedComponent: 'core/image', confidence: 0.85 }],
+    })
+    const result = composed.uiHints!([mockOp()])
+    expect(result).toHaveLength(2)
+    expect(result[0].fieldPattern).toBe('*.email')
+    expect(result[1].fieldPattern).toBe('*.avatar')
+  })
+
+  it('workflowPatterns: additive composition concatenates base and overrides', () => {
+    const base = mockPlugin({
+      id: '@domain/base',
+      workflowPatterns: () => [{
+        name: 'checkout-flow',
+        steps: [{ operationPattern: /list.*products/i, role: 'browse' }],
+        edgeWeightBoost: 0.3,
+      }],
+    })
+    const composed = composeEnrichmentPlugin(base, {
+      id: '@domain/child',
+      name: 'Child',
+      version: '1.0.0',
+      workflowPatterns: () => [{
+        name: 'return-flow',
+        steps: [{ operationPattern: /create.*return/i, role: 'action' }],
+        edgeWeightBoost: 0.2,
+      }],
+    })
+    const result = composed.workflowPatterns!()
+    expect(result).toHaveLength(2)
+    expect(result.map(p => p.name)).toEqual(['checkout-flow', 'return-flow'])
+  })
+
+  it('enrichTools: non-overlapping keys are preserved from both base and override', () => {
+    const base = mockPlugin({
+      id: '@domain/base',
+      enrichTools: () => {
+        const m = new Map<string, ToolEnrichmentHint>()
+        m.set('list_users', { descriptionSuffix: 'Base hint.' })
+        return m
+      },
+    })
+    const composed = composeEnrichmentPlugin(base, {
+      id: '@domain/child',
+      name: 'Child',
+      version: '1.0.0',
+      enrichTools: () => {
+        const m = new Map<string, ToolEnrichmentHint>()
+        m.set('create_user', { descriptionSuffix: 'Child hint.' })
+        return m
+      },
+    })
+    const result = composed.enrichTools!([mockOp()])
+    expect(result.get('list_users')!.descriptionSuffix).toBe('Base hint.')
+    expect(result.get('create_user')!.descriptionSuffix).toBe('Child hint.')
+    expect(result.size).toBe(2)
+  })
+
+  it('disambiguate: preserves sourceField and targetParam from original input', async () => {
+    const base = mockPlugin({
+      id: '@domain/base',
+      disambiguate: async (matches) => matches.map(m => ({
+        sourceOperationId: m.sourceOperationId,
+        targetOperationId: m.targetOperationId,
+        refinedScore: 0.5,
+        confirmed: false,
+        reasoning: 'base says maybe',
+      })),
+    })
+    const composed = composeEnrichmentPlugin(base, {
+      id: '@domain/child',
+      name: 'Child',
+      version: '1.0.0',
+      disambiguate: async (matches) => matches.map(m => ({
+        sourceOperationId: m.sourceOperationId,
+        targetOperationId: m.targetOperationId,
+        refinedScore: m.sourceField === 'id' && m.targetParam === 'userId' ? 0.95 : 0.1,
+        confirmed: m.sourceField === 'id',
+        reasoning: `field=${m.sourceField}, param=${m.targetParam}`,
+      })),
+    })
+    const result = await composed.disambiguate!([{
+      sourceOperationId: 'op_a',
+      targetOperationId: 'op_b',
+      sourceField: 'id',
+      targetParam: 'userId',
+      currentScore: 0.3,
+      context: 'test',
+    }])
+    expect(result[0].refinedScore).toBe(0.95)
+    expect(result[0].confirmed).toBe(true)
+    expect(result[0].reasoning).toBe('field=id, param=userId')
+  })
 })

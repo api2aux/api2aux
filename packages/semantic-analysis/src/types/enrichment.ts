@@ -147,14 +147,14 @@ export interface DisambiguationResult {
 
 /** Signals for auto-detecting which domain an API belongs to. */
 export interface DomainSignature {
-  /** Keywords in paths/tags/descriptions, e.g. ['patient', 'diagnosis', 'fhir']. */
-  keywords: string[]
+  /** Keywords in paths/tags/descriptions, e.g. ['patient', 'diagnosis', 'fhir']. Must be non-empty. */
+  readonly keywords: readonly string[]
   /** Path regex patterns, e.g. /\/Patient\//. */
-  pathPatterns?: RegExp[]
+  readonly pathPatterns?: readonly RegExp[]
   /** Response field name patterns, e.g. /^mrn$/i. */
-  fieldPatterns?: RegExp[]
+  readonly fieldPatterns?: readonly RegExp[]
   /** Minimum match score (0-1) to be a candidate. Default: 0.3. */
-  threshold?: number
+  readonly threshold?: number
 }
 
 // === Enrichment Plugin ===

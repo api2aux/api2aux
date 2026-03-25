@@ -21,15 +21,35 @@ import type { PluginSemanticCategory } from '../types/plugins'
 
 export class EnrichmentPluginRegistry {
   private plugins: Map<string, EnrichmentPlugin> = new Map()
+  private cachedResolutionOrder: EnrichmentPlugin[] | null = null
 
-  /** Register an enrichment plugin. Replaces any existing plugin with the same ID. */
+  /**
+   * Register an enrichment plugin.
+   * Warns if replacing an existing plugin with the same ID.
+   * Validates domainSignature constraints if provided.
+   */
   register(plugin: EnrichmentPlugin): void {
+    if (this.plugins.has(plugin.id)) {
+      console.warn(`[EnrichmentRegistry] Replacing existing plugin "${plugin.id}"`)
+    }
+    if (plugin.domainSignature) {
+      const sig = plugin.domainSignature
+      if (sig.keywords.length === 0) {
+        throw new Error(`Plugin "${plugin.id}" domainSignature.keywords must not be empty`)
+      }
+      if (sig.threshold !== undefined && (sig.threshold < 0 || sig.threshold > 1)) {
+        throw new Error(`Plugin "${plugin.id}" domainSignature.threshold must be between 0 and 1, got ${sig.threshold}`)
+      }
+    }
     this.plugins.set(plugin.id, plugin)
+    this.cachedResolutionOrder = null
   }
 
   /** Unregister a plugin by ID. Returns true if the plugin was found and removed. */
   unregister(id: string): boolean {
-    return this.plugins.delete(id)
+    const deleted = this.plugins.delete(id)
+    if (deleted) this.cachedResolutionOrder = null
+    return deleted
   }
 
   /** Get a registered plugin by ID. */
@@ -50,6 +70,7 @@ export class EnrichmentPluginRegistry {
   /** Remove all registered plugins. */
   clear(): void {
     this.plugins.clear()
+    this.cachedResolutionOrder = null
   }
 
   // === Hierarchy resolution ===
@@ -57,8 +78,11 @@ export class EnrichmentPluginRegistry {
   /**
    * Resolve plugin order: parents before children, then by priority within each tier.
    * Throws on circular `extends` chains or references to unknown parent IDs.
+   * Results are cached and invalidated on register/unregister/clear.
    */
   private getResolutionOrder(): EnrichmentPlugin[] {
+    if (this.cachedResolutionOrder) return this.cachedResolutionOrder
+
     const plugins = Array.from(this.plugins.values())
     if (plugins.length === 0) return []
 
@@ -75,14 +99,16 @@ export class EnrichmentPluginRegistry {
     const depth = new Map<string, number>()
     const computing = new Set<string>()
 
-    const getDepth = (id: string): number => {
+    const getDepth = (id: string, path: string[] = []): number => {
       if (depth.has(id)) return depth.get(id)!
       if (computing.has(id)) {
-        throw new Error(`Circular extends chain detected involving "${id}"`)
+        const cycleStart = path.indexOf(id)
+        const cycle = [...path.slice(cycleStart), id].join(' → ')
+        throw new Error(`Circular extends chain detected: ${cycle}`)
       }
       computing.add(id)
       const plugin = byId.get(id)!
-      const d = plugin.extends ? getDepth(plugin.extends) + 1 : 0
+      const d = plugin.extends ? getDepth(plugin.extends, [...path, id]) + 1 : 0
       computing.delete(id)
       depth.set(id, d)
       return d
@@ -92,12 +118,15 @@ export class EnrichmentPluginRegistry {
 
     // Sort: primary by depth ascending, secondary by priority ascending
     // (lower priority first → higher priority applied later → wins on conflict)
-    return plugins.sort((a, b) => {
+    const sorted = plugins.sort((a, b) => {
       const dA = depth.get(a.id)!
       const dB = depth.get(b.id)!
       if (dA !== dB) return dA - dB
       return (a.priority ?? 0) - (b.priority ?? 0)
     })
+
+    this.cachedResolutionOrder = sorted
+    return sorted
   }
 
   /**
@@ -108,10 +137,13 @@ export class EnrichmentPluginRegistry {
     return this.getResolutionOrder()
   }
 
-  /** Get all registered domain signatures, keyed by plugin ID. */
+  /**
+   * Get all registered domain signatures, keyed by plugin ID.
+   * Throws on invalid hierarchy configuration (circular extends, missing parents).
+   */
   getDomainSignatures(): Map<string, DomainSignature> {
     const result = new Map<string, DomainSignature>()
-    for (const plugin of this.plugins.values()) {
+    for (const plugin of this.getResolutionOrder()) {
       if (plugin.domainSignature) {
         result.set(plugin.id, plugin.domainSignature)
       }
@@ -122,10 +154,11 @@ export class EnrichmentPluginRegistry {
   /**
    * Extract literal field names considered domain-important across all plugins.
    * Scans `fieldCategories[].namePatterns` for literal regexes and `nameKeywords`.
+   * Throws on invalid hierarchy configuration (circular extends, missing parents).
    */
   getDomainImportantFieldNames(): Set<string> {
     const names = new Set<string>()
-    for (const plugin of this.plugins.values()) {
+    for (const plugin of this.getResolutionOrder()) {
       if (!plugin.fieldCategories) continue
       for (const cat of plugin.fieldCategories) {
         for (const pattern of cat.namePatterns) {
@@ -286,6 +319,7 @@ export class EnrichmentPluginRegistry {
   /**
    * Get all plugins that provide LLM disambiguation, in resolution order.
    * The workflow inference engine calls these for ambiguous matches.
+   * Throws on invalid hierarchy configuration (circular extends, missing parents).
    */
   getDisambiguators(): EnrichmentPlugin[] {
     return this.getResolutionOrder().filter(p => p.disambiguate !== undefined)

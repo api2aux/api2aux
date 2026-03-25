@@ -69,6 +69,13 @@ function composeTagOperations(
     const baseTags = baseFn(operations)
     const overrideTags = overrideFn(operations)
 
+    if (baseTags.length !== operations.length) {
+      console.warn(`[composeEnrichmentPlugin] Base tagOperations returned ${baseTags.length} results for ${operations.length} operations`)
+    }
+    if (overrideTags.length !== operations.length) {
+      console.warn(`[composeEnrichmentPlugin] Override tagOperations returned ${overrideTags.length} results for ${operations.length} operations`)
+    }
+
     return operations.map((_, i) => {
       const base = baseTags[i] ?? []
       const override = overrideTags[i] ?? []
@@ -156,11 +163,11 @@ function composeDisambiguate(
 
   return async (ambiguous) => {
     const baseResults = await baseFn(ambiguous)
-    return overrideFn(baseResults.map(r => ({
+    return overrideFn(baseResults.map((r, i) => ({
       sourceOperationId: r.sourceOperationId,
       targetOperationId: r.targetOperationId,
-      sourceField: '',
-      targetParam: '',
+      sourceField: ambiguous[i]?.sourceField ?? '',
+      targetParam: ambiguous[i]?.targetParam ?? '',
       currentScore: r.refinedScore,
       context: r.reasoning ?? '',
     })))

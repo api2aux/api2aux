@@ -321,6 +321,36 @@ describe('EnrichmentPluginRegistry.getDisambiguators', () => {
 })
 
 // ============================================================================
+// getToolHints with hierarchy
+// ============================================================================
+describe('EnrichmentPluginRegistry.getToolHints hierarchy', () => {
+  it('child overrides parent parameterHints for same operation', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({
+      id: '@domain/base',
+      enrichTools: () => {
+        const m = new Map<string, ToolEnrichmentHint>()
+        m.set('list_users', { descriptionSuffix: 'Base.', parameterHints: { q: 'Search (base)' } })
+        return m
+      },
+    }))
+    reg.register(mockPlugin({
+      id: '@domain/child',
+      extends: '@domain/base',
+      enrichTools: () => {
+        const m = new Map<string, ToolEnrichmentHint>()
+        m.set('list_users', { descriptionSuffix: 'Child.', parameterHints: { q: 'Search (child)' } })
+        return m
+      },
+    }))
+    const result = reg.getToolHints([mockOp()])
+    const hint = result.get('list_users')!
+    expect(hint.descriptionSuffix).toBe('Base. Child.')
+    expect(hint.parameterHints!.q).toBe('Search (child)')
+  })
+})
+
+// ============================================================================
 // Hierarchy resolution order
 // ============================================================================
 describe('EnrichmentPluginRegistry hierarchy resolution', () => {
@@ -381,6 +411,38 @@ describe('EnrichmentPluginRegistry hierarchy resolution', () => {
     const reg = freshRegistry()
     reg.register(mockPlugin({ id: '@child', extends: '@nonexistent' }))
     expect(() => reg.getEffectivePlugins()).toThrow(/unknown plugin/i)
+  })
+
+  it('returns empty array for empty registry', () => {
+    const reg = freshRegistry()
+    expect(reg.getEffectivePlugins()).toEqual([])
+  })
+
+  it('circular error includes full cycle path', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a', extends: '@b' }))
+    reg.register(mockPlugin({ id: '@b', extends: '@c' }))
+    reg.register(mockPlugin({ id: '@c', extends: '@a' }))
+    expect(() => reg.getEffectivePlugins()).toThrow(/→/)
+  })
+
+  it('invalidates cache on register', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a' }))
+    const first = reg.getEffectivePlugins()
+    expect(first).toHaveLength(1)
+    reg.register(mockPlugin({ id: '@b' }))
+    const second = reg.getEffectivePlugins()
+    expect(second).toHaveLength(2)
+  })
+
+  it('invalidates cache on unregister', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({ id: '@a' }))
+    reg.register(mockPlugin({ id: '@b' }))
+    expect(reg.getEffectivePlugins()).toHaveLength(2)
+    reg.unregister('@b')
+    expect(reg.getEffectivePlugins()).toHaveLength(1)
   })
 })
 
@@ -487,5 +549,43 @@ describe('EnrichmentPluginRegistry.getDomainImportantFieldNames', () => {
     const reg = freshRegistry()
     reg.register(mockPlugin({ id: '@test/a' }))
     expect(reg.getDomainImportantFieldNames().size).toBe(0)
+  })
+})
+
+// ============================================================================
+// DomainSignature validation at registration
+// ============================================================================
+describe('EnrichmentPluginRegistry domainSignature validation', () => {
+  it('throws on empty keywords array', () => {
+    const reg = freshRegistry()
+    expect(() => reg.register(mockPlugin({
+      id: '@test/a',
+      domainSignature: { keywords: [] },
+    }))).toThrow(/keywords must not be empty/i)
+  })
+
+  it('throws on threshold out of range (> 1)', () => {
+    const reg = freshRegistry()
+    expect(() => reg.register(mockPlugin({
+      id: '@test/a',
+      domainSignature: { keywords: ['patient'], threshold: 1.5 },
+    }))).toThrow(/threshold must be between 0 and 1/i)
+  })
+
+  it('throws on threshold out of range (< 0)', () => {
+    const reg = freshRegistry()
+    expect(() => reg.register(mockPlugin({
+      id: '@test/a',
+      domainSignature: { keywords: ['patient'], threshold: -0.1 },
+    }))).toThrow(/threshold must be between 0 and 1/i)
+  })
+
+  it('accepts valid domainSignature', () => {
+    const reg = freshRegistry()
+    reg.register(mockPlugin({
+      id: '@test/a',
+      domainSignature: { keywords: ['patient'], threshold: 0.5 },
+    }))
+    expect(reg.size).toBe(1)
   })
 })
