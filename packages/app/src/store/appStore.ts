@@ -95,6 +95,10 @@ interface AppState {
   detailPanelOpen: boolean
   setDetailPanelOpen: (open: boolean) => void
 
+  // Base URL override (when spec's resolved base URL is wrong, e.g. CDN host)
+  baseUrlOverride: string | null
+  setBaseUrlOverride: (url: string | null) => void
+
   // Auth panel state (lives in store to survive component remounts)
   authPanelOpen: boolean
   setAuthPanelOpen: (open: boolean) => void
@@ -138,7 +142,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   authPanelOpen: false,
   authPanelDismissedForUrl: null,
 
-  setUrl: (url) => set({ url }),
+  setUrl: (url) => set({ url, baseUrlOverride: null }),
   setUrlMode: (mode) => set({ urlMode: mode }),
   setOptionsOpen: (open) => set({ optionsOpen: open }),
   setHttpMethod: (method) => set({ httpMethod: method }),
@@ -213,6 +217,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
   }),
   streamComplete: () => set({ streaming: false, loading: false }),
   clearStream: () => set({ streaming: false, streamEvents: [] }),
+
+  // Base URL override
+  baseUrlOverride: null,
+  setBaseUrlOverride: (url) => set({ baseUrlOverride: url }),
 
   // Detail panel
   setDetailPanelOpen: (open) => set({ detailPanelOpen: open }),
