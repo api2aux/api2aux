@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useAppStore } from './store/appStore'
 import { useConfigStore } from './store/configStore'
 import { useParameterStore } from './store/parameterStore'
@@ -111,10 +111,11 @@ function App() {
   const [previewData, setPreviewData] = useState<BuiltRequest | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
 
-  // Derive auth error from error state
-  const authError = error && error instanceof AuthError
-    ? { status: error.status, message: error.message }
-    : null
+  // Derive auth error from error state (memoized to prevent infinite re-render loop
+  // — a new object reference each render would retrigger URLInput's useEffect)
+  const authError = useMemo(() => error && error instanceof AuthError
+    ? { status: error.status as 401 | 403, message: error.message }
+    : null, [error])
 
   // Hydrate from URL hash (#share=...) or query param (?api=...) on load
   useEffect(() => {
