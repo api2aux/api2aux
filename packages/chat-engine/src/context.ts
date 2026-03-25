@@ -366,6 +366,37 @@ export function buildSystemPrompt(url: string, spec?: ApiSpec | null): string {
       sections.push('Operation semantics:\n' + taggedOps.join('\n'))
     }
 
+    // Domain context from enrichment plugins
+    try {
+      const plugins = enrichmentRegistry.getEffectivePlugins()
+      if (plugins.length > 0) {
+        const domainParts: string[] = []
+
+        // Collect plugin names and domain keywords
+        const pluginNames = plugins.map(p => p.name)
+        const keywords: string[] = []
+        for (const p of plugins) {
+          if (p.domainSignature) {
+            keywords.push(...p.domainSignature.keywords)
+          }
+        }
+
+        domainParts.push(`This API is enriched by: ${pluginNames.join(', ')}.`)
+        if (keywords.length > 0) {
+          domainParts.push(`Key domain concepts: ${keywords.join(', ')}.`)
+        }
+
+        const fieldNames = enrichmentRegistry.getDomainImportantFieldNames()
+        if (fieldNames.size > 0) {
+          domainParts.push(`Domain-important fields (prioritize in responses): ${Array.from(fieldNames).join(', ')}.`)
+        }
+
+        sections.push('Domain context:\n' + domainParts.join(' '))
+      }
+    } catch (err) {
+      console.error('[chat-engine] Domain context generation failed:', err)
+    }
+
     const workflowHint = detectWorkflows(spec)
     if (workflowHint) sections.push(workflowHint)
 
@@ -448,5 +479,13 @@ export function buildChatContext(
 
   const systemPrompt = buildSystemPrompt(url, spec)
 
-  return { url, spec, tools, systemPrompt }
+  let domainFields: ReadonlySet<string> | undefined
+  try {
+    const fields = enrichmentRegistry.getDomainImportantFieldNames()
+    if (fields.size > 0) domainFields = fields
+  } catch (err) {
+    console.error('[chat-engine] enrichmentRegistry.getDomainImportantFieldNames() failed:', err)
+  }
+
+  return { url, spec, tools, systemPrompt, domainFields }
 }

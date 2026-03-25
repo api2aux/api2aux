@@ -22,13 +22,14 @@ export async function reduceToolResultsForFocus(
   _embedFn?: unknown,
   _llmText?: unknown,
   onWarning?: (message: string) => void,
+  domainFields?: ReadonlySet<string>,
 ): Promise<ToolResultEntry[]> {
   const reduced: ToolResultEntry[] = []
 
   for (const result of toolResults) {
     let reducedData: unknown
     try {
-      reducedData = reduceData(result.data, strategy)
+      reducedData = reduceData(result.data, strategy, domainFields)
     } catch (err) {
       // Distinguish programming errors from expected failures
       const msg = err instanceof Error ? err.message : String(err)
@@ -50,13 +51,14 @@ export async function reduceToolResultsForFocus(
 function reduceData(
   data: unknown,
   strategy: FocusReduction,
+  domainFields?: ReadonlySet<string>,
 ): unknown {
   switch (strategy) {
     case 'truncate-values':
-      return truncateValues(data)
+      return truncateValues(data, domainFields)
 
     default:
-      return truncateValues(data)
+      return truncateValues(data, domainFields)
   }
 }
 
@@ -65,18 +67,18 @@ function reduceData(
 const MAX_STRING_LENGTH = 200
 const MAX_ARRAY_ITEMS = 5
 
-/** Keep all fields, truncate long values. */
-export function truncateValues(data: unknown): unknown {
-  return truncateValuesInternal(data, 0, false)
+/** Keep all fields, truncate long values. Domain-important fields are preserved at full length. */
+export function truncateValues(data: unknown, domainFields?: ReadonlySet<string>): unknown {
+  return truncateValuesInternal(data, 0, false, domainFields)
 }
 
-function truncateValuesInternal(data: unknown, depth: number, insideArrayItem: boolean): unknown {
+function truncateValuesInternal(data: unknown, depth: number, insideArrayItem: boolean, domainFields?: ReadonlySet<string>): unknown {
   if (data === null || data === undefined) return data
   if (typeof data !== 'object') return truncateScalar(data)
 
   if (Array.isArray(data)) {
     // Top-level arrays: preserve all items, truncate each
-    return data.map(item => truncateValuesInternal(item, depth + 1, true))
+    return data.map(item => truncateValuesInternal(item, depth + 1, true, domainFields))
   }
 
   const obj = data as Record<string, unknown>
@@ -88,8 +90,10 @@ function truncateValuesInternal(data: unknown, depth: number, insideArrayItem: b
       continue
     }
 
+    const isDomainField = domainFields !== undefined && domainFields.has(key.toLowerCase())
+
     if (typeof value === 'string') {
-      if (value.length > MAX_STRING_LENGTH && !looksLikeUrl(value)) {
+      if (!isDomainField && value.length > MAX_STRING_LENGTH && !looksLikeUrl(value)) {
         result[key] = value.slice(0, MAX_STRING_LENGTH) + '...'
       } else {
         result[key] = value
@@ -99,7 +103,7 @@ function truncateValuesInternal(data: unknown, depth: number, insideArrayItem: b
     } else if (Array.isArray(value)) {
       result[key] = truncateArray(key, value, depth, insideArrayItem)
     } else if (typeof value === 'object') {
-      result[key] = truncateValuesInternal(value, depth + 1, insideArrayItem)
+      result[key] = truncateValuesInternal(value, depth + 1, insideArrayItem, domainFields)
     }
   }
 
