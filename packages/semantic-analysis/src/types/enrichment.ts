@@ -143,6 +143,20 @@ export interface DisambiguationResult {
   reasoning?: string
 }
 
+// === Domain Signature ===
+
+/** Signals for auto-detecting which domain an API belongs to. */
+export interface DomainSignature {
+  /** Keywords in paths/tags/descriptions, e.g. ['patient', 'diagnosis', 'fhir']. */
+  keywords: string[]
+  /** Path regex patterns, e.g. /\/Patient\//. */
+  pathPatterns?: RegExp[]
+  /** Response field name patterns, e.g. /^mrn$/i. */
+  fieldPatterns?: RegExp[]
+  /** Minimum match score (0-1) to be a candidate. Default: 0.3. */
+  threshold?: number
+}
+
 // === Enrichment Plugin ===
 
 /**
@@ -173,6 +187,15 @@ export interface EnrichmentPlugin {
   readonly name: string
   /** SemVer version string, e.g. '1.0.0'. */
   readonly version: string
+
+  // --- Hierarchy ---
+
+  /** ID of the parent plugin this extends. Undefined = standalone. */
+  readonly extends?: string
+  /** Priority within tier (higher = applied later, can override). Default: 0. */
+  readonly priority?: number
+  /** Signals for auto-detecting which domain an API belongs to. */
+  readonly domainSignature?: DomainSignature
 
   // --- Field-level hooks (extends existing PluginSemanticCategory) ---
 

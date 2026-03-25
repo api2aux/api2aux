@@ -131,6 +131,7 @@ export type {
 } from './types/plugins'
 
 export type {
+  DomainSignature,
   EnrichmentPlugin,
   OperationContext,
   OperationContextParam,
@@ -145,6 +146,7 @@ export type {
 
 // === Enrichment Registry ===
 export { EnrichmentPluginRegistry, enrichmentRegistry } from './enrichment/registry'
+export { composeEnrichmentPlugin } from './enrichment/compose'
 
 // === Orchestrator ===
 export { analyzeApiResponse, analyzeSchema } from './orchestrator'
