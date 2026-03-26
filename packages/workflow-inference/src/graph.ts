@@ -2,13 +2,10 @@
  * Graph builder — runs all signals, merges edges, applies plugin boosts.
  */
 
-import type { InferenceOperation, OperationEdge, OperationGraph, SignalFunction } from './types'
+import { BuiltInSignal } from './types'
+import type { InferenceOperation, OperationEdge, OperationGraph, SignalError, SignalFunction, SignalRegistration } from './types'
 import type { WorkflowPatternHint } from '@api2aux/semantic-analysis'
-import { detectIdPatterns } from './signals/id-pattern'
-import { detectRestConventions } from './signals/rest-conventions'
-import { detectSchemaCompat } from './signals/schema-compat'
-import { detectTagProximity } from './signals/tag-proximity'
-import { detectNameSimilarity } from './signals/name-similarity'
+import { signalRegistry } from './signals/registry'
 
 /** Minimum edge score to keep in the graph. */
 const EDGE_THRESHOLD = 0.15
@@ -16,12 +13,21 @@ const EDGE_THRESHOLD = 0.15
 /** Maximum accumulated score before normalization (prevents one pair from dominating). */
 const MAX_RAW_SCORE = 1.5
 
-/** Run a signal function safely, returning empty array on failure. */
-function safeRunSignal(fn: SignalFunction, operations: InferenceOperation[], label: string): OperationEdge[] {
+/** Run a signal function safely, returning empty array on failure and tracking the error. */
+function safeRunSignal(
+  fn: SignalFunction,
+  operations: InferenceOperation[],
+  label: string,
+  errors: SignalError[],
+): OperationEdge[] {
   try {
     return fn(operations)
   } catch (err) {
-    console.error(`[workflow-inference] ${label} signal failed:`, err)
+    errors.push({
+      id: label,
+      message: err instanceof Error ? err.message : String(err),
+      error: err,
+    })
     return []
   }
 }
@@ -100,7 +106,7 @@ function applyPluginBoosts(
           edge.score += boost
           boostAccum.set(key, accumulated + boost)
           edge.signals.push({
-            signal: 'plugin-boost',
+            signal: BuiltInSignal.PluginBoost,
             weight: boost,
             matched: true,
             detail: `Plugin pattern: ${pattern.name} (${stepA.role} → ${stepB.role})`,
@@ -145,15 +151,16 @@ export function buildOperationGraph(
   operations: InferenceOperation[],
   pluginPatterns?: WorkflowPatternHint[],
   runtimeEdges?: OperationEdge[],
+  signals?: SignalRegistration[],
 ): OperationGraph {
-  // Run all signals independently with per-signal isolation
-  const allEdges: OperationEdge[] = [
-    ...safeRunSignal(detectIdPatterns, operations, 'id-pattern'),
-    ...safeRunSignal(detectRestConventions, operations, 'rest-conventions'),
-    ...safeRunSignal(detectSchemaCompat, operations, 'schema-compat'),
-    ...safeRunSignal(detectTagProximity, operations, 'tag-proximity'),
-    ...safeRunSignal(detectNameSimilarity, operations, 'name-similarity'),
-  ]
+  // Run all signals independently with per-signal isolation.
+  // Use provided signals if given, otherwise use the global registry.
+  const activeSignals = signals ?? signalRegistry.getAll()
+  const allEdges: OperationEdge[] = []
+  const signalErrors: SignalError[] = []
+  for (const { id, signal } of activeSignals) {
+    allEdges.push(...safeRunSignal(signal, operations, id, signalErrors))
+  }
 
   // Merge runtime-discovered edges if available
   if (runtimeEdges && runtimeEdges.length > 0) {
@@ -180,5 +187,6 @@ export function buildOperationGraph(
   return {
     nodes: operations,
     edges: filtered,
+    signalErrors,
   }
 }

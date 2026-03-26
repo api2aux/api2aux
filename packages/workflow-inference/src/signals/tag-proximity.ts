@@ -5,9 +5,10 @@
  * This signal creates weak edges that boost existing stronger signals.
  */
 
+import { BuiltInSignal } from '../types'
 import type { InferenceOperation, OperationEdge, EdgeSignal } from '../types'
 
-const SIGNAL_NAME = 'tag-proximity'
+const SIGNAL_NAME = BuiltInSignal.TagProximity
 const SIGNAL_WEIGHT = 0.10
 
 /** Calculate Jaccard similarity between two sets. */

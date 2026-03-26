@@ -19,9 +19,10 @@
  * - Normalized match (strip separators): 0.7
  */
 
+import { BuiltInSignal } from '../types'
 import type { InferenceOperation, OperationEdge, DataBinding, EdgeSignal } from '../types'
 
-const SIGNAL_NAME = 'id-pattern'
+const SIGNAL_NAME = BuiltInSignal.IdPattern
 const SIGNAL_WEIGHT = 0.35
 
 /** Normalize a field/param name for comparison: lowercase, strip separators. */
