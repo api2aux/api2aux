@@ -50,6 +50,7 @@ export const SelectionReason = {
   SplitPattern: 'split-pattern',
   ChipsPattern: 'chips-pattern',
   ImageGrid: 'image-grid',
+  PluginHint: 'plugin-hint',
   NotApplicable: 'not-applicable',
   NoData: 'no-data',
   FallbackToDefault: 'fallback-to-default',

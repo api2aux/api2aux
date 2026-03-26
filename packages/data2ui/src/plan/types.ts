@@ -9,6 +9,7 @@ import type {
   ImportanceScore,
   GroupingResult,
   PathAnalysis,
+  UIComponentHint,
 } from '@api2aux/semantic-analysis'
 import type { ComponentSelection } from '../select/types'
 import type { XmlParseOptions } from '../parse/types'
@@ -112,4 +113,6 @@ export interface BuildOptions {
   pluginRegistry?: PluginRegistry
   /** Plugin preferences: semantic category → preferred plugin ID */
   pluginPreferences?: Record<string, string>
+  /** UI component hints from enrichment plugins */
+  uiHints?: UIComponentHint[]
 }

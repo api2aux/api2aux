@@ -7,7 +7,7 @@
  * 3. Recursively build UINode tree (component selection + plugin resolution at each node)
  */
 import { analyzeApiResponse } from '@api2aux/semantic-analysis'
-import type { TypeSignature, SemanticMetadata, PathAnalysis } from '@api2aux/semantic-analysis'
+import type { TypeSignature, SemanticMetadata, PathAnalysis, UIComponentHint } from '@api2aux/semantic-analysis'
 import type { ImportanceScore } from '@api2aux/semantic-analysis'
 import { parseInput } from '../parse'
 import { selectComponent, selectObjectComponent, selectPrimitiveArrayComponent } from '../select'
@@ -52,6 +52,7 @@ export function buildUIPlan(
     options?.componentOverrides ?? {},
     options?.pluginRegistry ?? null,
     options?.pluginPreferences ?? {},
+    options?.uiHints,
   )
 
   return {
@@ -75,22 +76,23 @@ function buildNode(
   overrides: Record<string, string>,
   pluginRegistry: import('../plugins/registry').PluginRegistry | null,
   pluginPreferences: Record<string, string>,
+  uiHints?: UIComponentHint[],
 ): UINode {
   const override = overrides[path]
 
   // Array of objects → LayoutNode
   if (typeSignature.kind === 'array' && typeSignature.items.kind === 'object') {
-    return buildArrayOfObjectsNode(typeSignature, data, path, depth, paths, overrides, override, pluginRegistry, pluginPreferences)
+    return buildArrayOfObjectsNode(typeSignature, data, path, depth, paths, overrides, override, pluginRegistry, pluginPreferences, uiHints)
   }
 
   // Array of primitives → CollectionNode
   if (typeSignature.kind === 'array' && typeSignature.items.kind === 'primitive') {
-    return buildPrimitiveArrayNode(typeSignature, data, path, paths, override)
+    return buildPrimitiveArrayNode(typeSignature, data, path, paths, override, uiHints)
   }
 
   // Object → LayoutNode
   if (typeSignature.kind === 'object') {
-    return buildObjectNode(typeSignature, data, path, depth, paths, overrides, override, pluginRegistry, pluginPreferences)
+    return buildObjectNode(typeSignature, data, path, depth, paths, overrides, override, pluginRegistry, pluginPreferences, uiHints)
   }
 
   // Primitive → FieldNode
@@ -124,18 +126,20 @@ function buildArrayOfObjectsNode(
   override: string | undefined,
   pluginRegistry: import('../plugins/registry').PluginRegistry | null,
   pluginPreferences: Record<string, string>,
+  uiHints?: UIComponentHint[],
 ): LayoutNode {
   const analysis = paths[path]
   const context: SelectionContext = {
     semantics: analysis?.semantics ?? new Map(),
     importance: analysis?.importance ?? new Map(),
+    uiHints,
   }
 
   let selection: ComponentSelection
   if (override) {
     selection = { componentType: override, confidence: 1, reason: SelectionReason.UserOverride }
   } else {
-    selection = selectComponent(schema, context)
+    selection = selectComponent(schema, context, path)
   }
 
   // Build children from object fields
@@ -143,7 +147,7 @@ function buildArrayOfObjectsNode(
   if (schema.kind === 'array' && schema.items.kind === 'object') {
     for (const [fieldName, fieldDef] of schema.items.fields.entries()) {
       const childPath = `${path}[].${fieldName}`
-      const child = buildNode(fieldDef.type, undefined, childPath, depth + 1, paths, overrides, pluginRegistry, pluginPreferences)
+      const child = buildNode(fieldDef.type, undefined, childPath, depth + 1, paths, overrides, pluginRegistry, pluginPreferences, uiHints)
       children.push(child)
     }
   }
@@ -167,18 +171,20 @@ function buildPrimitiveArrayNode(
   path: string,
   paths: Record<string, PathAnalysis>,
   override: string | undefined,
+  uiHints?: UIComponentHint[],
 ): CollectionNode {
   const analysis = paths[path]
   const context: SelectionContext = {
     semantics: analysis?.semantics ?? new Map(),
     importance: analysis?.importance ?? new Map(),
+    uiHints,
   }
 
   let selection: ComponentSelection
   if (override) {
     selection = { componentType: override, confidence: 1, reason: SelectionReason.UserOverride }
   } else {
-    selection = selectPrimitiveArrayComponent(schema, data, context)
+    selection = selectPrimitiveArrayComponent(schema, data, context, path)
   }
 
   // Get semantic metadata for this collection path
@@ -204,18 +210,20 @@ function buildObjectNode(
   override: string | undefined,
   pluginRegistry: import('../plugins/registry').PluginRegistry | null,
   pluginPreferences: Record<string, string>,
+  uiHints?: UIComponentHint[],
 ): LayoutNode {
   const analysis = paths[path]
   const context: SelectionContext = {
     semantics: analysis?.semantics ?? new Map(),
     importance: analysis?.importance ?? new Map(),
+    uiHints,
   }
 
   let selection: ComponentSelection
   if (override) {
     selection = { componentType: override, confidence: 1, reason: SelectionReason.UserOverride }
   } else {
-    selection = selectObjectComponent(schema, context)
+    selection = selectObjectComponent(schema, context, path)
   }
 
   // Build children from object fields
@@ -226,7 +234,7 @@ function buildObjectNode(
       const childData = data && typeof data === 'object' && !Array.isArray(data)
         ? (data as Record<string, unknown>)[fieldName]
         : undefined
-      const child = buildNode(fieldDef.type, childData, childPath, depth + 1, paths, overrides, pluginRegistry, pluginPreferences)
+      const child = buildNode(fieldDef.type, childData, childPath, depth + 1, paths, overrides, pluginRegistry, pluginPreferences, uiHints)
       children.push(child)
     }
   }
