@@ -22,6 +22,7 @@ export type {
   Workflow,
   WorkflowStep,
   SignalFunction,
+  SignalRegistration,
   RuntimeProbeValue,
   RuntimeProbeResult,
 } from './types'
@@ -37,6 +38,9 @@ export { detectSchemaCompat } from './signals/schema-compat'
 export { detectTagProximity } from './signals/tag-proximity'
 export { detectNameSimilarity } from './signals/name-similarity'
 export { matchRuntimeValues } from './signals/runtime-value-match'
+
+// === Signal Registry ===
+export { SignalRegistry, signalRegistry } from './signals/registry'
 
 // === Graph ===
 export { buildOperationGraph } from './graph'
@@ -55,7 +59,7 @@ export type { ArazzoDocument } from './export/arazzo'
 // === One-shot convenience ===
 
 import type { WorkflowPatternHint } from '@api2aux/semantic-analysis'
-import type { OperationGraph, Workflow, OperationEdge } from './types'
+import type { OperationGraph, Workflow, OperationEdge, SignalRegistration } from './types'
 import { operationsToInference } from './convert'
 import { buildOperationGraph } from './graph'
 import { inferWorkflows } from './composer'
@@ -70,10 +74,11 @@ export function analyzeWorkflows(
   options?: {
     pluginPatterns?: WorkflowPatternHint[]
     runtimeEdges?: OperationEdge[]
+    signals?: SignalRegistration[]
   },
 ): { graph: OperationGraph; workflows: Workflow[] } {
   const inferenceOps = operationsToInference(operations)
-  const graph = buildOperationGraph(inferenceOps, options?.pluginPatterns, options?.runtimeEdges)
+  const graph = buildOperationGraph(inferenceOps, options?.pluginPatterns, options?.runtimeEdges, options?.signals)
   const workflows = inferWorkflows(graph)
   return { graph, workflows }
 }

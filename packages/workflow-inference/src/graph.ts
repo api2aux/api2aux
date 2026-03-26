@@ -2,13 +2,9 @@
  * Graph builder — runs all signals, merges edges, applies plugin boosts.
  */
 
-import type { InferenceOperation, OperationEdge, OperationGraph, SignalFunction } from './types'
+import type { InferenceOperation, OperationEdge, OperationGraph, SignalFunction, SignalRegistration } from './types'
 import type { WorkflowPatternHint } from '@api2aux/semantic-analysis'
-import { detectIdPatterns } from './signals/id-pattern'
-import { detectRestConventions } from './signals/rest-conventions'
-import { detectSchemaCompat } from './signals/schema-compat'
-import { detectTagProximity } from './signals/tag-proximity'
-import { detectNameSimilarity } from './signals/name-similarity'
+import { signalRegistry } from './signals/registry'
 
 /** Minimum edge score to keep in the graph. */
 const EDGE_THRESHOLD = 0.15
@@ -145,15 +141,15 @@ export function buildOperationGraph(
   operations: InferenceOperation[],
   pluginPatterns?: WorkflowPatternHint[],
   runtimeEdges?: OperationEdge[],
+  signals?: SignalRegistration[],
 ): OperationGraph {
-  // Run all signals independently with per-signal isolation
-  const allEdges: OperationEdge[] = [
-    ...safeRunSignal(detectIdPatterns, operations, 'id-pattern'),
-    ...safeRunSignal(detectRestConventions, operations, 'rest-conventions'),
-    ...safeRunSignal(detectSchemaCompat, operations, 'schema-compat'),
-    ...safeRunSignal(detectTagProximity, operations, 'tag-proximity'),
-    ...safeRunSignal(detectNameSimilarity, operations, 'name-similarity'),
-  ]
+  // Run all signals independently with per-signal isolation.
+  // Use provided signals if given, otherwise use the global registry.
+  const activeSignals = signals ?? signalRegistry.getAll()
+  const allEdges: OperationEdge[] = []
+  for (const { id, signal } of activeSignals) {
+    allEdges.push(...safeRunSignal(signal, operations, id))
+  }
 
   // Merge runtime-discovered edges if available
   if (runtimeEdges && runtimeEdges.length > 0) {

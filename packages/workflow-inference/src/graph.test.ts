@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { buildOperationGraph } from './graph'
-import type { InferenceOperation } from './types'
+import { signalRegistry } from './signals/registry'
+import type { InferenceOperation, SignalRegistration } from './types'
 
 function op(overrides: Partial<InferenceOperation> & { id: string }): InferenceOperation {
   return {
@@ -130,5 +131,121 @@ describe('buildOperationGraph', () => {
     const graph = buildOperationGraph(operations)
     // These operations have no meaningful relationship — edges should be filtered
     expect(graph.edges.length).toBe(0)
+  })
+})
+
+// ============================================================================
+// Signal Registry
+// ============================================================================
+describe('SignalRegistry', () => {
+  it('has 5 built-in signals registered', () => {
+    expect(signalRegistry.size).toBe(5)
+    expect(signalRegistry.get('id-pattern')).toBeDefined()
+    expect(signalRegistry.get('rest-conventions')).toBeDefined()
+    expect(signalRegistry.get('schema-compat')).toBeDefined()
+    expect(signalRegistry.get('tag-proximity')).toBeDefined()
+    expect(signalRegistry.get('name-similarity')).toBeDefined()
+  })
+})
+
+describe('buildOperationGraph with custom signals', () => {
+  it('uses custom signal passed via options.signals', () => {
+    const operations: InferenceOperation[] = [
+      op({ id: 'op_a', path: '/a', tags: ['test'] }),
+      op({ id: 'op_b', path: '/b', tags: ['test'] }),
+    ]
+
+    const customSignal: SignalRegistration = {
+      id: 'custom-test',
+      weight: 1.0,
+      signal: () => [{
+        sourceId: 'op_a',
+        targetId: 'op_b',
+        bindings: [],
+        score: 0.5,
+        signals: [{ signal: 'custom-test' as 'id-pattern', weight: 1.0, matched: true, detail: 'test edge' }],
+      }],
+    }
+
+    const graph = buildOperationGraph(operations, undefined, undefined, [customSignal])
+    expect(graph.edges).toHaveLength(1)
+    expect(graph.edges[0].sourceId).toBe('op_a')
+    expect(graph.edges[0].targetId).toBe('op_b')
+  })
+
+  it('options.signals overrides registry — registry signals not used', () => {
+    const operations: InferenceOperation[] = [
+      op({
+        id: 'list_users',
+        path: '/users',
+        tags: ['users'],
+        responseFields: [{ name: 'id', type: 'string', format: 'uuid', path: 'id' }],
+      }),
+      op({
+        id: 'get_user',
+        path: '/users/{userId}',
+        tags: ['users'],
+        parameters: [{ name: 'userId', in: 'path', type: 'string', format: 'uuid', required: true }],
+      }),
+    ]
+
+    // Empty signals array → no signals run → no edges
+    const graph = buildOperationGraph(operations, undefined, undefined, [])
+    expect(graph.edges).toHaveLength(0)
+  })
+
+  it('registered custom signal contributes to graph', () => {
+    const operations: InferenceOperation[] = [
+      op({ id: 'op_x', path: '/x', tags: ['test'] }),
+      op({ id: 'op_y', path: '/y', tags: ['test'] }),
+    ]
+
+    const customSignal: SignalRegistration = {
+      id: 'custom-registered',
+      weight: 1.0,
+      signal: () => [{
+        sourceId: 'op_x',
+        targetId: 'op_y',
+        bindings: [],
+        score: 0.8,
+        signals: [{ signal: 'custom-registered' as 'id-pattern', weight: 1.0, matched: true }],
+      }],
+    }
+
+    signalRegistry.register(customSignal)
+    try {
+      const graph = buildOperationGraph(operations)
+      const edge = graph.edges.find(e => e.sourceId === 'op_x' && e.targetId === 'op_y')
+      expect(edge).toBeDefined()
+    } finally {
+      signalRegistry.unregister('custom-registered')
+    }
+  })
+
+  it('unregistered signal no longer contributes', () => {
+    // Use isolated operations with no shared tags/paths to avoid built-in signal edges
+    const operations: InferenceOperation[] = [
+      op({ id: 'op_x', path: '/alpha', tags: ['groupA'] }),
+      op({ id: 'op_y', path: '/beta', tags: ['groupB'] }),
+    ]
+
+    const customSignal: SignalRegistration = {
+      id: 'temp-signal',
+      weight: 1.0,
+      signal: () => [{
+        sourceId: 'op_x',
+        targetId: 'op_y',
+        bindings: [],
+        score: 0.8,
+        signals: [{ signal: 'temp-signal' as 'id-pattern', weight: 1.0, matched: true }],
+      }],
+    }
+
+    signalRegistry.register(customSignal)
+    signalRegistry.unregister('temp-signal')
+
+    const graph = buildOperationGraph(operations)
+    const edge = graph.edges.find(e => e.sourceId === 'op_x' && e.targetId === 'op_y')
+    expect(edge).toBeUndefined()
   })
 })

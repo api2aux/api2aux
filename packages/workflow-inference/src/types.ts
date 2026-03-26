@@ -154,6 +154,17 @@ export interface WorkflowStep {
 /** A signal function produces candidate edges from a set of operations. */
 export type SignalFunction = (operations: InferenceOperation[]) => OperationEdge[]
 
+/** A registered signal with metadata. */
+export interface SignalRegistration {
+  /** Unique signal ID, e.g. 'id-pattern', 'my-custom-signal'. */
+  readonly id: string
+  /** The signal function. */
+  readonly signal: SignalFunction
+  /** Relative weight for documentation/introspection (0.0-1.0). Does not affect scoring —
+      scoring is determined by the edge scores the signal returns. */
+  readonly weight: number
+}
+
 // === Runtime Value Matching ===
 
 /** A value extracted from a live API response for cross-probe matching. */
