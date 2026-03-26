@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { matchRuntimeValues } from './runtime-value-match'
+import { BuiltInSignal } from '../types'
 import type { InferenceOperation, RuntimeProbeResult } from '../types'
 
 function op(overrides: Partial<InferenceOperation> & { id: string }): InferenceOperation {
@@ -98,7 +99,7 @@ describe('matchRuntimeValues', () => {
     expect(skillToAbility!.bindings.some(
       b => b.sourceField === 'ability_score.index' && b.targetParam === 'index'
     )).toBe(true)
-    expect(skillToAbility!.signals[0]!.signal).toBe('runtime-value-match')
+    expect(skillToAbility!.signals[0]!.signal).toBe(BuiltInSignal.RuntimeValueMatch)
   })
 
   it('matches value against param enum with high confidence', () => {

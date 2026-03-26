@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { buildOperationGraph } from './graph'
 import { signalRegistry } from './signals/registry'
+import { BuiltInSignal } from './types'
 import type { InferenceOperation, SignalRegistration } from './types'
 
 function op(overrides: Partial<InferenceOperation> & { id: string }): InferenceOperation {
@@ -102,14 +103,14 @@ describe('buildOperationGraph', () => {
       targetId: 'get_ability_score',
       bindings: [{ sourceField: 'ability_score.index', targetParam: 'index', targetParamIn: 'path', confidence: 0.80 }],
       score: 0.32,
-      signals: [{ signal: 'runtime-value-match' as const, weight: 0.40, matched: true, detail: 'ability_score.index → index (0.80)' }],
+      signals: [{ signal: BuiltInSignal.RuntimeValueMatch, weight: 0.40, matched: true, detail: 'ability_score.index → index (0.80)' }],
     }]
 
     const graph = buildOperationGraph(operations, undefined, runtimeEdges)
 
     const edge = graph.edges.find(e => e.sourceId === 'get_skill' && e.targetId === 'get_ability_score')
     expect(edge).toBeDefined()
-    expect(edge!.signals.some(s => s.signal === 'runtime-value-match')).toBe(true)
+    expect(edge!.signals.some(s => s.signal === BuiltInSignal.RuntimeValueMatch)).toBe(true)
   })
 
   it('filters out low-score edges', () => {
@@ -140,15 +141,19 @@ describe('buildOperationGraph', () => {
 describe('SignalRegistry', () => {
   it('has 5 built-in signals registered', () => {
     expect(signalRegistry.size).toBe(5)
-    expect(signalRegistry.get('id-pattern')).toBeDefined()
-    expect(signalRegistry.get('rest-conventions')).toBeDefined()
-    expect(signalRegistry.get('schema-compat')).toBeDefined()
-    expect(signalRegistry.get('tag-proximity')).toBeDefined()
-    expect(signalRegistry.get('name-similarity')).toBeDefined()
+    expect(signalRegistry.get(BuiltInSignal.IdPattern)).toBeDefined()
+    expect(signalRegistry.get(BuiltInSignal.RestConventions)).toBeDefined()
+    expect(signalRegistry.get(BuiltInSignal.SchemaCompat)).toBeDefined()
+    expect(signalRegistry.get(BuiltInSignal.TagProximity)).toBeDefined()
+    expect(signalRegistry.get(BuiltInSignal.NameSimilarity)).toBeDefined()
   })
 })
 
 describe('buildOperationGraph with custom signals', () => {
+  afterEach(() => {
+    signalRegistry.reset()
+  })
+
   it('uses custom signal passed via options.signals', () => {
     const operations: InferenceOperation[] = [
       op({ id: 'op_a', path: '/a', tags: ['test'] }),
@@ -157,13 +162,12 @@ describe('buildOperationGraph with custom signals', () => {
 
     const customSignal: SignalRegistration = {
       id: 'custom-test',
-      weight: 1.0,
       signal: () => [{
         sourceId: 'op_a',
         targetId: 'op_b',
         bindings: [],
         score: 0.5,
-        signals: [{ signal: 'custom-test' as 'id-pattern', weight: 1.0, matched: true, detail: 'test edge' }],
+        signals: [{ signal: 'custom-test', weight: 1.0, matched: true, detail: 'test edge' }],
       }],
     }
 
@@ -202,24 +206,19 @@ describe('buildOperationGraph with custom signals', () => {
 
     const customSignal: SignalRegistration = {
       id: 'custom-registered',
-      weight: 1.0,
       signal: () => [{
         sourceId: 'op_x',
         targetId: 'op_y',
         bindings: [],
         score: 0.8,
-        signals: [{ signal: 'custom-registered' as 'id-pattern', weight: 1.0, matched: true }],
+        signals: [{ signal: 'custom-registered', weight: 1.0, matched: true }],
       }],
     }
 
     signalRegistry.register(customSignal)
-    try {
-      const graph = buildOperationGraph(operations)
-      const edge = graph.edges.find(e => e.sourceId === 'op_x' && e.targetId === 'op_y')
-      expect(edge).toBeDefined()
-    } finally {
-      signalRegistry.unregister('custom-registered')
-    }
+    const graph = buildOperationGraph(operations)
+    const edge = graph.edges.find(e => e.sourceId === 'op_x' && e.targetId === 'op_y')
+    expect(edge).toBeDefined()
   })
 
   it('unregistered signal no longer contributes', () => {
@@ -231,13 +230,12 @@ describe('buildOperationGraph with custom signals', () => {
 
     const customSignal: SignalRegistration = {
       id: 'temp-signal',
-      weight: 1.0,
       signal: () => [{
         sourceId: 'op_x',
         targetId: 'op_y',
         bindings: [],
         score: 0.8,
-        signals: [{ signal: 'temp-signal' as 'id-pattern', weight: 1.0, matched: true }],
+        signals: [{ signal: 'temp-signal', weight: 1.0, matched: true }],
       }],
     }
 
@@ -247,5 +245,36 @@ describe('buildOperationGraph with custom signals', () => {
     const graph = buildOperationGraph(operations)
     const edge = graph.edges.find(e => e.sourceId === 'op_x' && e.targetId === 'op_y')
     expect(edge).toBeUndefined()
+  })
+
+  it('duplicate registration throws without override flag', () => {
+    const signal1: SignalRegistration = {
+      id: 'dup-signal',
+      signal: () => [],
+    }
+    const signal2: SignalRegistration = {
+      id: 'dup-signal',
+      signal: () => [],
+    }
+
+    signalRegistry.register(signal1)
+    expect(() => signalRegistry.register(signal2)).toThrow(/already registered/)
+    expect(() => signalRegistry.register(signal2, { override: true })).not.toThrow()
+  })
+
+  it('surfaces signal errors in graph result', () => {
+    const operations: InferenceOperation[] = [
+      op({ id: 'op_a', path: '/a', tags: ['test'] }),
+      op({ id: 'op_b', path: '/b', tags: ['test'] }),
+    ]
+
+    const failingSignal: SignalRegistration = {
+      id: 'failing-signal',
+      signal: () => { throw new Error('boom') },
+    }
+
+    const graph = buildOperationGraph(operations, undefined, undefined, [failingSignal])
+    expect(graph.signalErrors).toHaveLength(1)
+    expect(graph.signalErrors[0].id).toBe('failing-signal')
   })
 })

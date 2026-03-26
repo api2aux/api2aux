@@ -15,6 +15,7 @@
  * - Value appears in another probe's response where field name ≈ param name: 0.80
  */
 
+import { BuiltInSignal } from '../types'
 import type {
   InferenceOperation,
   OperationEdge,
@@ -23,7 +24,7 @@ import type {
   RuntimeProbeResult,
 } from '../types'
 
-const SIGNAL_NAME = 'runtime-value-match' as const
+const SIGNAL_NAME = BuiltInSignal.RuntimeValueMatch
 const SIGNAL_WEIGHT = 0.40
 
 /** Normalize a name for fuzzy comparison: lowercase, strip separators. */

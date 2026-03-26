@@ -58,6 +58,21 @@ export interface InferenceField {
   path: string
 }
 
+// === Signal Names ===
+
+/** Built-in signal identifiers. Custom plugins use their own string IDs. */
+export const BuiltInSignal = {
+  IdPattern: 'id-pattern',
+  RestConventions: 'rest-conventions',
+  SchemaCompat: 'schema-compat',
+  TagProximity: 'tag-proximity',
+  NameSimilarity: 'name-similarity',
+  RuntimeValueMatch: 'runtime-value-match',
+  PluginBoost: 'plugin-boost',
+  LlmDisambiguation: 'llm-disambiguation',
+} as const
+export type BuiltInSignal = typeof BuiltInSignal[keyof typeof BuiltInSignal]
+
 // === Graph ===
 
 /** A directed edge in the operations graph. */
@@ -88,8 +103,8 @@ export interface DataBinding {
 
 /** A single signal that contributed to an edge score. */
 export interface EdgeSignal {
-  /** Signal name. */
-  signal: 'id-pattern' | 'schema-compat' | 'rest-convention' | 'tag-proximity' | 'name-similarity' | 'runtime-value-match' | 'plugin-boost' | 'llm-disambiguation'
+  /** Signal name. Built-in values autocomplete; custom signal IDs accepted. */
+  signal: BuiltInSignal | (string & {})
   /** Weight contribution (0.0-1.0). */
   weight: number
   /** Whether this signal matched. */
@@ -104,6 +119,16 @@ export interface OperationGraph {
   nodes: InferenceOperation[]
   /** Directed edges representing data flow between operations. */
   edges: OperationEdge[]
+  /** Signals that threw during execution. Empty if all signals succeeded. */
+  signalErrors: SignalError[]
+}
+
+/** A signal that failed during graph construction. */
+export interface SignalError {
+  /** Signal ID that failed. */
+  id: string
+  /** The error that was thrown. */
+  error: unknown
 }
 
 // === Workflows ===
@@ -160,9 +185,9 @@ export interface SignalRegistration {
   readonly id: string
   /** The signal function. */
   readonly signal: SignalFunction
-  /** Relative weight for documentation/introspection (0.0-1.0). Does not affect scoring —
+  /** Optional weight for documentation/introspection (0.0-1.0). Does not affect scoring —
       scoring is determined by the edge scores the signal returns. */
-  readonly weight: number
+  readonly weight?: number
 }
 
 // === Runtime Value Matching ===

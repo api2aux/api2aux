@@ -2,7 +2,8 @@
  * Graph builder — runs all signals, merges edges, applies plugin boosts.
  */
 
-import type { InferenceOperation, OperationEdge, OperationGraph, SignalFunction, SignalRegistration } from './types'
+import { BuiltInSignal } from './types'
+import type { InferenceOperation, OperationEdge, OperationGraph, SignalError, SignalFunction, SignalRegistration } from './types'
 import type { WorkflowPatternHint } from '@api2aux/semantic-analysis'
 import { signalRegistry } from './signals/registry'
 
@@ -12,12 +13,18 @@ const EDGE_THRESHOLD = 0.15
 /** Maximum accumulated score before normalization (prevents one pair from dominating). */
 const MAX_RAW_SCORE = 1.5
 
-/** Run a signal function safely, returning empty array on failure. */
-function safeRunSignal(fn: SignalFunction, operations: InferenceOperation[], label: string): OperationEdge[] {
+/** Run a signal function safely, returning empty array on failure and tracking the error. */
+function safeRunSignal(
+  fn: SignalFunction,
+  operations: InferenceOperation[],
+  label: string,
+  errors: SignalError[],
+): OperationEdge[] {
   try {
     return fn(operations)
   } catch (err) {
     console.error(`[workflow-inference] ${label} signal failed:`, err)
+    errors.push({ id: label, error: err })
     return []
   }
 }
@@ -96,7 +103,7 @@ function applyPluginBoosts(
           edge.score += boost
           boostAccum.set(key, accumulated + boost)
           edge.signals.push({
-            signal: 'plugin-boost',
+            signal: BuiltInSignal.PluginBoost,
             weight: boost,
             matched: true,
             detail: `Plugin pattern: ${pattern.name} (${stepA.role} → ${stepB.role})`,
@@ -147,8 +154,9 @@ export function buildOperationGraph(
   // Use provided signals if given, otherwise use the global registry.
   const activeSignals = signals ?? signalRegistry.getAll()
   const allEdges: OperationEdge[] = []
+  const signalErrors: SignalError[] = []
   for (const { id, signal } of activeSignals) {
-    allEdges.push(...safeRunSignal(signal, operations, id))
+    allEdges.push(...safeRunSignal(signal, operations, id, signalErrors))
   }
 
   // Merge runtime-discovered edges if available
@@ -176,5 +184,6 @@ export function buildOperationGraph(
   return {
     nodes: operations,
     edges: filtered,
+    signalErrors,
   }
 }

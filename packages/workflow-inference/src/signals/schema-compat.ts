@@ -6,10 +6,11 @@
  * - Matching type only (both string): 0.2 (too weak alone, supplementary)
  */
 
+import { BuiltInSignal } from '../types'
 import type { InferenceOperation, OperationEdge, DataBinding, EdgeSignal } from '../types'
 import { isPaginationParam } from './param-filter'
 
-const SIGNAL_NAME = 'schema-compat'
+const SIGNAL_NAME = BuiltInSignal.SchemaCompat
 const SIGNAL_WEIGHT = 0.25
 
 /**

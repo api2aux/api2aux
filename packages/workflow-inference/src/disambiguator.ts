@@ -6,6 +6,7 @@
  */
 
 import type { AmbiguousMatch, DisambiguationResult } from '@api2aux/semantic-analysis'
+import { BuiltInSignal } from './types'
 import type { OperationEdge, OperationGraph } from './types'
 
 export type { AmbiguousMatch, DisambiguationResult }
@@ -75,7 +76,7 @@ export function applyDisambiguation(
     if (result) {
       edge.score = Math.max(0, Math.min(1, result.refinedScore))
       edge.signals.push({
-        signal: 'llm-disambiguation',
+        signal: BuiltInSignal.LlmDisambiguation,
         weight: 0,
         matched: result.confirmed,
         detail: result.reasoning || (result.confirmed ? 'LLM confirmed' : 'LLM rejected'),

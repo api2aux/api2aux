@@ -12,9 +12,10 @@
  * - Create→Get: 0.85
  */
 
+import { BuiltInSignal } from '../types'
 import type { InferenceOperation, OperationEdge, EdgeSignal, DataBinding } from '../types'
 
-const SIGNAL_NAME = 'rest-convention'
+const SIGNAL_NAME = BuiltInSignal.RestConventions
 const SIGNAL_WEIGHT = 0.25
 
 /** Extract the base path by stripping the trailing {param} segment. */

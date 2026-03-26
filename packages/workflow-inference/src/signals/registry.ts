@@ -5,6 +5,7 @@
  * platform plugins) can register additional signals at runtime.
  */
 
+import { BuiltInSignal } from '../types'
 import type { SignalRegistration } from '../types'
 import { detectIdPatterns } from './id-pattern'
 import { detectRestConventions } from './rest-conventions'
@@ -14,17 +15,32 @@ import { detectNameSimilarity } from './name-similarity'
 
 export class SignalRegistry {
   private signals: Map<string, SignalRegistration> = new Map()
+  private builtInIds: Set<string> = new Set()
 
-  /** Register a signal. Warns if replacing an existing signal with the same ID. */
-  register(registration: SignalRegistration): void {
-    if (this.signals.has(registration.id)) {
-      console.warn(`[SignalRegistry] Replacing existing signal "${registration.id}"`)
+  /** Register a signal. Throws if a signal with the same ID already exists unless override is set. */
+  register(registration: SignalRegistration, opts?: { override?: boolean }): void {
+    if (!registration.id || registration.id.trim() === '') {
+      throw new Error('[SignalRegistry] Signal ID must be a non-empty string')
+    }
+    const existing = this.signals.get(registration.id)
+    if (existing) {
+      if (!opts?.override) {
+        throw new Error(
+          `[SignalRegistry] Signal "${registration.id}" is already registered. ` +
+          `Use { override: true } to replace it explicitly.`
+        )
+      }
     }
     this.signals.set(registration.id, registration)
   }
 
-  /** Unregister a signal by ID. Returns true if the signal was found and removed. */
+  /** Unregister a signal by ID. Returns true if the signal was found and removed.
+   *  Warns if the signal was not found (possible typo). */
   unregister(id: string): boolean {
+    if (!this.signals.has(id)) {
+      console.warn(`[SignalRegistry] Attempted to unregister unknown signal "${id}"`)
+      return false
+    }
     return this.signals.delete(id)
   }
 
@@ -43,18 +59,42 @@ export class SignalRegistry {
     return this.signals.size
   }
 
-  /** Remove all registered signals. */
+  /** Remove all user-registered signals, keeping built-ins. */
+  clearCustom(): void {
+    for (const id of this.signals.keys()) {
+      if (!this.builtInIds.has(id)) {
+        this.signals.delete(id)
+      }
+    }
+  }
+
+  /** Remove ALL signals including built-ins. Use reset() to restore defaults. */
   clear(): void {
     this.signals.clear()
   }
+
+  /** Restore to initial state: clear everything and re-register built-ins. */
+  reset(): void {
+    this.signals.clear()
+    registerBuiltIns(this)
+  }
+
+  /** Mark current registrations as built-in (called during module init). */
+  _freezeBuiltIns(): void {
+    this.builtInIds = new Set(this.signals.keys())
+  }
+}
+
+/** Register the 5 built-in deterministic signals. */
+function registerBuiltIns(registry: SignalRegistry): void {
+  registry.register({ id: BuiltInSignal.IdPattern, signal: detectIdPatterns, weight: 0.35 })
+  registry.register({ id: BuiltInSignal.RestConventions, signal: detectRestConventions, weight: 0.25 })
+  registry.register({ id: BuiltInSignal.SchemaCompat, signal: detectSchemaCompat, weight: 0.25 })
+  registry.register({ id: BuiltInSignal.TagProximity, signal: detectTagProximity, weight: 0.10 })
+  registry.register({ id: BuiltInSignal.NameSimilarity, signal: detectNameSimilarity, weight: 0.05 })
 }
 
 /** Singleton signal registry with built-in signals pre-registered. */
 export const signalRegistry = new SignalRegistry()
-
-// Register the 5 built-in deterministic signals
-signalRegistry.register({ id: 'id-pattern', signal: detectIdPatterns, weight: 0.35 })
-signalRegistry.register({ id: 'rest-conventions', signal: detectRestConventions, weight: 0.25 })
-signalRegistry.register({ id: 'schema-compat', signal: detectSchemaCompat, weight: 0.25 })
-signalRegistry.register({ id: 'tag-proximity', signal: detectTagProximity, weight: 0.10 })
-signalRegistry.register({ id: 'name-similarity', signal: detectNameSimilarity, weight: 0.05 })
+registerBuiltIns(signalRegistry)
+signalRegistry._freezeBuiltIns()

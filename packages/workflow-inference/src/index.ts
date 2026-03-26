@@ -19,6 +19,7 @@ export type {
   DataBinding,
   EdgeSignal,
   OperationGraph,
+  SignalError,
   Workflow,
   WorkflowStep,
   SignalFunction,
@@ -26,7 +27,7 @@ export type {
   RuntimeProbeValue,
   RuntimeProbeResult,
 } from './types'
-export { WorkflowPattern } from './types'
+export { WorkflowPattern, BuiltInSignal } from './types'
 
 // === Converter ===
 export { operationsToInference } from './convert'
