@@ -20,6 +20,7 @@ import {
   checkChipsPattern,
   checkImageGridPattern,
 } from './heuristics'
+import { matchUIHint } from './hint-matcher'
 
 /**
  * Select the most appropriate component type for rendering array data.
@@ -27,7 +28,8 @@ import {
  */
 export function selectComponent(
   schema: TypeSignature,
-  context: SelectionContext
+  context: SelectionContext,
+  path?: string,
 ): ComponentSelection {
   if (schema.kind !== 'array' || schema.items.kind !== 'object') {
     return {
@@ -35,6 +37,12 @@ export function selectComponent(
       confidence: 0,
       reason: SelectionReason.NotApplicable,
     }
+  }
+
+  // Check plugin UI hints before heuristics
+  if (path) {
+    const hintMatch = matchUIHint(path, context.uiHints)
+    if (hintMatch) return hintMatch
   }
 
   const heuristics = [
@@ -64,7 +72,8 @@ export function selectComponent(
  */
 export function selectObjectComponent(
   schema: TypeSignature,
-  context: SelectionContext
+  context: SelectionContext,
+  path?: string,
 ): ComponentSelection {
   if (schema.kind !== 'object') {
     return {
@@ -72,6 +81,12 @@ export function selectObjectComponent(
       confidence: 0,
       reason: SelectionReason.FallbackToDefault,
     }
+  }
+
+  // Check plugin UI hints before heuristics
+  if (path) {
+    const hintMatch = matchUIHint(path, context.uiHints)
+    if (hintMatch) return hintMatch
   }
 
   const heuristics = [
@@ -101,7 +116,8 @@ export function selectObjectComponent(
 export function selectPrimitiveArrayComponent(
   schema: TypeSignature,
   data: unknown,
-  context: SelectionContext
+  context: SelectionContext,
+  path?: string,
 ): ComponentSelection {
   if (schema.kind !== 'array' || schema.items.kind !== 'primitive') {
     return {
@@ -117,6 +133,12 @@ export function selectPrimitiveArrayComponent(
       confidence: 0,
       reason: SelectionReason.NoData,
     }
+  }
+
+  // Check plugin UI hints before heuristics
+  if (path) {
+    const hintMatch = matchUIHint(path, context.uiHints)
+    if (hintMatch) return hintMatch
   }
 
   const gridResult = checkImageGridPattern(data, schema)

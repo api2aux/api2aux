@@ -1,7 +1,7 @@
 /**
  * Types for component selection.
  */
-import type { SemanticMetadata, ImportanceScore } from '@api2aux/semantic-analysis'
+import type { SemanticMetadata, ImportanceScore, UIComponentHint } from '@api2aux/semantic-analysis'
 import type { ComponentType, SelectionReason } from '../types'
 
 /** Result of component selection with confidence scoring */
@@ -20,4 +20,6 @@ export interface SelectionContext {
   semantics: Map<string, SemanticMetadata>
   /** Field path → importance score mapping */
   importance: Map<string, ImportanceScore>
+  /** UI component hints from enrichment plugins */
+  uiHints?: UIComponentHint[]
 }
