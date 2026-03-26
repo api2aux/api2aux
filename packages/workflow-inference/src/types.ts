@@ -63,7 +63,7 @@ export interface InferenceField {
 /** Built-in signal identifiers. Custom plugins use their own string IDs. */
 export const BuiltInSignal = {
   IdPattern: 'id-pattern',
-  RestConventions: 'rest-conventions',
+  RestConventions: 'rest-convention',
   SchemaCompat: 'schema-compat',
   TagProximity: 'tag-proximity',
   NameSimilarity: 'name-similarity',
@@ -119,15 +119,17 @@ export interface OperationGraph {
   nodes: InferenceOperation[]
   /** Directed edges representing data flow between operations. */
   edges: OperationEdge[]
-  /** Signals that threw during execution. Empty if all signals succeeded. */
-  signalErrors: SignalError[]
+  /** Signals that threw during execution. Empty/absent if all signals succeeded. */
+  signalErrors?: SignalError[]
 }
 
 /** A signal that failed during graph construction. */
 export interface SignalError {
   /** Signal ID that failed. */
   id: string
-  /** The error that was thrown. */
+  /** Human-readable error message. */
+  message: string
+  /** The original error that was thrown. */
   error: unknown
 }
 

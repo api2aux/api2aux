@@ -139,6 +139,10 @@ describe('buildOperationGraph', () => {
 // Signal Registry
 // ============================================================================
 describe('SignalRegistry', () => {
+  afterEach(() => {
+    signalRegistry.reset()
+  })
+
   it('has 5 built-in signals registered', () => {
     expect(signalRegistry.size).toBe(5)
     expect(signalRegistry.get(BuiltInSignal.IdPattern)).toBeDefined()
@@ -146,6 +150,86 @@ describe('SignalRegistry', () => {
     expect(signalRegistry.get(BuiltInSignal.SchemaCompat)).toBeDefined()
     expect(signalRegistry.get(BuiltInSignal.TagProximity)).toBeDefined()
     expect(signalRegistry.get(BuiltInSignal.NameSimilarity)).toBeDefined()
+  })
+
+  it('stores weight metadata on built-in signals', () => {
+    expect(signalRegistry.get(BuiltInSignal.IdPattern)?.weight).toBe(0.35)
+    expect(signalRegistry.get(BuiltInSignal.RestConventions)?.weight).toBe(0.25)
+    expect(signalRegistry.get(BuiltInSignal.SchemaCompat)?.weight).toBe(0.25)
+    expect(signalRegistry.get(BuiltInSignal.TagProximity)?.weight).toBe(0.10)
+    expect(signalRegistry.get(BuiltInSignal.NameSimilarity)?.weight).toBe(0.05)
+  })
+
+  it('clearCustom removes custom signals but preserves built-ins', () => {
+    signalRegistry.register({ id: 'custom-a', signal: () => [] })
+    signalRegistry.register({ id: 'custom-b', signal: () => [] })
+    expect(signalRegistry.size).toBe(7)
+
+    signalRegistry.clearCustom()
+
+    expect(signalRegistry.size).toBe(5)
+    expect(signalRegistry.get('custom-a')).toBeUndefined()
+    expect(signalRegistry.get('custom-b')).toBeUndefined()
+    expect(signalRegistry.get(BuiltInSignal.IdPattern)).toBeDefined()
+    expect(signalRegistry.get(BuiltInSignal.RestConventions)).toBeDefined()
+  })
+
+  it('clearCustom works correctly after reset', () => {
+    signalRegistry.register({ id: 'custom-x', signal: () => [] })
+    signalRegistry.reset()
+    signalRegistry.register({ id: 'custom-y', signal: () => [] })
+    expect(signalRegistry.size).toBe(6)
+
+    signalRegistry.clearCustom()
+
+    expect(signalRegistry.size).toBe(5)
+    expect(signalRegistry.get('custom-y')).toBeUndefined()
+  })
+
+  it('reset restores exactly 5 built-in signals after clear', () => {
+    signalRegistry.register({ id: 'custom-z', signal: () => [] })
+    signalRegistry.reset()
+
+    expect(signalRegistry.size).toBe(5)
+    expect(signalRegistry.get(BuiltInSignal.IdPattern)).toBeDefined()
+    expect(signalRegistry.get(BuiltInSignal.NameSimilarity)).toBeDefined()
+    expect(signalRegistry.get('custom-z')).toBeUndefined()
+  })
+
+  it('unregister returns true for existing custom signal', () => {
+    signalRegistry.register({ id: 'to-remove', signal: () => [] })
+    expect(signalRegistry.unregister('to-remove')).toBe(true)
+    expect(signalRegistry.get('to-remove')).toBeUndefined()
+  })
+
+  it('unregister throws for unknown signal by default', () => {
+    expect(() => signalRegistry.unregister('nonexistent')).toThrow(/Cannot unregister unknown/)
+  })
+
+  it('unregister returns false for unknown signal with ignoreUnknown', () => {
+    expect(signalRegistry.unregister('nonexistent', { ignoreUnknown: true })).toBe(false)
+  })
+
+  it('unregister throws for built-in signal without force', () => {
+    expect(() => signalRegistry.unregister(BuiltInSignal.IdPattern)).toThrow(/built-in signal/)
+  })
+
+  it('unregister allows removing built-in signal with force', () => {
+    expect(signalRegistry.unregister(BuiltInSignal.IdPattern, { force: true })).toBe(true)
+    expect(signalRegistry.size).toBe(4)
+    expect(signalRegistry.get(BuiltInSignal.IdPattern)).toBeUndefined()
+  })
+
+  it('register throws for empty ID', () => {
+    expect(() => signalRegistry.register({ id: '', signal: () => [] })).toThrow(/non-empty string/)
+  })
+
+  it('register throws for whitespace-only ID', () => {
+    expect(() => signalRegistry.register({ id: '  ', signal: () => [] })).toThrow(/non-empty string/)
+  })
+
+  it('register throws when signal is not a function', () => {
+    expect(() => signalRegistry.register({ id: 'bad', signal: null as any })).toThrow(/must have a signal function/)
   })
 })
 
@@ -175,6 +259,7 @@ describe('buildOperationGraph with custom signals', () => {
     expect(graph.edges).toHaveLength(1)
     expect(graph.edges[0].sourceId).toBe('op_a')
     expect(graph.edges[0].targetId).toBe('op_b')
+    expect(graph.edges[0].signals.some(s => s.signal === 'custom-test')).toBe(true)
   })
 
   it('options.signals overrides registry — registry signals not used', () => {
@@ -221,7 +306,7 @@ describe('buildOperationGraph with custom signals', () => {
     expect(edge).toBeDefined()
   })
 
-  it('unregistered signal no longer contributes', () => {
+  it('unregistered custom signal no longer contributes', () => {
     // Use isolated operations with no shared tags/paths to avoid built-in signal edges
     const operations: InferenceOperation[] = [
       op({ id: 'op_x', path: '/alpha', tags: ['groupA'] }),
@@ -275,6 +360,7 @@ describe('buildOperationGraph with custom signals', () => {
 
     const graph = buildOperationGraph(operations, undefined, undefined, [failingSignal])
     expect(graph.signalErrors).toHaveLength(1)
-    expect(graph.signalErrors[0].id).toBe('failing-signal')
+    expect(graph.signalErrors![0].id).toBe('failing-signal')
+    expect(graph.signalErrors![0].message).toBe('boom')
   })
 })

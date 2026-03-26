@@ -23,8 +23,11 @@ function safeRunSignal(
   try {
     return fn(operations)
   } catch (err) {
-    console.error(`[workflow-inference] ${label} signal failed:`, err)
-    errors.push({ id: label, error: err })
+    errors.push({
+      id: label,
+      message: err instanceof Error ? err.message : String(err),
+      error: err,
+    })
     return []
   }
 }

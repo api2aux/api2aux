@@ -22,6 +22,9 @@ export class SignalRegistry {
     if (!registration.id || registration.id.trim() === '') {
       throw new Error('[SignalRegistry] Signal ID must be a non-empty string')
     }
+    if (typeof registration.signal !== 'function') {
+      throw new Error(`[SignalRegistry] Signal "${registration.id}" must have a signal function`)
+    }
     const existing = this.signals.get(registration.id)
     if (existing) {
       if (!opts?.override) {
@@ -34,12 +37,23 @@ export class SignalRegistry {
     this.signals.set(registration.id, registration)
   }
 
-  /** Unregister a signal by ID. Returns true if the signal was found and removed.
-   *  Warns if the signal was not found (possible typo). */
-  unregister(id: string): boolean {
+  /**
+   * Unregister a signal by ID.
+   * Throws if the signal is not found (likely a typo) unless `ignoreUnknown` is set.
+   * Throws if the signal is a built-in unless `force` is set.
+   */
+  unregister(id: string, opts?: { ignoreUnknown?: boolean; force?: boolean }): boolean {
     if (!this.signals.has(id)) {
-      console.warn(`[SignalRegistry] Attempted to unregister unknown signal "${id}"`)
-      return false
+      if (opts?.ignoreUnknown) return false
+      throw new Error(
+        `[SignalRegistry] Cannot unregister unknown signal "${id}". ` +
+        `Registered signals: ${[...this.signals.keys()].join(', ')}`
+      )
+    }
+    if (this.builtInIds.has(id) && !opts?.force) {
+      throw new Error(
+        `[SignalRegistry] "${id}" is a built-in signal. Use { force: true } to remove it.`
+      )
     }
     return this.signals.delete(id)
   }
@@ -61,28 +75,25 @@ export class SignalRegistry {
 
   /** Remove all user-registered signals, keeping built-ins. */
   clearCustom(): void {
-    for (const id of this.signals.keys()) {
-      if (!this.builtInIds.has(id)) {
-        this.signals.delete(id)
-      }
+    const toRemove = [...this.signals.keys()].filter(id => !this.builtInIds.has(id))
+    for (const id of toRemove) {
+      this.signals.delete(id)
     }
-  }
-
-  /** Remove ALL signals including built-ins. Use reset() to restore defaults. */
-  clear(): void {
-    this.signals.clear()
   }
 
   /** Restore to initial state: clear everything and re-register built-ins. */
   reset(): void {
     this.signals.clear()
     registerBuiltIns(this)
+    freezeBuiltIns(this)
   }
+}
 
-  /** Mark current registrations as built-in (called during module init). */
-  _freezeBuiltIns(): void {
-    this.builtInIds = new Set(this.signals.keys())
-  }
+/** Snapshot current signal IDs as the "built-in" set. Module-private. */
+function freezeBuiltIns(registry: SignalRegistry): void {
+  // Access private field via the module scope — this function is only called
+  // from within this module, so it has legitimate access to internals.
+  ;(registry as any).builtInIds = new Set((registry as any).signals.keys())
 }
 
 /** Register the 5 built-in deterministic signals. */
@@ -97,4 +108,4 @@ function registerBuiltIns(registry: SignalRegistry): void {
 /** Singleton signal registry with built-in signals pre-registered. */
 export const signalRegistry = new SignalRegistry()
 registerBuiltIns(signalRegistry)
-signalRegistry._freezeBuiltIns()
+freezeBuiltIns(signalRegistry)
