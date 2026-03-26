@@ -5,7 +5,7 @@
 
 import type { ToolExecutorFn } from '../../src/types'
 import { executeOperation } from '@api2aux/api-invoke'
-import { generateToolName } from '@api2aux/tool-utils'
+import { generateToolName } from '@api2aux/tool-definition-builder'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
 
 /**

@@ -1,13 +1,13 @@
 /**
  * Converts Operations into MCP tool definitions with Zod schemas.
- * Uses @api2aux/tool-utils as the single source of truth for tool definitions,
+ * Uses @api2aux/tool-definition-builder as the single source of truth for tool definitions,
  * with a thin adapter to convert JSON Schema properties → Zod (required by MCP SDK).
  */
 
 import { z } from 'zod'
 import type { Operation } from '@api2aux/api-invoke'
-import { generateToolDefinitions } from '@api2aux/tool-utils'
-import type { JsonSchemaProperty, UnifiedToolDefinition } from '@api2aux/tool-utils'
+import { generateToolDefinitions } from '@api2aux/tool-definition-builder'
+import type { JsonSchemaProperty, UnifiedToolDefinition } from '@api2aux/tool-definition-builder'
 
 /** Generated tool definition ready for MCP registration */
 export interface GeneratedTool {

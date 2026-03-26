@@ -100,7 +100,7 @@
 
   <rect x="385" y="370" width="165" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1" stroke-dasharray="4 2"/>
   <text x="467" y="386" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">Dynamic MCP Server</text>
-  <text x="467" y="400" text-anchor="middle" fill="#64748b" font-size="9">tool-utils + mcp-server</text>
+  <text x="467" y="400" text-anchor="middle" fill="#64748b" font-size="9">tool-definition-builder + mcp-server</text>
 
   <!-- ═══ AGENT INTERFACE (bottom right) ═══ -->
   <text x="700" y="335" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1.5">AGENT INTERFACE</text>
@@ -151,5 +151,5 @@
   <text x="845" y="281" fill="#cbd5e1" font-size="9">cors-proxy</text>
 
   <circle cx="835" cy="295" r="4" fill="#475569"/>
-  <text x="845" y="299" fill="#cbd5e1" font-size="9">tool-utils</text>
+  <text x="845" y="299" fill="#cbd5e1" font-size="9">tool-definition-builder</text>
 </svg>

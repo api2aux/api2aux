@@ -1,5 +1,5 @@
 /**
- * @api2aux/tool-utils
+ * @api2aux/tool-definition-builder
  *
  * Shared pure functions for generating tool names, descriptions, and metadata
  * from API operations. Used by the app chat, MCP server, and hosted MCP worker.

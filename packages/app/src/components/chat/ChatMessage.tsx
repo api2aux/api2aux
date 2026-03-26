@@ -1,7 +1,7 @@
 import type { UIMessage, ToolResultEntry, StructuredResponse } from '../../services/llm/types'
 import { useAppStore } from '../../store/appStore'
 import { useParameterStore } from '../../store/parameterStore'
-import { generateToolName } from '@api2aux/tool-utils'
+import { generateToolName } from '@api2aux/tool-definition-builder'
 import { updateMainView, scrollToResponseData } from '../../utils/chatViewHelpers'
 
 interface ChatMessageProps {

@@ -117,7 +117,7 @@ export interface ApiSpec {
   authSchemes?: Array<{ authType?: string | null }>
 }
 
-/** Valid parameter locations (compatible with @api2aux/tool-utils ParameterIn). */
+/** Valid parameter locations (compatible with @api2aux/tool-definition-builder ParameterIn). */
 export const ApiParamIn = {
   Query: 'query',
   Path: 'path',

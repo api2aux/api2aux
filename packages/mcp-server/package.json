@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@api2aux/semantic-analysis": "workspace:*",
-    "@api2aux/tool-utils": "workspace:*",
+    "@api2aux/tool-definition-builder": "workspace:*",
     "@api2aux/workflow-inference": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@api2aux/api-invoke": "workspace:*",

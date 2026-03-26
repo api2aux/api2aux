@@ -9,7 +9,7 @@ export default defineConfig({
   splitting: false,
   external: [
     '@api2aux/semantic-analysis',
-    '@api2aux/tool-utils',
+    '@api2aux/tool-definition-builder',
     '@api2aux/workflow-inference',
   ],
 })
