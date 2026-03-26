@@ -14,8 +14,8 @@ import {
   generateToolName,
   generateToolDefinitions,
   generateRawUrlToolDefinition,
-} from '@api2aux/tool-utils'
-import type { UnifiedToolDefinition } from '@api2aux/tool-utils'
+} from '@api2aux/tool-definition-builder'
+import type { UnifiedToolDefinition } from '@api2aux/tool-definition-builder'
 
 // ── Converters ──
 

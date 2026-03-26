@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@api2aux/semantic-analysis": "workspace:*",
-    "@api2aux/tool-utils": "workspace:*",
+    "@api2aux/tool-definition-builder": "workspace:*",
     "@api2aux/workflow-inference": "workspace:*"
   },
   "devDependencies": {

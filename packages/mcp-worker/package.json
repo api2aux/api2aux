@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@api2aux/cors-proxy": "workspace:*",
-    "@api2aux/tool-utils": "workspace:*",
+    "@api2aux/tool-definition-builder": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@api2aux/api-invoke": "workspace:*",

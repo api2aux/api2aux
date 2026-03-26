@@ -17,7 +17,7 @@
     "@api2aux/chat-engine": "workspace:*",
     "@api2aux/data2ui": "workspace:*",
     "@api2aux/semantic-analysis": "workspace:*",
-    "@api2aux/tool-utils": "workspace:*",
+    "@api2aux/tool-definition-builder": "workspace:*",
     "@api2aux/workflow-inference": "workspace:*",
     "@apidevtools/swagger-parser": "^12.1.0",
     "@dnd-kit/core": "^6.3.1",

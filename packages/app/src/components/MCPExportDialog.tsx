@@ -7,8 +7,8 @@ import { parseUrlParameters } from '../services/urlParser/parser'
 import { deployAsMcpServer, findExistingDeployment, isMcpWorkerConfigured } from '../services/mcp/deploy'
 import type { Credential } from '../types/auth'
 import type { Operation } from '@api2aux/semantic-analysis'
-import { generateToolName, generateToolDefinitions } from '@api2aux/tool-utils'
-import type { UnifiedToolDefinition } from '@api2aux/tool-utils'
+import { generateToolName, generateToolDefinitions } from '@api2aux/tool-definition-builder'
+import type { UnifiedToolDefinition } from '@api2aux/tool-definition-builder'
 import { useWorkflowAnalysis } from '../hooks/useWorkflowAnalysis'
 import { methodColorClass } from '../lib/method-colors'
 
@@ -243,7 +243,7 @@ export function MCPExportDialog({ open, onClose }: MCPExportDialogProps) {
 
   const workflowAnalysis = useWorkflowAnalysis(parsedSpec ?? null)
 
-  // Pre-compute enriched tool definitions from tool-utils (single source of truth)
+  // Pre-compute enriched tool definitions from tool-definition-builder (single source of truth)
   const toolDefs = useMemo<Map<string, UnifiedToolDefinition>>(() => {
     if (!parsedSpec || parsedSpec.operations.length === 0) return new Map()
     const defs = generateToolDefinitions(parsedSpec.operations)

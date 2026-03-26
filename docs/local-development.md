@@ -18,7 +18,7 @@ apiglot/
     │   ├── mcp-server/      # MCP tool definitions
     │   ├── semantic-analysis/  # Field-level semantic enrichment
     │   ├── workflow-inference/ # Endpoint relation detection (static + runtime)
-    │   ├── tool-utils/      # Shared utilities for tool/operation conversion
+    │   ├── tool-definition-builder/      # Shared utilities for tool/operation conversion
     │   └── api-catalog/     # API catalog with admin tools
     ├── data/                # APIs CSV, test fixtures
     └── docs/                # This folder
@@ -116,17 +116,17 @@ app
 ├── chat-engine
 │   ├── semantic-analysis
 │   ├── workflow-inference
-│   └── tool-utils
+│   └── tool-definition-builder
 ├── semantic-analysis
 ├── workflow-inference
-├── tool-utils
+├── tool-definition-builder
 └── api-invoke (linked)
 
 mcp-worker
 ├── mcp-server
 │   ├── semantic-analysis
 │   ├── workflow-inference
-│   └── tool-utils
+│   └── tool-definition-builder
 └── api-invoke (linked)
 ```
 

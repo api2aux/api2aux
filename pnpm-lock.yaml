@@ -47,9 +47,9 @@ importers:
       '@api2aux/semantic-analysis':
         specifier: workspace:*
         version: link:../semantic-analysis
-      '@api2aux/tool-utils':
+      '@api2aux/tool-definition-builder':
         specifier: workspace:*
-        version: link:../tool-utils
+        version: link:../tool-definition-builder
       '@api2aux/workflow-inference':
         specifier: workspace:*
         version: link:../workflow-inference
@@ -216,9 +216,9 @@ importers:
       '@api2aux/semantic-analysis':
         specifier: workspace:*
         version: link:../semantic-analysis
-      '@api2aux/tool-utils':
+      '@api2aux/tool-definition-builder':
         specifier: workspace:*
-        version: link:../tool-utils
+        version: link:../tool-definition-builder
       '@api2aux/workflow-inference':
         specifier: workspace:*
         version: link:../workflow-inference
@@ -287,9 +287,9 @@ importers:
       '@api2aux/semantic-analysis':
         specifier: workspace:*
         version: link:../semantic-analysis
-      '@api2aux/tool-utils':
+      '@api2aux/tool-definition-builder':
         specifier: workspace:*
-        version: link:../tool-utils
+        version: link:../tool-definition-builder
       '@api2aux/workflow-inference':
         specifier: workspace:*
         version: link:../workflow-inference
@@ -318,9 +318,9 @@ importers:
       '@api2aux/cors-proxy':
         specifier: workspace:*
         version: link:../cors-proxy
-      '@api2aux/tool-utils':
+      '@api2aux/tool-definition-builder':
         specifier: workspace:*
-        version: link:../tool-utils
+        version: link:../tool-definition-builder
       '@hono/node-server':
         specifier: ^1.14.0
         version: 1.19.9(hono@4.11.9)
@@ -363,7 +363,7 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@24.10.13)(jiti@2.6.1)(jsdom@27.4.0(@noble/hashes@2.0.1))(lightningcss@1.30.2)(msw@2.12.10(@types/node@24.10.13)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/tool-utils:
+  packages/tool-definition-builder:
     devDependencies:
       tsup:
         specifier: ^8.5.1

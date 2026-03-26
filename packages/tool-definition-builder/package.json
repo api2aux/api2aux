@@ -1,5 +1,5 @@
 {
-  "name": "@api2aux/tool-utils",
+  "name": "@api2aux/tool-definition-builder",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
