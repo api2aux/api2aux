@@ -10,11 +10,9 @@
  * - llm-fields: select relevant fields via lightweight LLM call
  */
 
-import type { ToolResultEntry, LLMTextFn, ChatMessage, FocusReduction } from './types'
-import { MessageRole } from './types'
+import type { ToolResultEntry, LLMTextFn, EmbedFn, ChatMessage } from './types'
+import { MessageRole, FocusReduction } from './types'
 import { extractJson } from './response'
-
-type EmbedFn = (texts: string[]) => Promise<number[][]>
 
 // ── Public API ──
 
@@ -65,15 +63,15 @@ async function reduceData(
   domainFields?: ReadonlySet<string>,
 ): Promise<unknown> {
   switch (strategy) {
-    case 'truncate-values':
+    case FocusReduction.TruncateValues:
       return truncateValues(data, domainFields)
 
-    case 'embed-fields':
+    case FocusReduction.EmbedFields:
       if (embedFn) return embedFieldSelection(data, query, embedFn)
       throw new Error('embed-fields strategy requested but embedFn not provided — check ChatEngineConfig')
 
-    case 'llm-fields':
-      if (llmText) return llmFieldSelection(data, query, llmText, onWarning)
+    case FocusReduction.LlmFields:
+      if (llmText) return llmFieldSelection(data, query, llmText, onWarning, domainFields)
       throw new Error('llm-fields strategy requested but llmText not provided — check ChatEngineConfig')
 
     default:
@@ -206,6 +204,11 @@ export async function embedFieldSelection(
   const allTexts = [query, ...descriptors]
   const allVectors = await embedFn(allTexts)
 
+  if (allVectors.length !== allTexts.length) {
+    throw new Error(`embedFn returned ${allVectors.length} vectors for ${allTexts.length} inputs`)
+  }
+
+  // Length validated above — index 0 is guaranteed to exist
   const queryVector = allVectors[0]!
   const fieldVectors = allVectors.slice(1)
 
@@ -244,6 +247,7 @@ export async function llmFieldSelection(
   query: string,
   llmText: LLMTextFn,
   onWarning?: (message: string) => void,
+  domainFields?: ReadonlySet<string>,
 ): Promise<unknown> {
   const { items, wrapper, arrayKey } = extractItems(data)
   if (!items || items.length === 0) return data
@@ -266,13 +270,23 @@ export async function llmFieldSelection(
 
   const parsed = extractJson(content)
   if (!Array.isArray(parsed)) {
-    console.warn('[chat-engine] llm-fields returned non-array, falling back to truncate-values')
-    onWarning?.('llm-fields returned non-array response, falling back to truncate-values')
-    return truncateValues(data)
+    const preview = content.length > 200 ? content.slice(0, 200) + '...' : content
+    console.warn('[chat-engine] llm-fields returned non-array, falling back to truncate-values. LLM response:', preview)
+    onWarning?.(`llm-fields: LLM did not return a field list (got ${parsed === null ? 'unparseable text' : typeof parsed}), falling back to truncate-values`)
+    return truncateValues(data, domainFields)
+  }
+
+  // Validate LLM-selected field names against actual data fields
+  const validFields = parsed.filter((f): f is string => typeof f === 'string' && fieldNames.includes(f))
+  if (validFields.length === 0) {
+    const preview = JSON.stringify(parsed).slice(0, 200)
+    console.warn('[chat-engine] llm-fields: none of the LLM-selected fields exist in data. LLM returned:', preview)
+    onWarning?.('llm-fields: LLM selected no valid fields, falling back to truncate-values')
+    return truncateValues(data, domainFields)
   }
 
   // Build selected fields set, always include identity fields
-  const selectedFields = new Set<string>(parsed.filter((f): f is string => typeof f === 'string'))
+  const selectedFields = new Set<string>(validFields)
   for (const field of ALWAYS_INCLUDE_FIELDS) {
     if (fieldNames.includes(field)) selectedFields.add(field)
   }

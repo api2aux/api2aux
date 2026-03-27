@@ -11,6 +11,7 @@ import type {
   ChatMessage,
   LLMCompletionFn,
   LLMTextFn,
+  EmbedFn,
   ToolExecutorFn,
   ChatEngineContext,
   ChatEngineConfig,
@@ -39,7 +40,7 @@ export class ChatEngine {
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
   private llmText: LLMTextFn | undefined
-  private embedFn: ((texts: string[]) => Promise<number[][]>) | undefined
+  private embedFn: EmbedFn | undefined
   private focusReduction: FocusReduction
 
   constructor(
@@ -75,6 +76,12 @@ export class ChatEngine {
     }
     if (!Number.isFinite(this.truncationLimit) || this.truncationLimit < 1) {
       throw new Error(`ChatEngineConfig: truncationLimit must be a finite number >= 1, got ${this.truncationLimit}`)
+    }
+    if (this.focusReduction === FocusReduction.EmbedFields && !this.embedFn) {
+      throw new Error('ChatEngineConfig: embed-fields strategy requires embedFn')
+    }
+    if (this.focusReduction === FocusReduction.LlmFields && !this.llmText) {
+      throw new Error('ChatEngineConfig: llm-fields strategy requires llmText')
     }
   }
 

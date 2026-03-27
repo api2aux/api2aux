@@ -101,6 +101,9 @@ export type LLMTextFn = (
   messages: ChatMessage[],
 ) => Promise<string>
 
+/** Embedding function: maps N texts to N embedding vectors. */
+export type EmbedFn = (texts: string[]) => Promise<number[][]>
+
 /** Executes a tool call and returns raw API response data. */
 export type ToolExecutorFn = (
   toolName: string,
@@ -218,7 +221,7 @@ export interface ChatEngineConfig {
   /** Non-streaming LLM for merge/focus calls. When provided, runs in a separate async context from the streaming LLM. Falls back to the streaming LLM with a no-op token handler if not set. */
   llmText?: LLMTextFn
   /** Embedding function for field-level reduction strategies (embed-fields). Used by reduceToolResultsForFocus to select relevant fields via embedding similarity. */
-  embedFn?: (texts: string[]) => Promise<number[][]>
+  embedFn?: EmbedFn
   /** Strategy for reducing data before the focus/merge LLM call. Default: 'truncate-values'. */
   focusReduction?: FocusReduction
 }
