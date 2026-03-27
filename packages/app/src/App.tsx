@@ -163,20 +163,24 @@ function App() {
     }
   }, [error])
 
-  // Auto-invoke first safe endpoint after spec loads (raw URLs only)
+  // Auto-invoke safe endpoints after spec loads (raw URLs only).
+  // Fetches ALL safe GET operations in parallel so each endpoint has cached results.
   useEffect(() => {
-    if (parsedSpec && parsedSpec.operations.length > 0 && !data && !schema && !loading) {
-      // Find a GET operation with no required params (safe to call with empty args)
-      const safeOp = parsedSpec.operations.find(op =>
+    if (parsedSpec && parsedSpec.operations.length > 0 && parsedSpec.specFormat === 'raw-url') {
+      const safeOps = parsedSpec.operations.filter(op =>
         op.method === 'GET' &&
         !op.parameters.some(p => p.required)
       )
-      if (safeOp) {
-        const idx = parsedSpec.operations.indexOf(safeOp)
+      // Select the first safe operation
+      if (safeOps.length > 0) {
+        const idx = parsedSpec.operations.indexOf(safeOps[0]!)
         if (idx !== selectedOperationIndex) setSelectedOperation(idx)
-        // Only auto-invoke for raw URLs — specs are for browsing, not auto-calling
-        if (parsedSpec.specFormat === 'raw-url') {
-          fetchOperation(baseUrl, safeOp, {})
+      }
+      // Fetch all safe ops in parallel (per-operation state, non-blocking)
+      for (const op of safeOps) {
+        const cached = useAppStore.getState().operationResults[op.id]
+        if (!cached) {
+          fetchOperation(baseUrl, op, {})
         }
       }
     }
@@ -381,6 +385,7 @@ function App() {
                 selectedIndex={selectedOperationIndex}
                 onSelect={handleSelectOperation}
                 onCollapse={() => setSidebarCollapsed(true)}
+                baseUrl={baseUrl}
               />
               {/* Resize handle */}
               <div

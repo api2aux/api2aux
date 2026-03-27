@@ -171,7 +171,7 @@ export const useAuthStore = create<AuthStore>()(
     {
       name: 'api2aux-auth',
       version: 1,
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         credentials: state.credentials,
         // authStatus is NOT persisted - it's runtime state only

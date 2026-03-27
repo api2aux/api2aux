@@ -13,9 +13,11 @@ interface TagGroupProps {
   renderRelated?: (index: number) => ReactNode
   /** Force this group open (e.g., when a related click targets an endpoint inside). */
   forceOpen?: boolean
+  /** Base URL for auth chain config */
+  baseUrl?: string
 }
 
-export function TagGroup({ tag, operations, operationIndices, selectedIndex, onSelect, showNameInsteadOfPath, renderRelated, forceOpen }: TagGroupProps) {
+export function TagGroup({ tag, operations, operationIndices, selectedIndex, onSelect, showNameInsteadOfPath, renderRelated, forceOpen, baseUrl }: TagGroupProps) {
   const [userOpen, setUserOpen] = useState(true)
 
   // Group is open if: user hasn't collapsed it, OR it's forced open
@@ -59,6 +61,7 @@ export function TagGroup({ tag, operations, operationIndices, selectedIndex, onS
                   isSelected={globalIndex === selectedIndex}
                   onSelect={onSelect}
                   showNameInsteadOfPath={showNameInsteadOfPath}
+                  baseUrl={baseUrl}
                 />
                 {renderRelated?.(globalIndex)}
               </div>

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { UnifiedSchema, SemanticMetadata } from '../types/schema'
 import type { ParsedAPI } from '@api2aux/semantic-analysis'
 import type { ImportanceScore, GroupingResult } from '../services/analysis/types'
@@ -7,6 +8,14 @@ import type { DeployResult } from '../services/mcp/deploy'
 import type { SSEEvent } from '@api2aux/api-invoke'
 
 const MAX_STREAM_EVENTS = 1000
+
+/** Per-operation fetch result — cached independently so switching operations is instant */
+export interface OperationResult {
+  loading: boolean
+  error: Error | null
+  data: unknown
+  schema: UnifiedSchema | null
+}
 
 interface AnalysisCacheEntry {
   semantics: Map<string, SemanticMetadata>
@@ -42,11 +51,18 @@ interface AppState {
   optionsOpen: boolean
   setOptionsOpen: (open: boolean) => void
 
-  // Pipeline state
+  // Pipeline state (global — derived from selected operation for backward compat)
   loading: boolean
   error: Error | null
   data: unknown
   schema: UnifiedSchema | null
+
+  // Per-operation results (keyed by operation id)
+  operationResults: Record<string, OperationResult>
+  startOperationFetch: (operationId: string) => void
+  setOperationSuccess: (operationId: string, data: unknown, schema: UnifiedSchema) => void
+  setOperationError: (operationId: string, error: Error) => void
+  getOperationResult: (operationId: string) => OperationResult | null
 
   // OpenAPI state
   parsedSpec: ParsedAPI | null
@@ -119,7 +135,9 @@ interface AppState {
   clearParameters: () => void
 }
 
-export const useAppStore = create<AppState>()((set, get) => ({
+export const useAppStore = create<AppState>()(
+  persist(
+  (set, get) => ({
   url: '',
   urlMode: UrlMode.AUTO,
   optionsOpen: false,
@@ -127,6 +145,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   error: null,
   data: null,
   schema: null,
+  operationResults: {},
   parsedSpec: null,
   selectedOperationIndex: 0,
   parameterValues: {},
@@ -166,6 +185,29 @@ export const useAppStore = create<AppState>()((set, get) => ({
   startFetch: () => set({ loading: true, error: null, data: null, schema: null }),
   fetchSuccess: (data, schema) => set({ loading: false, data, schema, error: null }),
   fetchError: (error) => set({ loading: false, error, data: null, schema: null }),
+
+  // Per-operation fetch actions
+  startOperationFetch: (operationId) => set((state) => ({
+    operationResults: {
+      ...state.operationResults,
+      [operationId]: { loading: true, error: null, data: null, schema: null },
+    },
+  })),
+  setOperationSuccess: (operationId, data, schema) => set((state) => ({
+    operationResults: {
+      ...state.operationResults,
+      [operationId]: { loading: false, error: null, data, schema },
+    },
+  })),
+  setOperationError: (operationId, error) => set((state) => ({
+    operationResults: {
+      ...state.operationResults,
+      [operationId]: { loading: false, error, data: null, schema: null },
+    },
+  })),
+  getOperationResult: (operationId) => {
+    return get().operationResults[operationId] ?? null
+  },
   reset: () => set({
     url: '',
     urlMode: UrlMode.AUTO,
@@ -174,6 +216,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     error: null,
     data: null,
     schema: null,
+    operationResults: {},
     parsedSpec: null,
     selectedOperationIndex: 0,
     parameterValues: {},
@@ -253,14 +296,40 @@ export const useAppStore = create<AppState>()((set, get) => ({
     loading: false,
     error: null
   }),
-  setSelectedOperation: (index) => set({
-    selectedOperationIndex: index,
-    parameterValues: {},
-    data: null,
-    schema: null
-  }),
+  setSelectedOperation: (index) => {
+    const { parsedSpec, operationResults } = get()
+    const op = parsedSpec?.operations[index]
+    const cached = op ? operationResults[op.id] : null
+    set({
+      selectedOperationIndex: index,
+      parameterValues: {},
+      // Restore cached results for this operation (or clear if none)
+      data: cached?.data ?? null,
+      schema: cached?.schema ?? null,
+      error: cached?.error ?? null,
+      loading: cached?.loading ?? false,
+    })
+  },
   setParameterValue: (name, value) => set((state) => ({
     parameterValues: { ...state.parameterValues, [name]: value }
   })),
   clearParameters: () => set({ parameterValues: {} }),
-}))
+}),
+    {
+      name: 'api2aux-app',
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        // Only persist user configuration — not transient runtime state
+        url: state.url,
+        urlMode: state.urlMode,
+        httpMethod: state.httpMethod,
+        requestBody: state.requestBody,
+        requestBodyFormat: state.requestBodyFormat,
+        additionalEndpoints: state.additionalEndpoints,
+        baseUrlOverride: state.baseUrlOverride,
+        parameterValues: state.parameterValues,
+      }),
+    }
+  )
+)

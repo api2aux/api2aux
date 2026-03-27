@@ -4,6 +4,9 @@ import { fetchWithAuth, credentialToAuth, type FetchOptions } from '../services/
 import { inferSchema } from '../services/schema/inferrer'
 import { parseOpenAPISpec } from '@api2aux/semantic-analysis'
 import type { Operation } from '@api2aux/semantic-analysis'
+import { ensureAuthenticated, reauthenticateOnFailure, hasAuthChain } from '../services/api/authChain'
+import { useAuthChainStore, getOrigin } from '../store/authChainStore'
+import { ApiInvokeError, ErrorKind } from '@api2aux/api-invoke'
 import {
   executeOperation,
   executeOperationStream,
@@ -60,7 +63,7 @@ function buildArgs(
  * The function orchestrates: fetchWithAuth -> inferSchema -> store update.
  */
 export function useAPIFetch() {
-  const { startFetch, fetchSuccess, fetchError, specSuccess, clearSpec, startStream, appendStreamEvents, streamComplete } = useAppStore()
+  const { startFetch, fetchSuccess, fetchError, specSuccess, clearSpec, startStream, appendStreamEvents, streamComplete, startOperationFetch, setOperationSuccess, setOperationError } = useAppStore()
   const { clearFieldConfigs } = useConfigStore()
 
   /**
@@ -143,6 +146,76 @@ export function useAPIFetch() {
    * Execute an operation via api-invoke's executeOperation.
    * Handles auth injection, CORS proxy, buildBody hooks (for GraphQL), and error mapping.
    */
+  /**
+   * Inner execution: run the operation and process result.
+   * Writes to per-operation cache AND updates global state if this is the selected operation.
+   */
+  const executeAndProcess = async (
+    baseUrl: string,
+    operation: Operation,
+    args: Record<string, unknown>,
+  ): Promise<'success' | 'auth-error'> => {
+    const credential = useAuthStore.getState().getActiveCredential(baseUrl)
+
+    const result = await executeOperation(baseUrl, operation, args, {
+      auth: credential ? credentialToAuth(credential) : undefined,
+      middleware: [proxy],
+      throwOnHttpError: hasAuthChain(baseUrl) ? false : true,
+    })
+
+    // If auth chain is active and we got a 401/403, signal retry
+    if (hasAuthChain(baseUrl) && result.errorKind === ErrorKind.AUTH) {
+      return 'auth-error'
+    }
+
+    // Re-throw HTTP errors when not using auth chain (preserves original behavior)
+    if (result.errorKind) {
+      const url = `${baseUrl}${operation.path}`
+      const status = result.status ?? 0
+      if (status === 401 || status === 403) {
+        throw new ApiInvokeError({
+          kind: ErrorKind.AUTH,
+          message: `Authentication failed for ${url}`,
+          suggestion: 'Check your credentials',
+          status,
+          responseBody: result.data,
+        })
+      }
+      throw new ApiInvokeError({
+        kind: result.errorKind,
+        message: `HTTP ${status} for ${url}`,
+        suggestion: 'Check the request parameters',
+        status,
+        responseBody: result.data,
+      })
+    }
+
+    // Check for GraphQL-level errors (HTTP 200 but errors in body)
+    if (hasGraphQLErrors(result)) {
+      const gqlErrors = getGraphQLErrors(result)
+      if (result.data && typeof result.data === 'object' && 'data' in (result.data as Record<string, unknown>) && (result.data as Record<string, unknown>).data !== null) {
+        const schema = inferSchema(result.data, `${baseUrl}${operation.path}`)
+        // Save to per-operation cache
+        setOperationSuccess(operation.id, result.data, schema)
+        // Update global if this is the currently selected operation
+        if (useAppStore.getState().parsedSpec?.operations[useAppStore.getState().selectedOperationIndex]?.id === operation.id) {
+          fetchSuccess(result.data, schema)
+        }
+        return 'success'
+      }
+      throw new GraphQLError(`${baseUrl}${operation.path}`, gqlErrors)
+    }
+
+    const schema = inferSchema(result.data, `${baseUrl}${operation.path}`)
+    // Save to per-operation cache
+    setOperationSuccess(operation.id, result.data, schema)
+    // Update global if this is the currently selected operation
+    if (useAppStore.getState().parsedSpec?.operations[useAppStore.getState().selectedOperationIndex]?.id === operation.id) {
+      fetchSuccess(result.data, schema)
+    }
+    return 'success'
+  }
+
   const fetchOperation = async (
     baseUrl: string,
     operation: Operation,
@@ -150,39 +223,46 @@ export function useAPIFetch() {
     bodyJson?: string
   ) => {
     try {
-      startFetch()
-
-      const credential = useAuthStore.getState().getActiveCredential(baseUrl)
-      const args = buildArgs(params, bodyJson, operation)
-
-      const result = await executeOperation(baseUrl, operation, args, {
-        auth: credential ? credentialToAuth(credential) : undefined,
-        middleware: [proxy],
-      })
-
-      // Check for GraphQL-level errors (HTTP 200 but errors in body)
-      if (hasGraphQLErrors(result)) {
-        const gqlErrors = getGraphQLErrors(result)
-        // Partial errors: data + errors — show data with warning
-        if (result.data && typeof result.data === 'object' && 'data' in (result.data as Record<string, unknown>) && (result.data as Record<string, unknown>).data !== null) {
-          const schema = inferSchema(result.data, `${baseUrl}${operation.path}`)
-          fetchSuccess(result.data, schema)
-          return
-        }
-        // Total failure: only errors, no data
-        throw new GraphQLError(`${baseUrl}${operation.path}`, gqlErrors)
+      // Start per-operation loading
+      startOperationFetch(operation.id)
+      // Also start global loading if this is the selected operation
+      if (useAppStore.getState().parsedSpec?.operations[useAppStore.getState().selectedOperationIndex]?.id === operation.id) {
+        startFetch()
       }
 
-      // Infer schema from response
-      const schema = inferSchema(result.data, `${baseUrl}${operation.path}`)
+      // Check if this operation IS the auth endpoint — use stored body from auth chain config
+      const operationUrl = `${baseUrl}${operation.path}`
+      const chainStore = useAuthChainStore.getState()
+      const isAuthOp = chainStore.isAuthEndpointUrl(operationUrl)
 
-      // Store success result
-      fetchSuccess(result.data, schema)
+      let effectiveBodyJson = bodyJson
+      if (isAuthOp) {
+        const config = chainStore.getConfig(getOrigin(baseUrl))
+        if (config?.requestBody && !bodyJson) {
+          effectiveBodyJson = config.requestBody
+        }
+      }
+
+      const args = buildArgs(params, effectiveBodyJson, operation)
+
+      // Auth chain: ensure we have a valid token before calling (skip for the auth endpoint itself)
+      if (hasAuthChain(baseUrl) && !isAuthOp) {
+        await ensureAuthenticated(baseUrl)
+      }
+
+      // Execute the operation
+      const outcome = await executeAndProcess(baseUrl, operation, args)
+
+      // Auto-retry on 401: re-authenticate and try once more (skip for the auth endpoint itself)
+      if (outcome === 'auth-error' && !isAuthOp) {
+        await reauthenticateOnFailure(baseUrl)
+        await executeAndProcess(baseUrl, operation, args)
+      }
     } catch (error) {
-      if (error instanceof Error) {
-        fetchError(error)
-      } else {
-        fetchError(new Error(String(error)))
+      const err = error instanceof Error ? error : new Error(String(error))
+      setOperationError(operation.id, err)
+      if (useAppStore.getState().parsedSpec?.operations[useAppStore.getState().selectedOperationIndex]?.id === operation.id) {
+        fetchError(err)
       }
     }
   }
@@ -256,6 +336,11 @@ export function useAPIFetch() {
   ) => {
     try {
       startStream()
+
+      // Auth chain: ensure we have a valid token before streaming
+      if (hasAuthChain(baseUrl)) {
+        await ensureAuthenticated(baseUrl)
+      }
 
       const credential = useAuthStore.getState().getActiveCredential(baseUrl)
       const args = buildArgs(params, bodyJson, operation)

@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import { Badge } from './ui/badge'
 import { LockIcon } from './auth/LockIcon'
 import { AuthPanel } from './auth/AuthPanel'
+import { AuthChainKeyIcon } from './auth/AuthChainInline'
 import { ExamplesCarousel } from './ExamplesCarousel'
 import { RequestBodyEditor } from './forms/RequestBodyEditor'
 import type { AuthStatus } from '../types/auth'
@@ -251,11 +252,11 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
               </button>
             </div>
             {/* Primary endpoint row */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <select
                 value={httpMethod}
                 onChange={(e) => setHttpMethod(e.target.value)}
-                className="px-2 py-1.5 border border-input rounded-md bg-background text-xs font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+                className="shrink-0 px-2 py-1.5 border border-input rounded-md bg-background text-xs font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
                 disabled={loading}
               >
                 <option value="GET">GET</option>
@@ -272,22 +273,18 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
                   setValidationError(null)
                 }}
                 placeholder="https://api.example.com/resource"
-                className="flex-1 px-3 py-1.5 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+                className="flex-1 min-w-0 px-3 py-1.5 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
                 disabled={loading}
               />
-              <LockIcon
-                status={lockStatus}
-                activeType={apiCreds?.activeType}
-                onClick={handleAuthPanelToggle}
-              />
+              {url && <span className="shrink-0"><AuthChainKeyIcon url={url} method={httpMethod} /></span>}
             </div>
             {/* Additional endpoint rows */}
             {additionalEndpoints.map((ep, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex items-center gap-2 min-w-0">
                 <select
                   value={ep.method}
                   onChange={(e) => updateEndpoint(i, 'method', e.target.value)}
-                  className="px-2 py-1.5 border border-input rounded-md bg-background text-xs font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+                  className="shrink-0 px-2 py-1.5 border border-input rounded-md bg-background text-xs font-mono focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
                   disabled={loading}
                 >
                   <option value="GET">GET</option>
@@ -301,13 +298,14 @@ export function URLInput({ authError, detectedAuth }: URLInputProps = {}) {
                   value={ep.url}
                   onChange={(e) => updateEndpoint(i, 'url', e.target.value)}
                   placeholder="https://api.example.com/resource"
-                  className="flex-1 px-3 py-1.5 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
+                  className="flex-1 min-w-0 px-3 py-1.5 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus-visible:ring-ring/50"
                   disabled={loading}
                 />
+                {ep.url && <span className="shrink-0"><AuthChainKeyIcon url={ep.url} method={ep.method} /></span>}
                 <button
                   type="button"
                   onClick={() => removeEndpoint(i)}
-                  className="px-1 py-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  className="shrink-0 px-1 py-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   title="Remove endpoint"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

@@ -14,6 +14,8 @@ interface SidebarProps {
   selectedIndex: number
   onSelect: (index: number) => void
   onCollapse?: () => void
+  /** Base URL for auth chain config */
+  baseUrl?: string
 }
 
 /** Compact clickable related endpoint item */
@@ -82,7 +84,7 @@ function RelatedSection({
   )
 }
 
-export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: SidebarProps) {
+export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse, baseUrl }: SidebarProps) {
   const { progress: discoveryProgress, probeResults, edges: runtimeEdges, discover, cancel } = useRuntimeDiscovery(parsedSpec)
   const workflowAnalysis = useWorkflowAnalysis(parsedSpec, runtimeEdges)
   const listRef = useRef<HTMLUListElement>(null)
@@ -185,6 +187,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
                 isSelected={index === selectedIndex}
                 onSelect={onSelect}
                 showNameInsteadOfPath={allSamePath}
+                baseUrl={baseUrl}
               />
               {renderInlineRelated(index)}
             </li>
@@ -201,6 +204,7 @@ export function Sidebar({ parsedSpec, selectedIndex, onSelect, onCollapse }: Sid
                 showNameInsteadOfPath={allSamePath}
                 renderRelated={renderInlineRelated}
                 forceOpen={indices.includes(selectedIndex)}
+                baseUrl={baseUrl}
               />
             </li>
           ))
