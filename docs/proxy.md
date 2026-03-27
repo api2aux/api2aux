@@ -67,7 +67,7 @@ Stripping `accept-encoding` from proxied requests ensures the upstream returns u
 pnpm dev
 ```
 
-The Vite dev server (port 5173) serves the app. For CORS proxying in development, Vite's `server.proxy` config can forward `/api-proxy/*` requests to an external proxy server if one is running.
+The Vite dev server (port 5173) serves the app. Vite's `server.proxy` config forwards `/api-proxy/*` requests to `http://localhost:8787`. If you're running the api2aux-platform proxy server locally on that port, CORS proxying works automatically. Otherwise, set `VITE_CORS_PROXY_URL` to point to your proxy (see below).
 
 ## Custom Proxy URL
 

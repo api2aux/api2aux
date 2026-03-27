@@ -114,7 +114,6 @@ Click "Share" to copy a URL that encodes the API endpoint and view configuration
 
 - **React 19** + TypeScript
 - **Vite** for dev server and builds
-- **Hono** for the MCP server CLI
 - **Zustand** for state management
 - **Tailwind CSS 4** for styling
 - **@modelcontextprotocol/sdk** for MCP protocol support
