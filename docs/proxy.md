@@ -88,7 +88,7 @@ You can use `cors-proxy` functions (`filterProxyHeaders`, `proxyRequest`) in you
 The `corsProxy()` middleware from `api-invoke` also supports `shouldProxy` to selectively bypass the proxy for certain URLs:
 
 ```typescript
-import { corsProxy } from 'api-invoke'
+import { corsProxy } from '@api2aux/api-invoke'
 
 const proxy = corsProxy({
   rewrite: (url) => `https://my-proxy.com/${encodeURIComponent(url)}`,

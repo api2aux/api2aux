@@ -10,13 +10,11 @@
 ```
 api2aux/
 ├── packages/
-│   ├── api-catalog/          # API catalog with admin tools
 │   ├── api-invoke/           # API spec parser, operation executor, auth injection
 │   ├── app/                  # React frontend (Vite)
 │   ├── chat-engine/          # LLM chat engine (pluggable, UI-independent)
 │   ├── cors-proxy/           # Platform-agnostic CORS proxy core
 │   ├── data2ui/              # Data-to-UI inference engine
-│   ├── embedding-service/    # Embedding service for semantic search
 │   ├── mcp-server/           # MCP tool definitions (CLI)
 │   ├── semantic-analysis/    # Field-level semantic enrichment
 │   ├── tool-definition-builder/ # Shared tool name/description generation
@@ -79,6 +77,7 @@ Internal packages use `workspace:*` protocol. Changes to a dependency package re
 ## Dev server notes
 
 - **Vite re-optimization**: After lockfile changes (adding packages, linking), Vite will log `Re-optimizing dependencies because lockfile has changed`. This is a one-time operation, normal.
+
 ## Environment variables
 
 The app uses client-side API keys entered in the UI (stored in localStorage). No `.env` file is required for basic local development.

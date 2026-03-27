@@ -60,6 +60,7 @@ Copy `.env.example` and adjust as needed:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VITE_MCP_WORKER_URL` | MCP worker URL for hosted deployments (see api2aux-platform) | _(empty — disables hosted tab)_ |
+| `VITE_CORS_PROXY_URL` | Custom CORS proxy URL for self-hosted deployments | _(empty — uses same-origin `/api-proxy/`)_ |
 
 ## Packages
 
