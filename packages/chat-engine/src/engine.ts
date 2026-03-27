@@ -11,6 +11,7 @@ import type {
   ChatMessage,
   LLMCompletionFn,
   LLMTextFn,
+  EmbedFn,
   ToolExecutorFn,
   ChatEngineContext,
   ChatEngineConfig,
@@ -39,6 +40,7 @@ export class ChatEngine {
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
   private llmText: LLMTextFn | undefined
+  private embedFn: EmbedFn | undefined
   private focusReduction: FocusReduction
 
   constructor(
@@ -65,6 +67,7 @@ export class ChatEngine {
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
     this.llmText = config?.llmText
+    this.embedFn = config?.embedFn
     this.focusReduction = config?.focusReduction ?? FocusReduction.TruncateValues
 
     // Validate resolved config values
@@ -73,6 +76,12 @@ export class ChatEngine {
     }
     if (!Number.isFinite(this.truncationLimit) || this.truncationLimit < 1) {
       throw new Error(`ChatEngineConfig: truncationLimit must be a finite number >= 1, got ${this.truncationLimit}`)
+    }
+    if (this.focusReduction === FocusReduction.EmbedFields && !this.embedFn) {
+      throw new Error('ChatEngineConfig: embed-fields strategy requires embedFn')
+    }
+    if (this.focusReduction === FocusReduction.LlmFields && !this.llmText) {
+      throw new Error('ChatEngineConfig: llm-fields strategy requires llmText')
     }
   }
 
@@ -86,7 +95,7 @@ export class ChatEngine {
   }
 
   /** Get the resolved engine configuration. */
-  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText'>>> {
+  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText' | 'embedFn'>>> {
     return {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
@@ -107,7 +116,18 @@ export class ChatEngine {
 
   /** Update the focus reduction strategy. */
   setFocusReduction(strategy: FocusReduction): void {
+    if (strategy === FocusReduction.EmbedFields && !this.embedFn) {
+      throw new Error('ChatEngineConfig: embed-fields strategy requires embedFn')
+    }
+    if (strategy === FocusReduction.LlmFields && !this.llmText) {
+      throw new Error('ChatEngineConfig: llm-fields strategy requires llmText')
+    }
     this.focusReduction = strategy
+  }
+
+  /** Update the embedding function for field-level reduction strategies. */
+  setEmbedFn(embedFn: EmbedFn | undefined): void {
+    this.embedFn = embedFn
   }
 
   /** Update the tool executor (e.g., when user changes API URL). */
@@ -520,11 +540,13 @@ export class ChatEngine {
     const reducedResults = await reduceToolResultsForFocus(
       toolResults,
       userMessage,
-      this.focusReduction,
-      undefined,
-      this.llmText,
-      (warning) => emit({ type: ChatEventType.Error, error: warning }),
-      this.context.domainFields,
+      {
+        strategy: this.focusReduction,
+        embedFn: this.embedFn,
+        llmText: this.llmText,
+        onWarning: (warning) => emit({ type: ChatEventType.Error, error: warning }),
+        domainFields: this.context.domainFields,
+      },
     )
 
     return formatStructuredResponse(

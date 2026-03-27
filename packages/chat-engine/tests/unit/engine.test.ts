@@ -899,6 +899,62 @@ describe('ChatEngine', () => {
       expect(() => new ChatEngine(llm, executor, testContext, { truncationLimit: -5 }))
         .toThrow('truncationLimit must be a finite number >= 1')
     })
+
+    it('rejects embed-fields without embedFn', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+
+      expect(() => new ChatEngine(llm, executor, testContext, { focusReduction: 'embed-fields' }))
+        .toThrow('embed-fields strategy requires embedFn')
+    })
+
+    it('rejects llm-fields without llmText', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+
+      expect(() => new ChatEngine(llm, executor, testContext, { focusReduction: 'llm-fields' }))
+        .toThrow('llm-fields strategy requires llmText')
+    })
+
+    it('accepts embed-fields with embedFn', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+      const embedFn = async () => [[]]
+
+      expect(() => new ChatEngine(llm, executor, testContext, {
+        focusReduction: 'embed-fields',
+        embedFn,
+      })).not.toThrow()
+    })
+
+    it('accepts llm-fields with llmText', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+      const llmText = async () => ''
+
+      expect(() => new ChatEngine(llm, executor, testContext, {
+        focusReduction: 'llm-fields',
+        llmText,
+      })).not.toThrow()
+    })
+
+    it('setFocusReduction rejects embed-fields without embedFn', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+      const engine = new ChatEngine(llm, executor, testContext)
+
+      expect(() => engine.setFocusReduction('embed-fields' as any))
+        .toThrow('embed-fields strategy requires embedFn')
+    })
+
+    it('setFocusReduction rejects llm-fields without llmText', () => {
+      const llm: LLMCompletionFn = vi.fn()
+      const executor: ToolExecutorFn = vi.fn()
+      const engine = new ChatEngine(llm, executor, testContext)
+
+      expect(() => engine.setFocusReduction('llm-fields' as any))
+        .toThrow('llm-fields strategy requires llmText')
+    })
   })
 
   describe('empty LLM content with no tool calls', () => {
