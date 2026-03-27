@@ -116,7 +116,18 @@ export class ChatEngine {
 
   /** Update the focus reduction strategy. */
   setFocusReduction(strategy: FocusReduction): void {
+    if (strategy === FocusReduction.EmbedFields && !this.embedFn) {
+      throw new Error('ChatEngineConfig: embed-fields strategy requires embedFn')
+    }
+    if (strategy === FocusReduction.LlmFields && !this.llmText) {
+      throw new Error('ChatEngineConfig: llm-fields strategy requires llmText')
+    }
     this.focusReduction = strategy
+  }
+
+  /** Update the embedding function for field-level reduction strategies. */
+  setEmbedFn(embedFn: EmbedFn | undefined): void {
+    this.embedFn = embedFn
   }
 
   /** Update the tool executor (e.g., when user changes API URL). */
@@ -529,11 +540,13 @@ export class ChatEngine {
     const reducedResults = await reduceToolResultsForFocus(
       toolResults,
       userMessage,
-      this.focusReduction,
-      this.embedFn,
-      this.llmText,
-      (warning) => emit({ type: ChatEventType.Error, error: warning }),
-      this.context.domainFields,
+      {
+        strategy: this.focusReduction,
+        embedFn: this.embedFn,
+        llmText: this.llmText,
+        onWarning: (warning) => emit({ type: ChatEventType.Error, error: warning }),
+        domainFields: this.context.domainFields,
+      },
     )
 
     return formatStructuredResponse(

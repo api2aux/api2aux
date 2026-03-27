@@ -44,6 +44,7 @@ export { formatStructuredResponse, hasUsableStructuredData, extractJson, clearFo
 
 // === Focus Reduction ===
 export { reduceToolResultsForFocus, truncateValues } from './reduction'
+export type { ReductionOptions } from './reduction'
 
 // === Engine ===
 export { ChatEngine } from './engine'

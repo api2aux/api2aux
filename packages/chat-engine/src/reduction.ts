@@ -16,6 +16,15 @@ import { extractJson } from './response'
 
 // ── Public API ──
 
+/** Options for focus reduction strategies. */
+export interface ReductionOptions {
+  strategy: FocusReduction
+  embedFn?: EmbedFn
+  llmText?: LLMTextFn
+  onWarning?: (message: string) => void
+  domainFields?: ReadonlySet<string>
+}
+
 /**
  * Reduce each tool result's data for the focus/merge LLM.
  * Preserves all items; reduces per-item size via the chosen strategy.
@@ -23,12 +32,9 @@ import { extractJson } from './response'
 export async function reduceToolResultsForFocus(
   toolResults: ToolResultEntry[],
   query: string,
-  strategy: FocusReduction,
-  embedFn?: EmbedFn,
-  llmText?: LLMTextFn,
-  onWarning?: (message: string) => void,
-  domainFields?: ReadonlySet<string>,
+  options: ReductionOptions,
 ): Promise<ToolResultEntry[]> {
+  const { strategy, embedFn, llmText, onWarning, domainFields } = options
   const reduced: ToolResultEntry[] = []
 
   for (const result of toolResults) {
@@ -219,14 +225,14 @@ export async function embedFieldSelection(
   }))
   scored.sort((a, b) => b.score - a.score)
 
-  // Select top-K fields + always-include fields
+  // Select top-K embedding-ranked fields, then add identity fields on top (additive)
   const selectedFields = new Set<string>()
-  for (const field of ALWAYS_INCLUDE_FIELDS) {
-    if (fieldNames.includes(field)) selectedFields.add(field)
-  }
   for (const { name } of scored) {
     if (selectedFields.size >= DEFAULT_FIELD_K) break
     selectedFields.add(name)
+  }
+  for (const field of ALWAYS_INCLUDE_FIELDS) {
+    if (fieldNames.includes(field)) selectedFields.add(field)
   }
 
   // Filter items to selected fields only
@@ -306,13 +312,20 @@ function extractItems(data: unknown): { items: Record<string, unknown>[] | null;
 
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     const obj = data as Record<string, unknown>
+    // Pick the largest array-of-objects property as the primary data array
+    let bestKey: string | null = null
+    let bestObjects: Record<string, unknown>[] | null = null
     for (const [key, value] of Object.entries(obj)) {
       if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
         const objects = value.filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object' && !Array.isArray(item))
-        if (objects.length > 0) {
-          return { items: objects, wrapper: obj, arrayKey: key }
+        if (objects.length > 0 && (bestObjects === null || objects.length > bestObjects.length)) {
+          bestKey = key
+          bestObjects = objects
         }
       }
+    }
+    if (bestKey && bestObjects) {
+      return { items: bestObjects, wrapper: obj, arrayKey: bestKey }
     }
   }
 
@@ -360,7 +373,11 @@ function filterFields(item: Record<string, unknown>, fields: Set<string>): Recor
 
 /** Cosine similarity between two vectors. */
 function cosine(a: number[], b: number[]): number {
-  if (a.length !== b.length || a.length === 0) return 0
+  if (a.length === 0) return 0
+  if (a.length !== b.length) {
+    console.warn(`[chat-engine] cosine: vector dimension mismatch (${a.length} vs ${b.length}), returning 0`)
+    return 0
+  }
   let dot = 0, na = 0, nb = 0
   for (let i = 0; i < a.length; i++) {
     dot += a[i]! * b[i]!
