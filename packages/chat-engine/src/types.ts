@@ -184,6 +184,10 @@ export type MergeStrategy = typeof MergeStrategy[keyof typeof MergeStrategy]
 export const FocusReduction = {
   /** Keep all fields, truncate long values. No extra calls. */
   TruncateValues: 'truncate-values',
+  /** Select relevant fields via embedding similarity. Uses embedding service. */
+  EmbedFields: 'embed-fields',
+  /** Select relevant fields via lightweight LLM call. Most accurate. */
+  LlmFields: 'llm-fields',
 } as const
 export type FocusReduction = typeof FocusReduction[keyof typeof FocusReduction]
 
@@ -213,6 +217,8 @@ export interface ChatEngineConfig {
   mergeStrategy?: MergeStrategy
   /** Non-streaming LLM for merge/focus calls. When provided, runs in a separate async context from the streaming LLM. Falls back to the streaming LLM with a no-op token handler if not set. */
   llmText?: LLMTextFn
+  /** Embedding function for field-level reduction strategies (embed-fields). Used by reduceToolResultsForFocus to select relevant fields via embedding similarity. */
+  embedFn?: (texts: string[]) => Promise<number[][]>
   /** Strategy for reducing data before the focus/merge LLM call. Default: 'truncate-values'. */
   focusReduction?: FocusReduction
 }

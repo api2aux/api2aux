@@ -39,6 +39,7 @@ export class ChatEngine {
   private readonly truncationLimit: number
   private readonly mergeStrategy: MergeStrategy
   private llmText: LLMTextFn | undefined
+  private embedFn: ((texts: string[]) => Promise<number[][]>) | undefined
   private focusReduction: FocusReduction
 
   constructor(
@@ -65,6 +66,7 @@ export class ChatEngine {
     this.truncationLimit = config?.truncationLimit ?? TRUNCATION_LIMIT
     this.mergeStrategy = config?.mergeStrategy ?? MergeStrategy.LlmGuided
     this.llmText = config?.llmText
+    this.embedFn = config?.embedFn
     this.focusReduction = config?.focusReduction ?? FocusReduction.TruncateValues
 
     // Validate resolved config values
@@ -86,7 +88,7 @@ export class ChatEngine {
   }
 
   /** Get the resolved engine configuration. */
-  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText'>>> {
+  getConfig(): Readonly<Required<Omit<ChatEngineConfig, 'llmText' | 'embedFn'>>> {
     return {
       maxRounds: this.maxRounds,
       truncationLimit: this.truncationLimit,
@@ -521,7 +523,7 @@ export class ChatEngine {
       toolResults,
       userMessage,
       this.focusReduction,
-      undefined,
+      this.embedFn,
       this.llmText,
       (warning) => emit({ type: ChatEventType.Error, error: warning }),
       this.context.domainFields,
