@@ -80,7 +80,6 @@ Copy `.env.example` and adjust as needed:
 | `packages/cors-proxy` | Platform-agnostic CORS proxy core (web-standard Request/Response) |
 | `packages/data2ui` | Framework-agnostic data-to-UI inference engine — parses JSON/YAML/XML, selects optimal components, produces a serializable UIPlan descriptor tree |
 | `packages/mcp-server` | Standalone MCP server CLI — the agent interface. Turns any API into tools for Claude Desktop, Cursor, etc. |
-| `packages/mcp-worker` | Hosted multi-tenant MCP server (Node.js) |
 | `packages/semantic-analysis` | OpenAPI parser, semantic field classification, importance scoring, and grouping |
 | `packages/tool-definition-builder` | Shared tool name/description generation with semantic awareness |
 | `packages/workflow-inference` | Deterministic API endpoint relationship inference (no LLM) |
