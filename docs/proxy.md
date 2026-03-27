@@ -21,11 +21,10 @@ There is ONE canonical implementation of the proxy logic, consumed by thin platf
 
 | Layer | Location | Purpose |
 |-------|----------|---------|
-| **Shared core** | `packages/mcp-worker/src/lib/proxy-core.ts` | Platform-agnostic pure functions (web-standard `Request`/`Response`) |
-| **Hono adapter** | `packages/mcp-worker/src/routes/api-proxy.ts` | Mounts the proxy as a Hono route for Node.js |
+| **Shared core** | `packages/cors-proxy/src/index.ts` | Platform-agnostic pure functions (web-standard `Request`/`Response`) |
 | **Client middleware** | `packages/app/src/services/api/proxy.ts` | `corsProxy()` instance that rewrites URLs to `/api-proxy/{encoded}` |
 
-Deployment platforms (edge functions, serverless, etc.) create their own thin adapters that import from `proxy-core.ts`. The proxy logic is never duplicated.
+Deployment platforms (edge functions, serverless, etc.) create their own thin adapters that import from `cors-proxy`. The proxy logic is never duplicated.
 
 ## Shared Core API
 
@@ -53,8 +52,9 @@ Encapsulates the full proxy flow:
 1. Filter headers via `filterProxyHeaders`
 2. Forward body for non-GET/HEAD methods
 3. Fetch from upstream
-4. Add `Access-Control-Allow-Origin: *` to the response
-5. Return the response
+4. Strip stale response headers (`content-encoding` and `content-length`, invalidated by auto-decompression; `www-authenticate`, to prevent native browser auth dialogs)
+5. Add `Access-Control-Allow-Origin: *` to the response
+6. Return the response
 
 ## Why `accept-encoding` is stripped
 
@@ -65,15 +65,10 @@ Stripping `accept-encoding` from proxied requests ensures the upstream returns u
 ## Running Locally
 
 ```bash
-# From the monorepo root — starts both Vite dev server and mcp-worker
 pnpm dev
 ```
 
-This runs two processes in parallel:
-- **Vite** (port 5173) — serves the app, proxies `/api-proxy/*` to mcp-worker
-- **mcp-worker** (port 8787) — runs the Hono proxy route
-
-Vite's `server.proxy` config forwards all `/api-proxy/*` requests to mcp-worker, so the app works identically whether served by Vite in dev or by a production server.
+The Vite dev server (port 5173) serves the app. Vite's `server.proxy` config forwards `/api-proxy/*` requests to `http://localhost:8787`. If you're running the api2aux-platform proxy server locally on that port, CORS proxying works automatically. Otherwise, set `VITE_CORS_PROXY_URL` to point to your proxy (see below).
 
 ## Custom Proxy URL
 
@@ -89,12 +84,12 @@ When set, the client middleware rewrites API URLs to `{VITE_CORS_PROXY_URL}{enco
 2. Forward the request to the target with appropriate header filtering
 3. Add `Access-Control-Allow-Origin: *` to the response
 
-You can use `proxy-core.ts` functions (`filterProxyHeaders`, `proxyRequest`) in your custom proxy to get the same behavior.
+You can use `cors-proxy` functions (`filterProxyHeaders`, `proxyRequest`) in your custom proxy to get the same behavior.
 
 The `corsProxy()` middleware from `api-invoke` also supports `shouldProxy` to selectively bypass the proxy for certain URLs:
 
 ```typescript
-import { corsProxy } from 'api-invoke'
+import { corsProxy } from '@api2aux/api-invoke'
 
 const proxy = corsProxy({
   rewrite: (url) => `https://my-proxy.com/${encodeURIComponent(url)}`,
@@ -106,7 +101,7 @@ const proxy = corsProxy({
 
 To add a proxy adapter for a new platform:
 
-1. Create a thin wrapper that imports `proxyRequest` and `handleCorsPreflightResponse` from `proxy-core.ts`
+1. Create a thin wrapper that imports `proxyRequest` and `handleCorsPreflightResponse` from `@api2aux/cors-proxy`
 2. Extract the target URL from the platform's request format
 3. Pass any platform-specific headers to strip via the `extraSkipHeaders` parameter
 4. Call `proxyRequest()` and return the result
@@ -114,7 +109,7 @@ To add a proxy adapter for a new platform:
 Example skeleton:
 
 ```typescript
-import { proxyRequest, handleCorsPreflightResponse } from '<path-to>/proxy-core'
+import { proxyRequest, handleCorsPreflightResponse } from '@api2aux/cors-proxy'
 
 // Platform-specific headers to strip (in addition to the base set)
 const PLATFORM_SKIP_HEADERS = new Set(['x-platform-request-id', 'x-forwarded-for'])

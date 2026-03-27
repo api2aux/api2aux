@@ -23,8 +23,8 @@ export default defineConfig({
     include: ['buffer'],
   },
   server: {
-    // Proxy /api-proxy to mcp-worker (must be running on :8787).
-    // Start both with `pnpm dev` from the monorepo root.
+    // Forwards /api-proxy to a local CORS proxy server (e.g. api2aux-platform on :8787).
+    // No effect when VITE_CORS_PROXY_URL is set (requests go directly to that URL instead).
     proxy: {
       '/api-proxy': {
         target: 'http://localhost:8787',

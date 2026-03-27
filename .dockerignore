@@ -1,8 +1,0 @@
-**/node_modules
-**/dist
-.git
-.vite
-.wrangler
-.planning
-.playwright-mcp
-*.log

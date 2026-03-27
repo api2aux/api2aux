@@ -53,22 +53,14 @@ pnpm dev
 
 Open http://localhost:5173 and paste any JSON API URL, or try a built-in example.
 
-### Docker (self-hosting)
-
-```bash
-docker compose up
-```
-
-This runs a combined server on http://localhost:8787 with the app, MCP worker, and CORS proxy.
-
 ### Environment Variables
 
 Copy `.env.example` and adjust as needed:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VITE_MCP_WORKER_URL` | MCP worker URL for hosted deployments | _(empty — disables hosted tab)_ |
-| `PORT` | Server port (Docker / Node adapter) | `8787` |
+| `VITE_MCP_WORKER_URL` | MCP worker URL for hosted deployments (see api2aux-platform) | _(empty — disables hosted tab)_ |
+| `VITE_CORS_PROXY_URL` | Custom CORS proxy URL for self-hosted deployments | _(empty — uses same-origin `/api-proxy/`)_ |
 
 ## Packages
 
@@ -80,7 +72,6 @@ Copy `.env.example` and adjust as needed:
 | `packages/cors-proxy` | Platform-agnostic CORS proxy core (web-standard Request/Response) |
 | `packages/data2ui` | Framework-agnostic data-to-UI inference engine — parses JSON/YAML/XML, selects optimal components, produces a serializable UIPlan descriptor tree |
 | `packages/mcp-server` | Standalone MCP server CLI — the agent interface. Turns any API into tools for Claude Desktop, Cursor, etc. |
-| `packages/mcp-worker` | Hosted multi-tenant MCP server (Node.js) |
 | `packages/semantic-analysis` | OpenAPI parser, semantic field classification, importance scoring, and grouping |
 | `packages/tool-definition-builder` | Shared tool name/description generation with semantic awareness |
 | `packages/workflow-inference` | Deterministic API endpoint relationship inference (no LLM) |
@@ -124,7 +115,6 @@ Click "Share" to copy a URL that encodes the API endpoint and view configuration
 
 - **React 19** + TypeScript
 - **Vite** for dev server and builds
-- **Hono** for the Node.js server and MCP worker
 - **Zustand** for state management
 - **Tailwind CSS 4** for styling
 - **@modelcontextprotocol/sdk** for MCP protocol support

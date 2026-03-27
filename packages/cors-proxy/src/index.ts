@@ -2,7 +2,7 @@
  * Shared CORS proxy core — platform-agnostic.
  *
  * Pure functions using web-standard Request/Response types.
- * Consumed by platform adapters (Hono route, edge functions, etc.).
+ * Consumed by platform adapters (edge functions, serverless, etc.).
  */
 
 /** Headers stripped from all proxied requests regardless of platform. */
