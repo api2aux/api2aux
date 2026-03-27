@@ -52,8 +52,9 @@ Encapsulates the full proxy flow:
 1. Filter headers via `filterProxyHeaders`
 2. Forward body for non-GET/HEAD methods
 3. Fetch from upstream
-4. Add `Access-Control-Allow-Origin: *` to the response
-5. Return the response
+4. Strip stale response headers (`content-encoding` and `content-length`, invalidated by auto-decompression; `www-authenticate`, to prevent native browser auth dialogs)
+5. Add `Access-Control-Allow-Origin: *` to the response
+6. Return the response
 
 ## Why `accept-encoding` is stripped
 
