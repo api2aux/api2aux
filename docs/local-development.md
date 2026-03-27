@@ -14,7 +14,6 @@ apiglot/
     ├── packages/
     │   ├── app/             # React frontend (Vite)
     │   ├── chat-engine/     # LLM chat engine (pluggable, UI-independent)
-    │   ├── mcp-worker/      # MCP server + Hono HTTP adapter
     │   ├── mcp-server/      # MCP tool definitions
     │   ├── semantic-analysis/  # Field-level semantic enrichment
     │   ├── workflow-inference/ # Endpoint relation detection (static + runtime)
@@ -48,7 +47,6 @@ pnpm run build
 # 6. Start dev servers
 pnpm run dev
 # → App:        http://localhost:5173
-# → MCP Worker: http://localhost:8787
 ```
 
 ## The `api-invoke` link
@@ -90,7 +88,7 @@ pnpm link ../api-invoke
 
 | Command | Description |
 |---------|-------------|
-| `pnpm run dev` | Start app (Vite) + mcp-worker in parallel |
+| `pnpm run dev` | Start app dev server (Vite) |
 | `pnpm run build` | Build all packages |
 | `pnpm run test` | Run tests across all packages (watch mode) |
 | `pnpm run test:run` | Run tests once (CI mode) |
@@ -120,14 +118,7 @@ app
 ├── semantic-analysis
 ├── workflow-inference
 ├── tool-definition-builder
-└── api-invoke (linked)
-
-mcp-worker
-├── mcp-server
-│   ├── semantic-analysis
-│   ├── workflow-inference
-│   └── tool-definition-builder
-└── api-invoke (linked)
+└── api-invoke (workspace)
 ```
 
 Internal packages use `workspace:*` protocol. Changes to a dependency package require rebuilding it before the consuming package sees the update (or use the Vite dev server which handles this via HMR for the app).
@@ -135,8 +126,6 @@ Internal packages use `workspace:*` protocol. Changes to a dependency package re
 ## Dev server notes
 
 - **Vite re-optimization**: After lockfile changes (adding packages, linking), Vite will log `Re-optimizing dependencies because lockfile has changed`. This is a one-time operation, normal.
-- **serveStatic warning**: The mcp-worker logs `serveStatic: root path 'app/dist' is not found`. This is expected in dev mode — the app runs via Vite, not from the built `dist/` folder.
-
 ## Environment variables
 
 The app uses client-side API keys entered in the UI (stored in localStorage). No `.env` file is required for basic local development.

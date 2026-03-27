@@ -53,22 +53,13 @@ pnpm dev
 
 Open http://localhost:5173 and paste any JSON API URL, or try a built-in example.
 
-### Docker (self-hosting)
-
-```bash
-docker compose up
-```
-
-This runs a combined server on http://localhost:8787 with the app, MCP worker, and CORS proxy.
-
 ### Environment Variables
 
 Copy `.env.example` and adjust as needed:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VITE_MCP_WORKER_URL` | MCP worker URL for hosted deployments | _(empty — disables hosted tab)_ |
-| `PORT` | Server port (Docker / Node adapter) | `8787` |
+| `VITE_MCP_WORKER_URL` | MCP worker URL for hosted deployments (see api2aux-platform) | _(empty — disables hosted tab)_ |
 
 ## Packages
 
@@ -123,7 +114,7 @@ Click "Share" to copy a URL that encodes the API endpoint and view configuration
 
 - **React 19** + TypeScript
 - **Vite** for dev server and builds
-- **Hono** for the Node.js server and MCP worker
+- **Hono** for the MCP server CLI
 - **Zustand** for state management
 - **Tailwind CSS 4** for styling
 - **@modelcontextprotocol/sdk** for MCP protocol support
