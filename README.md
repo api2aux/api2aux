@@ -59,8 +59,7 @@ Copy `.env.example` and adjust as needed:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VITE_MCP_WORKER_URL` | MCP worker URL for hosted deployments (see api2aux-platform) | _(empty — disables hosted tab)_ |
-| `VITE_CORS_PROXY_URL` | Custom CORS proxy URL for self-hosted deployments | _(empty — uses same-origin `/api-proxy/`)_ |
+| `VITE_CORS_PROXY_URL` | CORS proxy URL for API requests | _(empty — uses same-origin `/api-proxy/`)_ |
 
 ## Packages
 
@@ -91,7 +90,7 @@ Paste a spec URL to browse tagged endpoints in a sidebar, fill in parameters wit
 Converse with API endpoints in natural language. The chat system generates tool calls from your questions and displays results with semantic rendering — the same workflow-aware intelligence that powers the agent tools.
 
 ### MCP Export
-Export any API as MCP tools — download a config for Claude Desktop, copy a CLI command for Claude Code, or deploy as a hosted MCP server. Tool names reflect business intent, not HTTP verbs. A `max_guests` field becomes a hospitality concept, not just a number parameter.
+Export any API as MCP tools — download a config for Claude Desktop or copy a CLI command for Claude Code. Tool names reflect business intent, not HTTP verbs. A `max_guests` field becomes a hospitality concept, not just a number parameter.
 
 ### Component Switching
 Switch between table, card list, gallery, timeline, hero, tabs, split, and more. The system auto-selects the best component based on data shape, but users and LLMs can override per-path.
