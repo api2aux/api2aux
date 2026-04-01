@@ -1,5 +1,22 @@
 packages:
   - packages/*
 
+# === Supply Chain Security ===
+
+# Only these packages may run postinstall/install scripts.
+# All others are blocked by default in pnpm 10.
 onlyBuiltDependencies:
   - esbuild
+
+# Fail if any dependency has unreviewed build scripts not in the allow list.
+strictDepBuilds: true
+
+# 24h quarantine — blocks freshly published packages.
+# Would have fully prevented the axios attack (removed within ~3h).
+minimumReleaseAge: 1440
+
+# Block git/tarball URLs in transitive deps — only registry, local, workspace allowed.
+blockExoticSubdeps: true
+
+# Prevent packages from downgrading their trust level (e.g., dropping provenance).
+trustPolicy: no-downgrade
