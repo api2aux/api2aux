@@ -9,12 +9,12 @@ overrides:
 
 # Only these packages may run postinstall/install scripts.
 # All others are blocked by default (pnpm 10+).
-onlyBuiltDependencies:
-  - esbuild
-  - msw
-  - onnxruntime-node
-  - protobufjs
-  - sharp
+allowBuilds:
+  esbuild: true
+  msw: true
+  onnxruntime-node: true
+  protobufjs: true
+  sharp: true
 
 # Fail if any dependency has unreviewed build scripts not in the allow list.
 strictDepBuilds: true
