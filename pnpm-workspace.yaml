@@ -3,20 +3,31 @@ packages:
 
 # === Supply Chain Security ===
 
+overrides:
+  path-to-regexp@>=8.0.0 <8.4.0: 8.4.0
+  express-rate-limit@>=8.2.0 <8.2.2: 8.3.2
+
 # Only these packages may run postinstall/install scripts.
-# All others are blocked by default in pnpm 10.
+# All others are blocked by default (pnpm 10+).
 onlyBuiltDependencies:
   - esbuild
+  - msw
+  - onnxruntime-node
+  - protobufjs
+  - sharp
 
 # Fail if any dependency has unreviewed build scripts not in the allow list.
 strictDepBuilds: true
 
-# 24h quarantine — blocks freshly published packages.
-# Would have fully prevented the axios attack (removed within ~3h).
+# 24h quarantine (1440 minutes) — blocks freshly published packages from
+# being resolved into the lockfile. Does not retroactively validate packages
+# already pinned in an existing lockfile (pnpm/pnpm#10438).
 minimumReleaseAge: 1440
 
-# Block git/tarball URLs in transitive deps — only registry, local, workspace allowed.
+# Block git/tarball URLs in transitive deps — only registry, local, workspace,
+# and trusted platform deps (node, bun, deno) are allowed.
 blockExoticSubdeps: true
 
-# Prevent packages from downgrading their trust level (e.g., dropping provenance).
+# Prevent packages from downgrading their npm trust level
+# (trusted publisher > provenance > none).
 trustPolicy: no-downgrade
