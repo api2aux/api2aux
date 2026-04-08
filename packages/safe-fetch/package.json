@@ -1,0 +1,55 @@
+{
+  "name": "@api2aux/safe-fetch",
+  "version": "0.1.0",
+  "description": "SSRF-safe fetch for Node.js — DNS-rebinding-resistant outbound HTTP via undici connection pinning",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:watch": "vitest --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "ssrf",
+    "fetch",
+    "security",
+    "dns-rebinding",
+    "undici"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jorgeroa/api2aux.git",
+    "directory": "packages/safe-fetch"
+  },
+  "homepage": "https://github.com/jorgeroa/api2aux/tree/main/packages/safe-fetch#readme",
+  "bugs": {
+    "url": "https://github.com/jorgeroa/api2aux/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ipaddr.js": "^2.2.0",
+    "undici": "^7.24.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.5.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
