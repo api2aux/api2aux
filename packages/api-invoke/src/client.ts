@@ -222,7 +222,7 @@ export async function createClient(
       api = await parseGraphQLSchema(input, { endpoint: options.specUrl, fetch: options.fetch })
     } else {
       // OpenAPI spec object passed directly
-      api = await parseOpenAPISpec(input, { specUrl: options.specUrl })
+      api = await parseOpenAPISpec(input, { specUrl: options.specUrl, fetch: options.fetch })
     }
   }
 
@@ -240,10 +240,11 @@ async function fetchAndParseSpec(url: string, options: ClientOptions): Promise<P
   try {
     specObject = JSON.parse(text)
   } catch {
-    // YAML or other format — let SwaggerParser resolve the URL directly
-    return parseOpenAPISpec(url, { specUrl: url })
+    // YAML or other format — let SwaggerParser resolve the URL directly.
+    // Forward options.fetch so SwaggerParser's $ref resolver uses it too.
+    return parseOpenAPISpec(url, { specUrl: url, fetch: options.fetch })
   }
-  return parseOpenAPISpec(specObject, { specUrl: url })
+  return parseOpenAPISpec(specObject, { specUrl: url, fetch: options.fetch })
 }
 
 /**
@@ -292,7 +293,7 @@ async function tryContentDetection(url: string, options: ClientOptions): Promise
   const obj = parsed as Record<string, unknown>
   if (isSpecContent(obj)) {
     // Content IS a spec — let parse errors propagate
-    return parseOpenAPISpec(obj, { specUrl: url })
+    return parseOpenAPISpec(obj, { specUrl: url, fetch: options.fetch })
   }
 
   if (isGraphQLIntrospection(obj)) {

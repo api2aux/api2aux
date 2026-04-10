@@ -47,20 +47,63 @@ export function normalizeType(type: unknown, fallback = 'string'): string {
  * @param specUrlOrObject - URL string pointing to a spec, or a pre-parsed spec object
  * @param options - Parse options
  * @param options.specUrl - Original spec URL (used for base URL fallback when spec has no servers/host field)
+ * @param options.fetch - Custom fetch implementation. When provided, it is forwarded to
+ *                        SwaggerParser as a `resolve.http.read` resolver so that the spec
+ *                        download AND any external `$ref` resolution flow through the same
+ *                        HTTP client. Used by callers wiring SSRF-safe fetches (e.g.
+ *                        `@api2aux/safe-fetch`) — without this, SwaggerParser's built-in
+ *                        HTTP resolver would bypass the custom fetch entirely.
  * @returns A normalized ParsedAPI with all operations, auth schemes, and metadata
  * @throws {Error} If the spec cannot be fetched, parsed, or dereferenced
  */
 export async function parseOpenAPISpec(
   specUrlOrObject: string | object,
-  options?: { specUrl?: string },
+  options?: { specUrl?: string; fetch?: typeof globalThis.fetch },
 ): Promise<ParsedAPI> {
   try {
+    // Build SwaggerParser options that route external $ref / spec downloads
+    // through the caller's custom fetch when one is provided. The shape is the
+    // documented json-schema-ref-parser resolver hook (SwaggerParser passes it
+    // through to its underlying $RefParser unchanged).
+    const userFetch = options?.fetch
+    const refParserOptions = userFetch
+      ? {
+          resolve: {
+            http: {
+              read: async (file: { url: string }) => {
+                const response = await userFetch(file.url)
+                if (!response.ok) {
+                  throw new Error(
+                    `Failed to resolve $ref ${file.url}: ${response.status} ${response.statusText}`,
+                  )
+                }
+                return await response.text()
+              },
+            },
+          },
+        }
+      : undefined
+
     let apiRaw: unknown
     try {
-      apiRaw = await SwaggerParser.dereference(specUrlOrObject as string)
-    } catch {
-      // Fallback: parse without resolving $refs (handles specs with broken references)
-      apiRaw = await SwaggerParser.parse(specUrlOrObject as string)
+      apiRaw = refParserOptions
+        ? await SwaggerParser.dereference(specUrlOrObject as string, refParserOptions)
+        : await SwaggerParser.dereference(specUrlOrObject as string)
+    } catch (dereferenceErr) {
+      // Fallback: parse without resolving $refs (handles specs with broken references).
+      // Pass the same resolver options so the fallback also goes through the custom fetch.
+      try {
+        apiRaw = refParserOptions
+          ? await SwaggerParser.parse(specUrlOrObject as string, refParserOptions)
+          : await SwaggerParser.parse(specUrlOrObject as string)
+      } catch (parseErr) {
+        // Both dereference and parse failed — throw the parse error with the
+        // original dereference error as cause so callers see both.
+        throw new Error(
+          `Spec parsing failed: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+          { cause: dereferenceErr },
+        )
+      }
     }
     const api = apiRaw as unknown as OpenAPIV3.Document | OpenAPIV2.Document
 

@@ -6,6 +6,12 @@ packages:
 overrides:
   path-to-regexp@>=8.0.0 <8.4.0: 8.4.0
   express-rate-limit@>=8.2.0 <8.2.2: 8.3.2
+  # GHSA-xpcf-pg52-r92g, GHSA-26pp-8wgv-hjvm, GHSA-r5rp-j6wh-rvv4,
+  # GHSA-xf4j-xp2r-rqqx, GHSA-wmmm-f939-6g9c — cookie handling, IP matching,
+  # path traversal, serveStatic bypass (via @modelcontextprotocol/sdk → hono)
+  hono@<4.12.12: 4.12.12
+  # GHSA-92pp-h63x-v22m — serveStatic bypass (via @modelcontextprotocol/sdk)
+  "@hono/node-server@<1.19.13": 1.19.13
 
 # Only these packages may run postinstall/install scripts.
 # All others are blocked by default (pnpm 10+).
