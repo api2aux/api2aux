@@ -24,7 +24,6 @@ describe('preflight', () => {
     })
 
     it('accepts canonical IPv4 dotted-quad public addresses', () => {
-      // pre-flight only checks form — IP classification happens at the agent
       expect(() => preflight('http://8.8.8.8/foo', NO_ALLOW)).not.toThrow()
     })
   })
@@ -91,6 +90,14 @@ describe('preflight', () => {
       const url = preflight('http://[2606:4700:3031::ac43:cd2a]/', NO_ALLOW)
       // hostname comes back bracketed
       expect(url.hostname).toContain('2606:4700:3031')
+    })
+    it('rejects IPv4-mapped IPv6 http://[::ffff:7f00:1]/ (longest code path)', () => {
+      // URL parsing → bracket stripping → ipaddr classification as ipv4Mapped → rejected.
+      // This is the most likely path to break on a future ipaddr.js upgrade.
+      expect(() => preflight('http://[::ffff:7f00:1]/', NO_ALLOW)).toThrow(SsrfBlockedError)
+    })
+    it('rejects IPv4-mapped IPv6 dotted form http://[::ffff:127.0.0.1]/', () => {
+      expect(() => preflight('http://[::ffff:127.0.0.1]/', NO_ALLOW)).toThrow(SsrfBlockedError)
     })
   })
 

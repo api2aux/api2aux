@@ -21,12 +21,6 @@ export interface SafeFetchOptions {
    * against a local API server. Defaults to an empty list (strict).
    */
   allowHosts?: readonly string[]
-
-  /**
-   * Reserved for forward compatibility — accepted in v0.1 but not yet enforced.
-   * Stream-level enforcement will land in a follow-up release.
-   */
-  maxResponseBytes?: number
 }
 
 /**

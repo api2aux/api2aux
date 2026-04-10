@@ -49,14 +49,22 @@ export function buildSafeLookup(allowHosts: ReadonlySet<string>) {
     const family = familyAsNumber(opts.family)
     const all = opts.all === true
 
-    // Allowlist bypass — explicit dev escape hatch
+    // Allowlist bypass — explicit dev escape hatch.
+    // Short-circuit literal IPs in the allowlist (avoids a wasted DNS syscall
+    // since the system resolver just returns the literal as-is).
     if (allowHosts.has(hostname)) {
+      if (ipaddr.isValid(hostname)) {
+        const ipFamily = hostname.includes(':') ? 6 : 4
+        return all
+          ? callback(null, [{ address: hostname, family: ipFamily }], 0)
+          : callback(null, hostname, ipFamily)
+      }
       if (all) {
-        dnsLookup(hostname, { family, all: true })
+        dnsLookup(hostname, { family, all: true as const, hints: opts.hints })
           .then((result) => callback(null, result, 0))
           .catch((err: NodeJS.ErrnoException) => fail(callback, err))
       } else {
-        dnsLookup(hostname, { family })
+        dnsLookup(hostname, { family, hints: opts.hints })
           .then((result) => callback(null, result.address, result.family))
           .catch((err: NodeJS.ErrnoException) => fail(callback, err))
       }
@@ -82,7 +90,7 @@ export function buildSafeLookup(allowHosts: ReadonlySet<string>) {
     // This is stricter than the system resolver's default (which returns
     // whichever record happened to be first) and prevents bypasses where
     // a hostname intentionally has mixed public/private records.
-    dnsLookup(hostname, { all: true, family })
+    dnsLookup(hostname, { all: true, family, hints: opts.hints })
       .then((addrs: LookupAddress[]) => {
         if (addrs.length === 0) {
           fail(callback, new SsrfBlockedError(hostname, `${hostname} resolved to no addresses`))

@@ -80,7 +80,6 @@ Returns a fetch function that enforces SSRF policy. Module-level singleton recom
 ```ts
 interface SafeFetchOptions {
   allowHosts?: readonly string[]
-  maxResponseBytes?: number  // accepted but not yet enforced
 }
 ```
 
@@ -137,12 +136,36 @@ The lookup runs *as part of* the connection establishment. There is no separate 
 
 TLS SNI and the HTTP `Host` header continue to use the original hostname, so HTTPS certificate validation works correctly.
 
+## Error types
+
+`safeFetch` throws two distinct error types. Callers can tell them apart via `instanceof`:
+
+| Error | When | Example |
+|---|---|---|
+| `SsrfBlockedError` | URL blocked by SSRF policy | Private IP, non-http protocol, embedded credentials |
+| `TypeError` (with `cause`) | Network/DNS failure unrelated to SSRF policy | `ENOTFOUND`, `ECONNREFUSED`, TLS errors |
+
+```ts
+try {
+  await safeFetch(url)
+} catch (err) {
+  if (err instanceof SsrfBlockedError) {
+    // Blocked by policy — do NOT retry
+    console.error('SSRF blocked:', err.reason)
+  } else {
+    // Network error — may be transient, retry is reasonable
+    console.error('Fetch failed:', err)
+  }
+}
+```
+
+**Note:** `SsrfBlockedError.message` redacts query strings to avoid leaking secrets in logs. The full URL (including query string) is available on `err.url` for programmatic access.
+
 ## Known limitations
 
 - **HTTP proxies bypass connection pinning.** Don't use safe-fetch behind `ProxyAgent` unless the proxy itself enforces SSRF policy.
 - **No DNS caching.** Every connection triggers a fresh `dns.lookup`. Add a TTL cache if profiling shows it's a hotspot.
 - **IPv6 zone identifiers (`fe80::1%eth0`) are unsupported.**
-- **`maxResponseBytes` is accepted but not yet enforced.**
 
 ## License
 

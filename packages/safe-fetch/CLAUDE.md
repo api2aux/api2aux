@@ -44,7 +44,7 @@
 - **HTTP proxies bypass connection pinning.** If you route safe-fetch through `ProxyAgent`, our `lookup` doesn't run. Don't use safe-fetch behind a proxy unless the proxy itself enforces SSRF policy.
 - **No DNS caching.** Every connection triggers a fresh `dns.lookup`. Add a TTL cache if profiling shows it's a hotspot.
 - **IPv6 zone identifiers (`fe80::1%eth0`) are unsupported.** Not used in API spec URLs in practice.
-- **`maxResponseBytes` is accepted but not yet enforced.** Forward-compat option; stream-level enforcement lands in a follow-up.
+
 
 ## Testing Conventions
 

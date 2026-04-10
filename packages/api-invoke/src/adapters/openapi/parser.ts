@@ -65,12 +65,13 @@ export async function parseOpenAPISpec(
     // through the caller's custom fetch when one is provided. The shape is the
     // documented json-schema-ref-parser resolver hook (SwaggerParser passes it
     // through to its underlying $RefParser unchanged).
-    const refParserOptions = options?.fetch
+    const userFetch = options?.fetch
+    const refParserOptions = userFetch
       ? {
           resolve: {
             http: {
               read: async (file: { url: string }) => {
-                const response = await options.fetch!(file.url)
+                const response = await userFetch(file.url)
                 if (!response.ok) {
                   throw new Error(
                     `Failed to resolve $ref ${file.url}: ${response.status} ${response.statusText}`,
@@ -88,12 +89,21 @@ export async function parseOpenAPISpec(
       apiRaw = refParserOptions
         ? await SwaggerParser.dereference(specUrlOrObject as string, refParserOptions)
         : await SwaggerParser.dereference(specUrlOrObject as string)
-    } catch {
+    } catch (dereferenceErr) {
       // Fallback: parse without resolving $refs (handles specs with broken references).
       // Pass the same resolver options so the fallback also goes through the custom fetch.
-      apiRaw = refParserOptions
-        ? await SwaggerParser.parse(specUrlOrObject as string, refParserOptions)
-        : await SwaggerParser.parse(specUrlOrObject as string)
+      try {
+        apiRaw = refParserOptions
+          ? await SwaggerParser.parse(specUrlOrObject as string, refParserOptions)
+          : await SwaggerParser.parse(specUrlOrObject as string)
+      } catch (parseErr) {
+        // Both dereference and parse failed — throw the parse error with the
+        // original dereference error as cause so callers see both.
+        throw new Error(
+          `Spec parsing failed: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+          { cause: dereferenceErr },
+        )
+      }
     }
     const api = apiRaw as unknown as OpenAPIV3.Document | OpenAPIV2.Document
 

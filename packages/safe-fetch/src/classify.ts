@@ -13,6 +13,11 @@ import ipaddr from 'ipaddr.js'
  *
  * This blocks all known SSRF target ranges including DNS-rebinding bypasses
  * via IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) and 6to4 wrapping of private v4.
+ *
+ * Returns `false` for invalid/unparseable input (e.g. hostnames, garbage strings).
+ * This is intentional — if ipaddr.js can't parse it, it's not a public unicast address.
+ * Callers that need to distinguish "malformed" from "private" should call
+ * `ipaddr.isValid()` separately before this function.
  */
 export function isPublicUnicast(addr: string): boolean {
   try {
