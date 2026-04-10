@@ -362,3 +362,71 @@ describe('operation security extraction', () => {
     expect(api.operations[0].security).toBeUndefined()
   })
 })
+
+describe('custom fetch resolver (SSRF integration hook)', () => {
+  it('forwards options.fetch to SwaggerParser as the HTTP $ref resolver', async () => {
+    // A spec containing an external $ref. SwaggerParser must use the custom
+    // resolver to read the referenced URL — without it, SwaggerParser falls
+    // back to its built-in HTTP resolver, which would bypass any caller-supplied
+    // SSRF protection.
+    const childSchema = JSON.stringify({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+    })
+    const spec = {
+      openapi: '3.0.0',
+      info: { title: 'Test', version: '1.0' },
+      paths: {
+        '/things': {
+          get: {
+            operationId: 'getThing',
+            responses: {
+              '200': {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: { $ref: 'https://fake.example.test/child.json' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+
+    const customFetchUrls: string[] = []
+    const customFetch: typeof globalThis.fetch = async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      customFetchUrls.push(url)
+      return new Response(childSchema, {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
+    const api = await parseOpenAPISpec(spec, { fetch: customFetch })
+
+    expect(customFetchUrls).toContain('https://fake.example.test/child.json')
+    expect(api.operations).toHaveLength(1)
+  })
+
+  it('does not break backward compatibility when fetch option is omitted', async () => {
+    // Same spec without external $refs — must still parse fine without options.fetch.
+    const spec = {
+      openapi: '3.0.0',
+      info: { title: 'Test', version: '1.0' },
+      paths: {
+        '/ping': {
+          get: {
+            operationId: 'ping',
+            responses: { '200': { description: 'OK' } },
+          },
+        },
+      },
+    }
+    const api = await parseOpenAPISpec(spec)
+    expect(api.operations).toHaveLength(1)
+    expect(api.operations[0]?.id).toBe('ping')
+  })
+})

@@ -1,6 +1,6 @@
 {
   "name": "@api2aux/api-invoke",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Parse any API spec and execute operations — OpenAPI, raw URLs, or manual endpoints",
   "type": "module",
   "main": "./dist/index.js",
